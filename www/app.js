@@ -52,7 +52,11 @@ function seed() {
     role: 'coach',
     currentAthleteId: a1,
     ui: { view: 'dashboard', calMonth: t.getMonth(), calYear: t.getFullYear() },
-    settings: { weekStart: 1, intervals: { apiKey: '', athleteId: '', lastSync: null } },
+    settings: {
+      weekStart: 1,
+      intervals: { apiKey: '', athleteId: '', lastSync: null },
+      notifications: { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' }
+    },
     athletes: [{
       id: a1, name: 'Demo Athlete', email: '', sport: 'biking',
       ftp: 250, maxHr: 190, thresholdHr: 168, thresholdPace: 240, /* sec/km */
@@ -61,14 +65,16 @@ function seed() {
       paceZones: clone(DEFAULT_PACE_ZONES)
     }],
     sessions: [
-      { id: uid(), athleteId: a1, date: iso(0), sport: 'biking', name: 'Endurance ride', duration: 90, load: 75, desc: '2x20min Z2 tempo, rest 5min easy.', strength: [], status: 'planned' },
-      { id: uid(), athleteId: a1, date: iso(1), sport: 'strength', name: 'Full body strength', duration: 45, load: 30, desc: 'Focus on legs & core.', status: 'planned',
+      { id: uid(), athleteId: a1, date: iso(0), sport: 'biking', name: 'Endurance ride', duration: 90, load: 75, desc: '2x20min Z2 tempo, rest 5min easy.', strength: [], status: 'planned',
+        steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 3, min: 20 }, { zt: 'power', z: 1, min: 5 }, { zt: 'power', z: 3, min: 20 }, { zt: 'power', z: 1, min: 30 }] },
+      { id: uid(), athleteId: a1, date: iso(1), sport: 'strength', name: 'Full body strength', duration: 45, load: 30, desc: 'Focus on legs & core.', status: 'planned', steps: [],
         strength: [
           { exercise: 'Back squat', sets: 4, reps: '6', weight: '80kg', rest: '2:00' },
           { exercise: 'Romanian deadlift', sets: 3, reps: '8', weight: '60kg', rest: '1:30' },
           { exercise: 'Plank', sets: 3, reps: '45s', weight: '-', rest: '1:00' }
         ] },
-      { id: uid(), athleteId: a1, date: iso(2), sport: 'running', name: 'Easy run', duration: 40, load: 35, desc: 'Zone 2 conversational pace.', strength: [], status: 'planned' }
+      { id: uid(), athleteId: a1, date: iso(2), sport: 'running', name: 'Easy run', duration: 40, load: 35, desc: 'Zone 2 conversational pace.', strength: [], status: 'planned',
+        steps: [{ zt: 'hr', z: 1, min: 10 }, { zt: 'hr', z: 1, min: 30 }] }
     ],
     library: [
       { id: uid(), sport: 'biking', name: 'Sweet spot 3x12', duration: 75, load: 68, desc: '3x12min @ 88-93% FTP, 5min recovery.', strength: [] },
@@ -88,6 +94,25 @@ function seed() {
         primary: { value: 240, unit: 'W' },
         metrics: [{ label: '20-min power', value: 253, unit: 'W' }, { label: 'Weight', value: 72, unit: 'kg' }, { label: 'W/kg', value: 3.3, unit: '' }],
         notes: 'Baseline test, felt strong.' }
+    ],
+    cycles: [
+      { id: uid(), athleteId: a1, type: 'macro', name: 'Season 2026', start: iso(-30), end: iso(240), sport: 'biking', zones: [], focus: 'Build to peak form for late-summer target event.' },
+      { id: uid(), athleteId: a1, type: 'meso', name: 'March — Base', start: iso(-5), end: iso(25), sport: 'running', zones: ['Z1', 'Z2'], focus: 'Aerobic base: Z1/Z2 running volume.' },
+      { id: uid(), athleteId: a1, type: 'micro', name: 'This week', start: weekKey(new Date()), end: toISO(addDays(fromISO(weekKey(new Date())), 6)), sport: 'biking', zones: ['Z2', 'Z3'], focus: 'Sweet-spot introduction, keep easy days easy.' }
+    ],
+    messages: [
+      { id: uid(), athleteId: a1, from: 'athlete', date: iso(-1), ts: Date.now() - 86400000, text: 'Legs felt heavy today, slept badly.' },
+      { id: uid(), athleteId: a1, from: 'coach', date: iso(-1), ts: Date.now() - 82800000, text: 'Thanks for letting me know — take tomorrow easy, drop to Z1.' }
+    ],
+    dayNotes: [
+      { id: uid(), athleteId: a1, date: iso(-2), text: 'Went out with friends, few drinks 🍻' }
+    ],
+    nutrition: [
+      { id: uid(), athleteId: a1, week: weekKey(new Date()), title: 'Base week fuelling', focus: 'Prioritise protein (1.6 g/kg) + carbs around key sessions. Hydration on long rides.', notes: 'Aim for 3 veg-rich meals/day. Limit alcohol on training days.' }
+    ],
+    goals: [
+      { id: uid(), athleteId: a1, by: 'coach', text: 'Raise FTP to 270 W by June', due: iso(150), status: 'open', createdAt: iso(-20) },
+      { id: uid(), athleteId: a1, by: 'athlete', text: 'Complete first 100 km ride', due: iso(60), status: 'open', createdAt: iso(-10) }
     ]
   };
 }
@@ -108,6 +133,14 @@ function load() {
 function migrate(s) {
   if (!Array.isArray(s.tests)) s.tests = [];
   if (!s.checkins) s.checkins = { sleep: [], session: [], weekly: [] };
+  if (!Array.isArray(s.cycles)) s.cycles = [];
+  if (!Array.isArray(s.messages)) s.messages = [];
+  if (!Array.isArray(s.dayNotes)) s.dayNotes = [];
+  if (!Array.isArray(s.nutrition)) s.nutrition = [];
+  if (!Array.isArray(s.goals)) s.goals = [];
+  if (!s.settings) s.settings = {};
+  if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
+  s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
   return s;
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -134,6 +167,77 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function currentAthlete() { return state.athletes.find(a => a.id === state.currentAthleteId) || state.athletes[0]; }
 function athleteSessions(id) { return state.sessions.filter(s => s.athleteId === id); }
+
+/* ------------------------------ Zones / load / compliance --------------- */
+const CYCLE_TYPES = { macro: 'Macrocycle', meso: 'Mesocycle', micro: 'Microcycle' };
+const ZONE_COLORS = ['#35c98b', '#7bc043', '#f5c518', '#f39c12', '#e67e22', '#e74c3c', '#c0392b']; // Z1..Z7-ish
+
+function zoneList(a, zt) { return zt === 'hr' ? (a.hrZones || []) : zt === 'pace' ? (a.paceZones || []) : (a.powerZones || []); }
+function zoneColor(z) { return ZONE_COLORS[Math.min(z, ZONE_COLORS.length - 1)] || '#8d99ae'; }
+function stepZoneName(a, step) { const z = zoneList(a, step.zt)[step.z]; return z ? z.name : `Z${step.z + 1}`; }
+function shortZone(step) { return 'Z' + (step.z + 1); }
+// intensity factor from zone midpoint (fraction of threshold)
+function stepIF(a, step) {
+  const z = zoneList(a, step.zt)[step.z]; if (!z) return 0.6;
+  const midPct = (Number(z.min) + Number(z.max)) / 2;
+  return Math.max(0.3, Math.min(1.6, midPct / 100));
+}
+function stepsDuration(steps) { return (steps || []).reduce((n, s) => n + (Number(s.min) || 0), 0); }
+function stepsLoad(a, steps) { // TSS-style estimate: sum (min/60)*IF^2*100
+  return Math.round((steps || []).reduce((n, s) => { const IF = stepIF(a, s); return n + (Number(s.min) || 0) / 60 * IF * IF * 100; }, 0));
+}
+// cycles covering a given date (ISO)
+function activeCycles(aid, dateISO) {
+  return state.cycles.filter(c => c.athleteId === aid && c.start <= dateISO && c.end >= dateISO);
+}
+function activeCycleOfType(aid, type, dateISO) { return activeCycles(aid, dateISO).find(c => c.type === type); }
+
+// how well a completed session's ACTUAL time-in-zone matched the PLAN (0-100)
+function sessionCompliance(s) {
+  const plan = s.steps || [];
+  const act = s.actual || null;
+  if (!plan.length) return null;              // nothing structured to compare
+  if (!act) return s.status === 'done' ? 100 : null; // done without adjustment = assume as planned
+  // aggregate minutes per zone key
+  const key = x => x.zt + x.z;
+  const agg = arr => arr.reduce((m, x) => { m[key(x)] = (m[key(x)] || 0) + (Number(x.min) || 0); return m; }, {});
+  const P = agg(plan), A = agg(act);
+  const keys = new Set([...Object.keys(P), ...Object.keys(A)]);
+  let diff = 0, total = 0;
+  keys.forEach(k => { diff += Math.abs((P[k] || 0) - (A[k] || 0)); total += (P[k] || 0); });
+  if (!total) return null;
+  return Math.max(0, Math.round(100 - (diff / total) * 100 / 2)); // /2 so swaps aren't double-counted
+}
+// weekly average compliance across completed sessions
+function weeklyCompliance(aid, wk) {
+  const vals = athleteSessions(aid).filter(s => s.status === 'done' && weekKey(fromISO(s.date)) === wk)
+    .map(sessionCompliance).filter(v => v != null);
+  if (!vals.length) return null;
+  return Math.round(vals.reduce((n, v) => n + v, 0) / vals.length);
+}
+
+// Fitness model: CTL (42d), ATL (7d) exponentially-weighted daily load; TSB = CTL-ATL(previous day)
+function computeFitness(aid, daysBack = 120) {
+  const today = new Date();
+  const start = addDays(today, -daysBack);
+  // daily load: completed sessions use actual/planned load; planned future ignored
+  const dayLoad = {};
+  athleteSessions(aid).forEach(s => {
+    if (s.status !== 'done') return;
+    const L = Number(s.load) || stepsLoad(currentAthlete(), s.steps) || 0;
+    dayLoad[s.date] = (dayLoad[s.date] || 0) + L;
+  });
+  const out = [];
+  let ctl = 0, atl = 0;
+  for (let d = new Date(start); d <= today; d = addDays(d, 1)) {
+    const iso = toISO(d);
+    const L = dayLoad[iso] || 0;
+    ctl = ctl + (L - ctl) / 42;
+    atl = atl + (L - atl) / 7;
+    out.push({ date: iso, ctl: +ctl.toFixed(1), atl: +atl.toFixed(1), tsb: +(ctl - atl).toFixed(1) });
+  }
+  return out;
+}
 
 function toast(msg) {
   const t = document.createElement('div');
@@ -163,12 +267,17 @@ function closeModal() { $('#modal-root').innerHTML = ''; }
 const NAV = [
   { id: 'dashboard',      label: 'Dashboard',      icon: '📊', roles: ['coach', 'athlete'] },
   { id: 'calendar',       label: 'Calendar',       icon: '📅', roles: ['coach', 'athlete'] },
+  { id: 'planning',       label: 'Planning',       icon: '🗓️', roles: ['coach', 'athlete'] },
   { id: 'library',        label: 'Workouts',       icon: '📚', roles: ['coach'] },
-  { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete'] },
+  { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete'] },
   { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete'] },
+  { id: 'nutrition',      label: 'Nutrition',      icon: '🥗', roles: ['coach', 'athlete'] },
+  { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete'] },
+  { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete'] },
+  { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete'] },
   { id: 'athletes',       label: 'Athletes & Zones', icon: '⚙️', roles: ['coach'] },
   { id: 'monitor',        label: 'Monitoring',     icon: '❤️', roles: ['coach'] },
-  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach'] }
+  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete'] }
 ];
 function navForRole() { return NAV.filter(n => n.roles.includes(state.role)); }
 function go(view) { state.ui.view = view; save(); render(); window.scrollTo(0, 0); }
@@ -224,8 +333,9 @@ function render() {
   $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
 
   const views = {
-    dashboard: viewDashboard, calendar: viewCalendar, library: viewLibrary,
-    questionnaires: viewQuestionnaires, testing: viewTesting, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings
+    dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
+    fitness: viewFitness, testing: viewTesting, nutrition: viewNutrition, goals: viewGoals,
+    questionnaires: viewQuestionnaires, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings
   };
   (views[view] || viewDashboard)();
 }
@@ -244,14 +354,16 @@ function viewDashboard() {
   const weekLoad = athleteSessions(a.id).filter(s => weekKey(fromISO(s.date)) === weekKey(new Date()))
     .reduce((n, s) => n + (Number(s.load) || 0), 0);
   const lastSleep = [...state.checkins.sleep].filter(s => s.athleteId === a.id).sort((x, y) => y.date.localeCompare(x.date))[0];
+  const compliance = weeklyCompliance(a.id, weekKey(new Date()));
 
   v.innerHTML = `
+    ${recommendationHTML(a.id, todayISO())}
     ${prompts.length ? `<div class="grid" style="margin-bottom:16px">${prompts.map(p => p.html).join('')}</div>` : ''}
 
     <div class="grid cols-4">
       <div class="card stat"><span class="l">Week load (TSS)</span><span class="v">${weekLoad}</span><div class="grad-bar"></div></div>
-      <div class="card stat"><span class="l">Planned</span><span class="v">${plannedCount}</span></div>
-      <div class="card stat"><span class="l">Completed</span><span class="v">${doneCount}</span></div>
+      <div class="card stat"><span class="l">Plan match (week)</span><span class="v" style="color:${compliance == null ? 'var(--muted)' : compliance >= 80 ? 'var(--ok)' : compliance >= 60 ? 'var(--yellow)' : 'var(--accent-2)'}">${compliance == null ? '—' : compliance + '%'}</span><span class="sub">actual vs planned zones</span></div>
+      <div class="card stat"><span class="l">Completed / Planned</span><span class="v">${doneCount}<small style="font-size:14px;color:var(--muted)"> / ${plannedCount}</small></span></div>
       <div class="card stat"><span class="l">FTP / Max HR</span><span class="v">${a.ftp}<small style="font-size:14px;color:var(--muted)"> W</small></span><span class="sub">${a.maxHr} bpm max</span></div>
     </div>
 
@@ -368,10 +480,12 @@ function drawCalendar() {
     const isToday = iso === todayISO();
     const daySessions = athleteSessions(a.id).filter(s => s.date === iso);
     const dayLoad = daySessions.reduce((n, s) => n + (Number(s.load) || 0), 0);
+    const dayNotes = state.dayNotes.filter(n => n.athleteId === a.id && n.date === iso);
     cells += `
       <div class="cal-cell ${inMonth ? '' : 'dim'} ${isToday ? 'today' : ''}" data-day="${iso}">
-        <div class="d"><span>${d.getDate()}</span>${dayLoad ? `<span class="load">${dayLoad} TSS</span>` : ''}</div>
+        <div class="d"><span>${d.getDate()} ${dayNotes.length ? '<span class="note-dot" title="' + esc(dayNotes.map(n => n.text).join(' · ')) + '"></span>' : ''}</span>${dayLoad ? `<span class="load">${dayLoad} TSS</span>` : ''}</div>
         ${daySessions.map(s => sessionChip(s)).join('')}
+        ${dayNotes.map(n => `<div class="day-note" title="${esc(n.text)}">📌 ${esc(n.text.slice(0, 24))}${n.text.length > 24 ? '…' : ''}</div>`).join('')}
       </div>`;
   }
 
@@ -430,14 +544,73 @@ function bindCalendarDnD() {
 }
 
 /* ------------------------------ Session modal --------------------------- */
+/* Reusable zone-click workout builder. Mutates `steps` in place; calls onChange after edits. */
+function mountStepBuilder(hostId, steps, a, canEdit, onChange) {
+  const host = document.getElementById(hostId);
+  if (!host) return;
+  let zt = steps[0] ? steps[0].zt : 'power';
+  function totals() {
+    const el = host.querySelector('#sb-tot');
+    if (el) el.textContent = steps.length ? `Total: ${stepsDuration(steps)} min · ~${stepsLoad(a, steps)} TSS (auto-calculated)` : '';
+  }
+  function drawSteps() {
+    const wrap = host.querySelector('#sb-steps');
+    wrap.innerHTML = steps.length ? steps.map((st, i) => `
+      <div class="step-row">
+        <span class="sw" style="background:${zoneColor(st.z)}"></span>
+        <span class="zn">${shortZone(st)} · ${esc(stepZoneName(a, st))} <span class="sub">(${st.zt === 'hr' ? 'HR' : 'Power'})</span></span>
+        <input type="number" data-si="${i}" value="${st.min}" ${canEdit ? '' : 'disabled'}/><span class="sub">min</span>
+        ${canEdit ? `<button class="x" data-sdel="${i}">&times;</button>` : ''}
+      </div>`).join('') : `<div class="sub" style="padding:6px">No blocks yet.${canEdit ? ' Click a zone above to add one.' : ''}</div>`;
+    wrap.querySelectorAll('input[data-si]').forEach(inp => inp.addEventListener('input', () => { steps[inp.dataset.si].min = Number(inp.value) || 0; totals(); onChange && onChange(); }));
+    wrap.querySelectorAll('[data-sdel]').forEach(b => b.addEventListener('click', () => { steps.splice(Number(b.dataset.sdel), 1); drawSteps(); onChange && onChange(); }));
+    totals();
+  }
+  function draw() {
+    const zones = zoneList(a, zt);
+    host.innerHTML = `
+      <label>Workout blocks — ${canEdit ? 'click a zone to add a block, then type the minutes' : 'planned zones'}</label>
+      ${canEdit ? `<div class="seg2" id="sb-type" style="margin-bottom:8px">
+        <button data-zt="power" class="${zt === 'power' ? 'active' : ''}">Power</button>
+        <button data-zt="hr" class="${zt === 'hr' ? 'active' : ''}">Heart rate</button>
+      </div>
+      <div class="zone-chips" id="sb-chips" style="margin-bottom:10px">
+        ${zones.map((z, i) => `<button data-add="${i}" style="border-left-color:${zoneColor(i)}">Z${i + 1} ${esc((z.name || '').replace(/^Z\d+\s*/, ''))}</button>`).join('')}
+      </div>` : ''}
+      <div id="sb-steps"></div>
+      <div class="sub" id="sb-tot" style="margin-top:6px"></div>`;
+    drawSteps();
+    if (canEdit) {
+      host.querySelectorAll('#sb-type button').forEach(b => b.addEventListener('click', () => { zt = b.dataset.zt; draw(); }));
+      host.querySelectorAll('#sb-chips button').forEach(b => b.addEventListener('click', () => { steps.push({ zt, z: Number(b.dataset.add), min: 10 }); drawSteps(); onChange && onChange(); }));
+    }
+  }
+  draw();
+}
+
+/* Recommendation banner from the active meso/micro cycle covering a date */
+function recommendationHTML(aid, dateISO) {
+  const meso = activeCycleOfType(aid, 'meso', dateISO);
+  const micro = activeCycleOfType(aid, 'micro', dateISO);
+  const c = micro || meso;
+  if (!c) return '';
+  const sp = SPORTS[c.sport] || SPORTS.other;
+  const zones = (c.zones || []).map(z => `<span class="zbadge">${esc(z)}</span>`).join('');
+  return `<div class="prompt" style="margin-bottom:14px"><span class="icon">💡</span>
+    <div class="grow"><b>Recommended focus (${CYCLE_TYPES[c.type]})</b>
+    <div class="sub">${sp.icon} ${sp.label} — ${esc(c.focus || '')} ${zones}</div></div></div>`;
+}
+
 function openSessionModal(id, presetDate) {
   const editing = id ? state.sessions.find(s => s.id === id) : null;
-  const s = editing || { id: null, sport: 'biking', name: '', duration: 60, load: 50, date: presetDate || todayISO(), desc: '', strength: [], status: 'planned' };
+  const s = editing || { id: null, sport: 'biking', name: '', duration: 60, load: 50, date: presetDate || todayISO(), desc: '', strength: [], steps: [], status: 'planned' };
   const canEdit = state.role === 'coach';
+  const a = currentAthlete();
 
   const sportOpts = Object.entries(SPORTS).map(([k, sp]) => `<option value="${k}" ${s.sport === k ? 'selected' : ''}>${sp.icon} ${sp.label}</option>`).join('');
 
   const body = `
+    ${recommendationHTML(state.currentAthleteId, s.date)}
     <label>Sport</label>
     <select id="f-sport" ${canEdit ? '' : 'disabled'}>${sportOpts}</select>
     <label>Session name</label>
@@ -447,8 +620,9 @@ function openSessionModal(id, presetDate) {
       <div><label>Duration (min)</label><input id="f-dur" type="number" value="${s.duration || 0}" ${canEdit ? '' : 'disabled'}/></div>
       <div><label>Load (TSS)</label><input id="f-load" type="number" value="${s.load || 0}" ${canEdit ? '' : 'disabled'}/></div>
     </div>
-    <label>Workout / steps</label>
-    <textarea id="f-desc" ${canEdit ? '' : 'disabled'} placeholder="e.g. 2x20min @ 95% FTP, 5min recovery">${esc(s.desc)}</textarea>
+    <div id="steps-block" style="margin-top:12px"></div>
+    <label>Notes / extra instructions</label>
+    <textarea id="f-desc" ${canEdit ? '' : 'disabled'} placeholder="e.g. keep cadence high, fuel every 30min">${esc(s.desc)}</textarea>
     <div id="strength-block"></div>
   `;
   const foot = `
@@ -458,7 +632,13 @@ function openSessionModal(id, presetDate) {
 
   openModal(editing ? 'Edit session' : 'New session', body, foot);
 
+  const stepsState = clone(s.steps || []);
   const strengthState = clone(s.strength || []);
+
+  const syncTotals = () => {
+    if (stepsState.length) { $('#f-dur').value = stepsDuration(stepsState); $('#f-load').value = stepsLoad(a, stepsState); }
+  };
+  mountStepBuilder('steps-block', stepsState, a, canEdit, syncTotals);
   renderStrengthEditor(strengthState, canEdit);
 
   $('#f-sport').addEventListener('change', () => renderStrengthEditor(strengthState, canEdit));
@@ -468,8 +648,8 @@ function openSessionModal(id, presetDate) {
       id: s.id || uid(), athleteId: state.currentAthleteId,
       sport: $('#f-sport').value, name: $('#f-name').value.trim() || 'Untitled',
       date: $('#f-date').value, duration: Number($('#f-dur').value) || 0, load: Number($('#f-load').value) || 0,
-      desc: $('#f-desc').value, strength: strengthState, status: s.status || 'planned',
-      rpe: s.rpe, feeling: s.feeling, feltNote: s.feltNote
+      desc: $('#f-desc').value, steps: stepsState, strength: strengthState, status: s.status || 'planned',
+      rpe: s.rpe, feeling: s.feeling, feltNote: s.feltNote, actual: s.actual
     };
     if (editing) Object.assign(editing, obj); else state.sessions.push(obj);
     save(); closeModal(); render(); toast('Saved');
@@ -479,7 +659,9 @@ function openSessionModal(id, presetDate) {
     state.sessions = state.sessions.filter(x => x.id !== s.id); save(); closeModal(); render(); toast('Deleted');
   });
   if ($('#f-done')) $('#f-done').addEventListener('click', () => {
-    const target = editing || (() => { const o = { ...s, id: uid(), athleteId: state.currentAthleteId, strength: strengthState }; state.sessions.push(o); return o; })();
+    let target = editing;
+    if (!target) { target = { ...s, id: uid(), athleteId: state.currentAthleteId, steps: stepsState, strength: strengthState }; state.sessions.push(target); }
+    else { target.steps = stepsState; target.strength = strengthState; }
     target.status = 'done'; save(); closeModal(); render();
     openRpeModal(target.id); // trigger post-session check-in
   });
@@ -528,18 +710,28 @@ function bindScale(id, cb, initial) {
 function openRpeModal(sid) {
   const s = state.sessions.find(x => x.id === sid);
   if (!s) return;
+  const a = state.athletes.find(x => x.id === s.athleteId) || currentAthlete();
+  const hasPlan = (s.steps || []).length > 0;
   const body = `
     <div class="sub" style="margin-bottom:10px">${SPORTS[s.sport].icon} ${esc(s.name)} · ${fmtDate(s.date)}</div>
     <label>RPE — how hard was this session? (1 easy – 10 max)</label>
     ${scaleField('rpe-scale', s.rpe)}
     <label>How did you feel after this training?</label>
-    <textarea id="rpe-note" placeholder="Legs, energy, mood, niggles...">${esc(s.feltNote || '')}</textarea>`;
+    <textarea id="rpe-note" placeholder="Legs, energy, mood, niggles...">${esc(s.feltNote || '')}</textarea>
+    ${hasPlan ? `<label style="margin-top:14px">Actual time in each zone (adjust if the session differed from plan — this drives your compliance %)</label><div id="rpe-actual"></div>` : ''}`;
   openModal('Session feedback', body, `<button class="btn primary" id="rpe-save">Save feedback</button>`);
   const getRpe = bindScale('rpe-scale', () => {}, s.rpe);
+
+  const actual = clone(s.actual && s.actual.length ? s.actual : (s.steps || []));
+  if (hasPlan) mountStepBuilder('rpe-actual', actual, a, true, null);
+
   $('#rpe-save').addEventListener('click', () => {
     s.rpe = getRpe(); s.feltNote = $('#rpe-note').value;
+    if (hasPlan) s.actual = actual;
     state.checkins.session.push({ id: uid(), athleteId: s.athleteId, sessionId: s.id, date: todayISO(), rpe: s.rpe, note: s.feltNote });
-    save(); closeModal(); render(); toast('Feedback saved');
+    save(); closeModal(); render();
+    const c = sessionCompliance(s);
+    toast(c != null ? `Saved · ${c}% match to plan` : 'Feedback saved');
   });
 }
 
@@ -956,6 +1148,251 @@ function openTestModal(id) {
   });
 }
 
+/* ------------------------------ Planning / cycles ----------------------- */
+function viewPlanning() {
+  const a = currentAthlete();
+  const canEdit = state.role === 'coach';
+  const actions = $('#topbar-actions');
+  actions.innerHTML = canEdit ? `<button class="btn primary sm" id="add-cycle">+ Add cycle</button>` : '';
+  if (canEdit) $('#add-cycle').addEventListener('click', () => openCycleModal(null));
+
+  const cycles = state.cycles.filter(c => c.athleteId === a.id);
+  const group = (type) => cycles.filter(c => c.type === type).sort((x, y) => x.start.localeCompare(y.start));
+
+  const v = $('#view');
+  v.innerHTML = `
+    ${recommendationHTML(a.id, todayISO())}
+    <p class="sub">Season structure for ${esc(a.name)}. Macrocycle = whole season · Mesocycle = block (weeks/month) · Microcycle = week. The focus you set here drives the recommendations on the calendar and when building sessions.</p>
+    ${['macro', 'meso', 'micro'].map(type => `
+      <div class="section-title">${CYCLE_TYPES[type]}s</div>
+      <div>${group(type).length ? group(type).map(c => cycleBar(c, canEdit)).join('') : '<div class="empty">None yet.</div>'}</div>
+    `).join('')}`;
+
+  $$('[data-cycle-edit]').forEach(b => b.addEventListener('click', () => openCycleModal(b.dataset.cycleEdit)));
+}
+function cycleBar(c, canEdit) {
+  const sp = SPORTS[c.sport] || SPORTS.other;
+  const zones = (c.zones || []).map(z => `<span class="zbadge">${esc(z)}</span>`).join('');
+  return `<div class="cycle-bar ${c.type}">
+    <div class="ttl"><span>${esc(c.name)}</span>${canEdit ? `<button class="btn sm" data-cycle-edit="${c.id}">Edit</button>` : ''}</div>
+    <div class="rng">${fmtDate(c.start)} → ${fmtDate(c.end)} · ${sp.icon} ${sp.label}</div>
+    <div class="foc">${esc(c.focus || '')} ${zones}</div>
+  </div>`;
+}
+function openCycleModal(id) {
+  const editing = id ? state.cycles.find(c => c.id === id) : null;
+  const c = editing || { type: 'meso', name: '', sport: 'biking', start: todayISO(), end: toISO(addDays(new Date(), 27)), zones: [], focus: '' };
+  const typeOpts = Object.entries(CYCLE_TYPES).map(([k, l]) => `<option value="${k}" ${c.type === k ? 'selected' : ''}>${l}</option>`).join('');
+  const sportOpts = Object.entries(SPORTS).map(([k, sp]) => `<option value="${k}" ${c.sport === k ? 'selected' : ''}>${sp.icon} ${sp.label}</option>`).join('');
+  const body = `
+    <div class="inline">
+      <div><label>Type</label><select id="c-type">${typeOpts}</select></div>
+      <div><label>Sport focus</label><select id="c-sport">${sportOpts}</select></div>
+    </div>
+    <label>Name</label><input id="c-name" value="${esc(c.name)}" placeholder="e.g. March — Base"/>
+    <div class="inline">
+      <div><label>Start</label><input id="c-start" type="date" value="${c.start}"/></div>
+      <div><label>End</label><input id="c-end" type="date" value="${c.end}"/></div>
+    </div>
+    <label>Target zones (comma separated, e.g. Z1, Z2)</label>
+    <input id="c-zones" value="${esc((c.zones || []).join(', '))}" placeholder="Z1, Z2"/>
+    <label>Goal / focus for this block</label>
+    <textarea id="c-focus" placeholder="e.g. Aerobic base — Z1/Z2 running volume">${esc(c.focus || '')}</textarea>`;
+  const foot = `${editing ? '<button class="btn danger" id="c-del">Delete</button>' : ''}<button class="btn primary" id="c-save">Save</button>`;
+  openModal(editing ? 'Edit cycle' : 'New cycle', body, foot);
+  $('#c-save').addEventListener('click', () => {
+    const obj = {
+      id: c.id || uid(), athleteId: state.currentAthleteId, type: $('#c-type').value,
+      name: $('#c-name').value.trim() || CYCLE_TYPES[$('#c-type').value], sport: $('#c-sport').value,
+      start: $('#c-start').value, end: $('#c-end').value,
+      zones: $('#c-zones').value.split(',').map(z => z.trim()).filter(Boolean), focus: $('#c-focus').value
+    };
+    if (editing) Object.assign(editing, obj); else state.cycles.push(obj);
+    save(); closeModal(); render(); toast('Cycle saved');
+  });
+  if ($('#c-del')) $('#c-del').addEventListener('click', () => { state.cycles = state.cycles.filter(x => x.id !== c.id); save(); closeModal(); render(); toast('Deleted'); });
+}
+
+/* ------------------------------ Fitness (CTL/ATL/TSB) ------------------- */
+function viewFitness() {
+  const a = currentAthlete();
+  const data = computeFitness(a.id, 120);
+  const last = data[data.length - 1] || { ctl: 0, atl: 0, tsb: 0 };
+  const form = last.tsb;
+  const formLabel = form > 5 ? 'Fresh' : form < -15 ? 'High fatigue' : form < -5 ? 'Building' : 'Neutral';
+  const v = $('#view');
+  v.innerHTML = `
+    <p class="sub">Fitness (CTL, 42-day), Fatigue (ATL, 7-day) and Form (TSB = Fitness − Fatigue), built from completed sessions — the same model as Intervals.icu / TrainingPeaks.</p>
+    <div class="grid cols-3" style="margin:12px 0">
+      <div class="card stat"><span class="l">Fitness (CTL)</span><span class="v" style="color:var(--accent)">${last.ctl}</span></div>
+      <div class="card stat"><span class="l">Fatigue (ATL)</span><span class="v" style="color:var(--accent-2)">${last.atl}</span></div>
+      <div class="card stat"><span class="l">Form (TSB)</span><span class="v" style="color:var(--yellow)">${last.tsb}</span><span class="sub">${formLabel}</span></div>
+    </div>
+    <div class="card">
+      <h3>Fitness / Fatigue / Form — last 120 days</h3>
+      <div class="chart-wrap">${fitnessChart(data)}</div>
+      <div class="legend">
+        <span><i style="background:var(--accent)"></i>Fitness (CTL)</span>
+        <span><i style="background:var(--accent-2)"></i>Fatigue (ATL)</span>
+        <span><i style="background:var(--yellow)"></i>Form (TSB)</span>
+      </div>
+      <p class="sub" style="margin-top:8px">Tip: form dips negative during hard blocks and rises positive as you taper toward an event. Values grow as you complete more sessions.</p>
+    </div>`;
+}
+function fitnessChart(data) {
+  const W = 760, H = 280, pad = 34;
+  if (!data.length) return '<div class="empty">No data yet.</div>';
+  const vals = data.flatMap(d => [d.ctl, d.atl, d.tsb]);
+  const min = Math.min(0, ...vals), max = Math.max(10, ...vals);
+  const x = i => pad + (i / (data.length - 1 || 1)) * (W - pad * 2);
+  const y = val => H - pad - ((val - min) / (max - min || 1)) * (H - pad * 2);
+  const path = (key) => data.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join(' ');
+  const zeroY = y(0);
+  // month gridlines
+  let grid = '';
+  data.forEach((d, i) => { if (fromISO(d.date).getDate() === 1) grid += `<line x1="${x(i)}" y1="${pad}" x2="${x(i)}" y2="${H - pad}" stroke="var(--line)" stroke-dasharray="2,3"/><text x="${x(i)}" y="${H - pad + 14}" fill="var(--muted)" font-size="10" text-anchor="middle">${MONTHS[fromISO(d.date).getMonth()].slice(0, 3)}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="min-width:520px">
+    ${grid}
+    <line x1="${pad}" y1="${zeroY}" x2="${W - pad}" y2="${zeroY}" stroke="var(--line)"/>
+    <text x="${pad - 6}" y="${zeroY + 3}" fill="var(--muted)" font-size="10" text-anchor="end">0</text>
+    <path d="${path('ctl')}" fill="none" stroke="#3b30e6" stroke-width="2.5"/>
+    <path d="${path('atl')}" fill="none" stroke="#e50914" stroke-width="2"/>
+    <path d="${path('tsb')}" fill="none" stroke="#f5c518" stroke-width="1.6" stroke-dasharray="4,3"/>
+  </svg>`;
+}
+
+/* ------------------------------ Nutrition ------------------------------- */
+function viewNutrition() {
+  const a = currentAthlete();
+  const canEdit = state.role === 'coach';
+  const actions = $('#topbar-actions');
+  actions.innerHTML = canEdit ? `<button class="btn primary sm" id="add-nut">+ Add week</button>` : '';
+  if (canEdit) $('#add-nut').addEventListener('click', () => openNutritionModal(null));
+
+  const items = state.nutrition.filter(n => n.athleteId === a.id).sort((x, y) => y.week.localeCompare(x.week));
+  const thisWeek = weekKey(new Date());
+  const v = $('#view');
+  v.innerHTML = `
+    <p class="sub">Weekly nutrition guidance for ${esc(a.name)}.</p>
+    <div class="list" style="margin-top:10px">
+      ${items.length ? items.map(n => `
+        <div class="card">
+          <div class="badge" style="${n.week === thisWeek ? 'background:var(--accent);color:var(--accent-ink)' : ''}">Week of ${fmtDate(n.week)}${n.week === thisWeek ? ' · this week' : ''}</div>
+          <h3 style="margin-top:8px">${esc(n.title || 'Nutrition focus')}</h3>
+          <p class="sub"><b style="color:var(--text)">Focus:</b> ${esc(n.focus || '')}</p>
+          ${n.notes ? `<p class="sub">${esc(n.notes)}</p>` : ''}
+          ${canEdit ? `<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-nut-edit="${n.id}">Edit</button><button class="btn sm danger" data-nut-del="${n.id}">Delete</button></div>` : ''}
+        </div>`).join('') : '<div class="empty">No nutrition guidance yet.</div>'}
+    </div>`;
+  $$('[data-nut-edit]').forEach(b => b.addEventListener('click', () => openNutritionModal(b.dataset.nutEdit)));
+  $$('[data-nut-del]').forEach(b => b.addEventListener('click', () => { state.nutrition = state.nutrition.filter(n => n.id !== b.dataset.nutDel); save(); viewNutrition(); }));
+}
+function openNutritionModal(id) {
+  const editing = id ? state.nutrition.find(n => n.id === id) : null;
+  const n = editing || { week: weekKey(new Date()), title: '', focus: '', notes: '' };
+  const body = `
+    <label>Week starting (Monday)</label><input id="n-week" type="date" value="${n.week}"/>
+    <label>Title</label><input id="n-title" value="${esc(n.title)}" placeholder="e.g. Base week fuelling"/>
+    <label>Focus for the week</label><textarea id="n-focus" placeholder="e.g. Protein 1.6 g/kg, carbs around key sessions, hydration">${esc(n.focus)}</textarea>
+    <label>Extra notes (optional)</label><textarea id="n-notes" placeholder="Meal ideas, what to avoid, supplements...">${esc(n.notes || '')}</textarea>`;
+  openModal(editing ? 'Edit nutrition' : 'Nutrition for a week', body, `<button class="btn primary" id="n-save">Save</button>`);
+  $('#n-save').addEventListener('click', () => {
+    const obj = { id: n.id || uid(), athleteId: state.currentAthleteId, week: weekKey(fromISO($('#n-week').value)), title: $('#n-title').value, focus: $('#n-focus').value, notes: $('#n-notes').value };
+    if (editing) Object.assign(editing, obj); else state.nutrition.push(obj);
+    save(); closeModal(); viewNutrition(); toast('Saved');
+  });
+}
+
+/* ------------------------------ Goals ----------------------------------- */
+function viewGoals() {
+  const a = currentAthlete();
+  const actions = $('#topbar-actions');
+  actions.innerHTML = `<button class="btn primary sm" id="add-goal">+ Add goal</button>`;
+  $('#add-goal').addEventListener('click', () => openGoalModal(null));
+
+  const goals = state.goals.filter(g => g.athleteId === a.id).sort((x, y) => (x.status === y.status ? (x.due || '').localeCompare(y.due || '') : x.status === 'open' ? -1 : 1));
+  const v = $('#view');
+  v.innerHTML = `
+    <p class="sub">Goals for ${esc(a.name)}. Both coach and athlete can add them.</p>
+    <div class="list" style="margin-top:10px">
+      ${goals.length ? goals.map(g => `
+        <div class="row">
+          <button class="btn sm" data-goal-toggle="${g.id}" title="Toggle done">${g.status === 'done' ? '✅' : '⬜'}</button>
+          <div class="grow">
+            <div class="title" style="${g.status === 'done' ? 'text-decoration:line-through;opacity:.6' : ''}">${esc(g.text)}</div>
+            <div class="meta">by ${g.by} ${g.due ? '· target ' + fmtDate(g.due) : ''}</div>
+          </div>
+          <button class="btn sm" data-goal-edit="${g.id}">Edit</button>
+          <button class="btn sm danger" data-goal-del="${g.id}">Delete</button>
+        </div>`).join('') : '<div class="empty">No goals yet.</div>'}
+    </div>`;
+  $$('[data-goal-toggle]').forEach(b => b.addEventListener('click', () => { const g = state.goals.find(x => x.id === b.dataset.goalToggle); g.status = g.status === 'done' ? 'open' : 'done'; save(); viewGoals(); }));
+  $$('[data-goal-edit]').forEach(b => b.addEventListener('click', () => openGoalModal(b.dataset.goalEdit)));
+  $$('[data-goal-del]').forEach(b => b.addEventListener('click', () => { state.goals = state.goals.filter(x => x.id !== b.dataset.goalDel); save(); viewGoals(); }));
+}
+function openGoalModal(id) {
+  const editing = id ? state.goals.find(g => g.id === id) : null;
+  const g = editing || { text: '', due: '', status: 'open' };
+  const body = `
+    <label>Goal</label><textarea id="g-text" placeholder="e.g. Raise FTP to 270 W">${esc(g.text)}</textarea>
+    <label>Target date (optional)</label><input id="g-due" type="date" value="${g.due || ''}"/>`;
+  openModal(editing ? 'Edit goal' : 'New goal', body, `<button class="btn primary" id="g-save">Save</button>`);
+  $('#g-save').addEventListener('click', () => {
+    const obj = { id: g.id || uid(), athleteId: state.currentAthleteId, by: editing ? g.by : state.role, text: $('#g-text').value.trim() || 'Goal', due: $('#g-due').value, status: g.status || 'open', createdAt: g.createdAt || todayISO() };
+    if (editing) Object.assign(editing, obj); else state.goals.push(obj);
+    save(); closeModal(); viewGoals(); toast('Saved');
+  });
+}
+
+/* ------------------------------ Messages & day notes -------------------- */
+function viewMessages() {
+  const a = currentAthlete();
+  const me = state.role; // 'coach' | 'athlete'
+  const msgs = state.messages.filter(m => m.athleteId === a.id).sort((x, y) => x.ts - y.ts);
+  const notes = state.dayNotes.filter(n => n.athleteId === a.id).sort((x, y) => y.date.localeCompare(x.date));
+  const v = $('#view');
+  v.innerHTML = `
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>💬 Chat ${me === 'coach' ? 'with ' + esc(a.name) : 'with coach'}</h3>
+        <div class="chat" id="chat">
+          ${msgs.length ? msgs.map(m => `<div class="bubble ${m.from === me ? 'me' : 'them'}">${esc(m.text)}<span class="when">${m.from === me ? 'You' : (m.from === 'coach' ? 'Coach' : esc(a.name))} · ${fmtDate(m.date)}</span></div>`).join('') : '<div class="sub">No messages yet.</div>'}
+        </div>
+        <div class="chat-input">
+          <input id="msg-text" placeholder="Type a message..."/>
+          <button class="btn primary" id="msg-send">Send</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>📌 Day notes</h3>
+        <p class="sub">Log something about a specific day (e.g. “went out, few drinks”, poor sleep, travel). Shows up for the coach.</p>
+        <div class="inline">
+          <div><label>Date</label><input id="note-date" type="date" value="${todayISO()}"/></div>
+          <div style="flex:2"><label>Note</label><input id="note-text" placeholder="e.g. Went out with friends 🍻"/></div>
+        </div>
+        <div class="btn-row" style="margin-top:8px"><button class="btn primary sm" id="note-add">Add note</button></div>
+        <div class="list" style="margin-top:12px">
+          ${notes.length ? notes.map(n => `<div class="row"><div class="grow"><div class="title">${esc(n.text)}</div><div class="meta">${fmtDate(n.date)}</div></div><button class="btn sm danger" data-note-del="${n.id}">×</button></div>`).join('') : '<div class="empty">No day notes yet.</div>'}
+        </div>
+      </div>
+    </div>`;
+
+  const chatEl = $('#chat'); if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
+  const send = () => {
+    const t = $('#msg-text').value.trim(); if (!t) return;
+    state.messages.push({ id: uid(), athleteId: a.id, from: me, date: todayISO(), ts: Date.now(), text: t });
+    save(); viewMessages();
+  };
+  $('#msg-send').addEventListener('click', send);
+  $('#msg-text').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  $('#note-add').addEventListener('click', () => {
+    const t = $('#note-text').value.trim(); if (!t) return;
+    state.dayNotes.push({ id: uid(), athleteId: a.id, date: $('#note-date').value, text: t });
+    save(); viewMessages(); toast('Note added');
+  });
+  $$('[data-note-del]').forEach(b => b.addEventListener('click', () => { state.dayNotes = state.dayNotes.filter(n => n.id !== b.dataset.noteDel); save(); viewMessages(); }));
+}
+
 /* ------------------------------ Monitoring ------------------------------ */
 function viewMonitor() {
   const v = $('#view');
@@ -985,6 +1422,7 @@ function viewMonitor() {
 function viewSettings() {
   const v = $('#view');
   const iv = state.settings.intervals;
+  const nt = state.settings.notifications;
   v.innerHTML = `
     <div class="card" style="max-width:640px">
       <h3>Intervals.icu connection</h3>
@@ -997,6 +1435,23 @@ function viewSettings() {
         <button class="btn" id="iv-sync">Sync now</button>
       </div>
       <div class="sub" style="margin-top:10px">${iv.lastSync ? 'Last sync: ' + iv.lastSync : 'Not synced yet.'}</div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-top:16px">
+      <h3>Reminders & notifications</h3>
+      <p class="sub">Reminds the athlete to fill in their check-ins: after each session, every morning (sleep), and Sunday evening (weekly reflection).</p>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="nt-enabled" style="width:auto" ${nt.enabled ? 'checked' : ''}/> <span>Enable notifications on this device</span></label>
+      <div style="margin-top:8px">
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="nt-morning" style="width:auto" ${nt.morning ? 'checked' : ''}/> <span>Every morning — sleep check-in</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="nt-post" style="width:auto" ${nt.postSession ? 'checked' : ''}/> <span>After each completed session — RPE & feeling</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="nt-sun" style="width:auto" ${nt.sundayEve ? 'checked' : ''}/> <span>Sunday evening — weekly reflection</span></label>
+      </div>
+      <div class="inline" style="margin-top:8px">
+        <div><label>Morning time</label><input id="nt-mtime" type="time" value="${nt.morningTime || '07:00'}"/></div>
+        <div><label>Evening time</label><input id="nt-etime" type="time" value="${nt.eveningTime || '20:00'}"/></div>
+      </div>
+      <div class="btn-row" style="margin-top:10px"><button class="btn" id="nt-test">Send a test notification</button></div>
+      <div class="hint">Web notifications fire reliably while the app is open or recently in the background. For alerts when the app is fully closed — especially on iPhone — a small push server is needed (can be added later). Install the app (below) for the best reminder reliability.</div>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:16px">
@@ -1039,6 +1494,24 @@ function viewSettings() {
     if (confirm('Reset all data? This cannot be undone.')) { state = seed(); save(); render(); toast('Reset'); }
   });
 
+  // Notifications
+  const saveNt = () => {
+    nt.morning = $('#nt-morning').checked; nt.postSession = $('#nt-post').checked; nt.sundayEve = $('#nt-sun').checked;
+    nt.morningTime = $('#nt-mtime').value; nt.eveningTime = $('#nt-etime').value; save();
+  };
+  ['#nt-morning', '#nt-post', '#nt-sun', '#nt-mtime', '#nt-etime'].forEach(id => $(id).addEventListener('change', saveNt));
+  $('#nt-enabled').addEventListener('change', async (e) => {
+    if (e.target.checked) {
+      const ok = await requestNotifPermission();
+      nt.enabled = ok; save();
+      if (ok) { toast('Notifications on'); checkReminders(); } else { e.target.checked = false; toast('Permission denied in browser'); }
+    } else { nt.enabled = false; save(); toast('Notifications off'); }
+  });
+  $('#nt-test').addEventListener('click', async () => {
+    const ok = Notification.permission === 'granted' ? true : await requestNotifPermission();
+    if (ok) notify('Tour Against Cancer', 'Test notification — reminders are working ✅'); else toast('Enable notifications first');
+  });
+
   $('#do-install').addEventListener('click', async () => {
     if (deferredInstall) {
       deferredInstall.prompt();
@@ -1057,5 +1530,54 @@ function viewSettings() {
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; });
 
+/* ------------------------------ Notifications --------------------------- */
+async function requestNotifPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const p = await Notification.requestPermission();
+  return p === 'granted';
+}
+function notify(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: './icons/logo.svg', badge: './icons/logo.svg' })).catch(() => new Notification(title, { body }));
+    } else { new Notification(title, { body }); }
+  } catch (e) {}
+}
+// de-dupe so a reminder fires at most once per day per type
+function reminderFiredKey(type) { return `tac_notif_${type}_${todayISO()}`; }
+function alreadyFired(type) { return localStorage.getItem(reminderFiredKey(type)) === '1'; }
+function markFired(type) { localStorage.setItem(reminderFiredKey(type), '1'); }
+
+function checkReminders() {
+  const nt = state.settings.notifications;
+  if (!nt || !nt.enabled || Notification.permission !== 'granted') return;
+  const a = currentAthlete(); if (!a) return;
+  const now = new Date();
+  const hhmm = now.toTimeString().slice(0, 5);
+
+  // Morning: sleep check-in
+  if (nt.morning && !alreadyFired('morning') && hhmm >= (nt.morningTime || '07:00')) {
+    const hasSleep = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === todayISO());
+    if (!hasSleep) { notify('Good morning 🌙', 'How did you sleep? Tap to log your morning check-in.'); markFired('morning'); }
+  }
+  // Post-session: completed sessions still missing RPE
+  if (nt.postSession && !alreadyFired('post')) {
+    const pending = athleteSessions(a.id).some(s => s.status === 'done' && s.rpe == null);
+    if (pending) { notify('Session done ✅', 'Add your RPE and how you felt after training.'); markFired('post'); }
+  }
+  // Sunday evening: weekly reflection
+  if (nt.sundayEve && !alreadyFired('sunday') && now.getDay() === 0 && hhmm >= (nt.eveningTime || '20:00')) {
+    const wk = weekKey(now);
+    const hasWeekly = state.checkins.weekly.some(w => w.athleteId === a.id && w.week === wk);
+    if (!hasWeekly) { notify('Weekly reflection 📆', 'How did this week feel? Tap to fill in your weekly check-in.'); markFired('sunday'); }
+  }
+}
+
 /* ------------------------------ Boot ------------------------------------ */
 render();
+checkReminders();
+setInterval(checkReminders, 5 * 60 * 1000); // re-check every 5 min while open
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); });
