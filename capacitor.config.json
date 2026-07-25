@@ -1,0 +1,12 @@
+{
+  "appId": "be.touragainstcancer.coach",
+  "appName": "TAC Coach",
+  "webDir": "www",
+  "backgroundColor": "#12141c",
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

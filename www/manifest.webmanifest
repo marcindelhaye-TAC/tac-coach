@@ -1,0 +1,14 @@
+{
+  "name": "Tour Against Cancer — Coach",
+  "short_name": "TAC Coach",
+  "description": "Endurance coaching & athlete monitoring app.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#12141c",
+  "theme_color": "#12141c",
+  "icons": [
+    { "src": "./icons/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
