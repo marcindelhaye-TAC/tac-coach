@@ -1658,7 +1658,7 @@ function checkReminders() {
 /* ------------------------------ Cloud sync (Firebase) ------------------- */
 const Cloud = {
   enabled: false, auth: null, db: null, user: null, teamRef: null,
-  applyingRemote: false, saveTimer: null,
+  applyingRemote: false, ready: false, saveTimer: null,
   // which parts of `state` are shared across devices (view prefs & device settings stay local)
   DATA_KEYS: ['athletes', 'coaches', 'sessions', 'library', 'questionnaires', 'responses', 'checkins', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals'],
 
@@ -1690,17 +1690,19 @@ const Cloud = {
     } catch (e) {}
 
     this.teamRef = this.db.collection('team').doc('main');
-    render(); // show app immediately with local cache
+    this.ready = false; // block local pushes until we've loaded the shared data at least once
+    render();           // show app shell immediately (render never pushes)
 
     this.teamRef.onSnapshot((snap) => {
       if (snap.metadata.hasPendingWrites) return;         // ignore our own echo
-      if (!snap.exists) { this.pushNow(); return; }        // first user seeds the shared team
+      if (!snap.exists) { this.pushNow(); this.ready = true; return; } // first user seeds the shared team
       const data = snap.data();
       this.applyingRemote = true;
       this.DATA_KEYS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
       migrate(state);
       localStorage.setItem(LS_KEY, JSON.stringify(state));
       this.applyingRemote = false;
+      this.ready = true;
       if (!document.querySelector('#modal-root .modal')) render(); // don't clobber an open modal
     }, (err) => toast('Sync error: ' + err.message));
 
@@ -1709,7 +1711,7 @@ const Cloud = {
   },
 
   push() {
-    if (!this.enabled || !this.user || this.applyingRemote) return;
+    if (!this.enabled || !this.user || this.applyingRemote || !this.ready) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => this.pushNow(), 600);
   },
