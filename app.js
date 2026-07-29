@@ -397,16 +397,18 @@ function viewDashboard() {
       ${upcoming.length ? upcoming.map(s => sessionRow(s)).join('') : '<div class="empty">Nothing scheduled. Add sessions on the Calendar.</div>'}
     </div>
 
-    <div class="grid cols-2" style="margin-top:20px">
-      <div class="card">
-        <h3>Recent sleep</h3>
-        ${lastSleep ? `<div class="sub">${fmtDate(lastSleep.date)}</div><div class="stat" style="margin-top:8px"><span class="v">${lastSleep.hours}h</span><span class="l">Quality ${lastSleep.quality}/10 · felt ${lastSleep.feel}/10</span></div>` : '<div class="empty">No sleep check-ins yet.</div>'}
+    <div class="card" style="margin-top:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Training load by sport — last 8 weeks</h3>
+        ${(() => { const wd = weekDistribution(a.id, weekKey(new Date())); return wd ? `<span class="badge" title="Intensity distribution this week (Seiler)"><span class="dot" style="background:var(--accent)"></span>${wd.model} · ${wd.lit}/${wd.mod}/${wd.hit}% LIT/MOD/HIT</span>` : ''; })()}
       </div>
-      <div class="card">
-        <h3>Load — last 8 weeks</h3>
-        ${sparkline(loadHistory(a.id, 8))}
-        <div class="sub" style="margin-top:8px">Weekly training load trend</div>
-      </div>
+      ${stackedLoadChart(weeklyLoadBySport(a.id, 8))}
+      <div class="sub" style="margin-top:6px">Total weekly load, split by sport. The tag shows this week's intensity distribution model.</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>Recent sleep</h3>
+      ${lastSleep ? `<div class="sub">${fmtDate(lastSleep.date)}</div><div class="stat" style="margin-top:8px"><span class="v">${lastSleep.hours}h</span><span class="l">Quality ${lastSleep.quality}/10 · felt ${lastSleep.feel}/10</span></div>` : '<div class="empty">No sleep check-ins yet.</div>'}
     </div>`;
 
   $$('[data-open-session]').forEach(b => b.addEventListener('click', () => openSessionModal(b.dataset.openSession)));
@@ -455,7 +457,7 @@ function sessionRow(s) {
   return `<div class="row">
     <span class="dot" style="background:${sp.color}"></span>
     <div class="grow">
-      <div class="title">${sp.icon} ${esc(s.name)}</div>
+      <div class="title">${sp.icon} ${esc(s.name)} ${focusBadge(s)}</div>
       <div class="meta">${fmtDate(s.date)} · ${sp.label} · ${s.duration || 0} min · ${s.load || 0} TSS</div>
     </div>
     ${s.status === 'done' ? '<span class="badge"><span class="dot" style="background:var(--ok)"></span>Done</span>' : ''}
@@ -476,6 +478,83 @@ function loadHistory(aid, weeks) {
 function sparkline(vals) {
   const max = Math.max(1, ...vals);
   return `<div class="spark">${vals.map(v => `<span style="height:${Math.round((v / max) * 100)}%" title="${v} TSS"></span>`).join('')}</div>`;
+}
+
+/* ---- Training focus classification (based on time-in-zone / intensity model) ----
+   Session focus = primary physiological stimulus (peak meaningful zone), per the 7-zone model.
+   Week model = intensity distribution (Seiler): Polarized / Pyramidal / Threshold. */
+const FOCUS_BY_ZONE = ['Recovery', 'Base / Endurance', 'Tempo', 'Threshold', 'VO₂max', 'Anaerobic', 'Sprint / Neuro'];
+const FOCUS_COLORS = ['#35c98b', '#7bc043', '#f5c518', '#f39c12', '#e67e22', '#e74c3c', '#c0392b'];
+function sessionFocus(s) {
+  const steps = (s && s.steps) || [];
+  if (!steps.length) {
+    if (s && s.sport === 'strength') return { label: 'Strength', color: '#b5179e' };
+    if (s && s.sport === 'stretching') return { label: 'Mobility', color: '#43aa8b' };
+    if (s && s.sport === 'injury') return { label: 'Prevention', color: '#f9c74f' };
+    return { label: '—', color: '#8d99ae' };
+  }
+  const byZone = {}; let total = 0;
+  steps.forEach(st => { byZone[st.z] = (byZone[st.z] || 0) + (Number(st.min) || 0); total += Number(st.min) || 0; });
+  if (!total) return { label: '—', color: '#8d99ae' };
+  const thr = Math.max(4, total * 0.08);
+  let peak = 0;
+  Object.keys(byZone).forEach(z => { if (byZone[z] >= thr && Number(z) > peak) peak = Number(z); });
+  const idx = Math.min(peak, 6);
+  const lit = (byZone[0] || 0) + (byZone[1] || 0), mod = (byZone[2] || 0);
+  const hit = Object.keys(byZone).filter(z => Number(z) >= 3).reduce((n, z) => n + byZone[z], 0);
+  return { label: FOCUS_BY_ZONE[idx], color: FOCUS_COLORS[idx], dist: { lit: Math.round(lit / total * 100), mod: Math.round(mod / total * 100), hit: Math.round(hit / total * 100) } };
+}
+function focusBadge(s) {
+  const f = sessionFocus(s);
+  if (f.label === '—') return '';
+  return `<span class="badge" title="Training focus (from zones)" style="border:1px solid ${f.color};color:${f.color}"><span class="dot" style="background:${f.color}"></span>${f.label}</span>`;
+}
+function weeklyLoadBySport(aid, weeks) {
+  const out = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const wk = weekKey(addDays(new Date(), -i * 7));
+    const bySport = {};
+    state.sessions.filter(s => s.athleteId === aid && weekKey(fromISO(s.date)) === wk)
+      .forEach(s => { bySport[s.sport] = (bySport[s.sport] || 0) + (Number(s.load) || 0); });
+    out.push({ wk, bySport, total: Object.values(bySport).reduce((n, v) => n + v, 0), label: fromISO(wk).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) });
+  }
+  return out;
+}
+function stackedLoadChart(data) {
+  const W = 720, H = 200, pad = 30, n = data.length || 1;
+  const max = Math.max(1, ...data.map(d => d.total));
+  const gap = (W - pad * 2) / n, bw = Math.min(46, gap * 0.62);
+  const order = Object.keys(SPORTS);
+  let bars = '';
+  data.forEach((d, i) => {
+    const x = pad + i * gap + (gap - bw) / 2;
+    let y = H - pad;
+    order.forEach(sp => {
+      const v = d.bySport[sp] || 0; if (!v) return;
+      const h = (v / max) * (H - pad * 2); y -= h;
+      bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="${SPORTS[sp].color}"><title>${SPORTS[sp].label}: ${v} TSS (${d.label})</title></rect>`;
+    });
+    bars += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - pad + 13}" fill="var(--muted)" font-size="9" text-anchor="middle">${d.label}</text>`;
+    if (d.total) bars += `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" fill="var(--text)" font-size="9" text-anchor="middle">${d.total}</text>`;
+  });
+  const totals = {};
+  data.forEach(d => Object.entries(d.bySport).forEach(([sp, v]) => totals[sp] = (totals[sp] || 0) + v));
+  const legend = order.filter(sp => totals[sp]).map(sp => `<span><i style="background:${SPORTS[sp].color}"></i>${SPORTS[sp].icon} ${SPORTS[sp].label} · ${totals[sp]} TSS</span>`).join('') || '<span class="sub">No load yet</span>';
+  return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="min-width:420px">${bars}</svg></div><div class="legend">${legend}</div>`;
+}
+function weekDistribution(aid, wk) {
+  let lit = 0, mod = 0, hit = 0;
+  state.sessions.filter(s => s.athleteId === aid && weekKey(fromISO(s.date)) === wk && (s.steps || []).length)
+    .forEach(s => (s.steps || []).forEach(st => { const m = Number(st.min) || 0; if (st.z <= 1) lit += m; else if (st.z === 2) mod += m; else hit += m; }));
+  const total = lit + mod + hit;
+  if (!total) return null;
+  const pLit = lit / total, pMod = mod / total, pHit = hit / total;
+  let model;
+  if (pHit >= 0.05 && pMod < 0.10 && pLit >= 0.6) model = 'Polarized';
+  else if (pLit >= 0.6 && pMod >= pHit) model = 'Pyramidal';
+  else if (pMod >= 0.30) model = 'Threshold';
+  else model = 'Mixed';
+  return { model, lit: Math.round(pLit * 100), mod: Math.round(pMod * 100), hit: Math.round(pHit * 100) };
 }
 
 /* ------------------------------ Calendar -------------------------------- */
@@ -541,9 +620,10 @@ function shiftMonth(n) {
 
 function sessionChip(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
+  const f = sessionFocus(s);
   return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
     <div class="t">${sp.icon} ${esc(s.name)} ${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
-    <div class="m">${s.duration || 0}min · ${s.load || 0} TSS</div>
+    <div class="m">${s.duration || 0}min · ${s.load || 0} TSS${f.label !== '—' ? ` · <span style="color:${f.color}">${f.label}</span>` : ''}</div>
   </div>`;
 }
 
@@ -646,6 +726,7 @@ function openSessionModal(id, presetDate) {
       <div><label>Load (TSS)</label><input id="f-load" type="number" value="${s.load || 0}" ${canEdit ? '' : 'disabled'}/></div>
     </div>
     <div id="steps-block" style="margin-top:12px"></div>
+    <div id="focus-line" style="margin-top:8px"></div>
     <label>Notes / extra instructions</label>
     <textarea id="f-desc" ${canEdit ? '' : 'disabled'} placeholder="e.g. keep cadence high, fuel every 30min">${esc(s.desc)}</textarea>
     <div id="strength-block"></div>
@@ -663,11 +744,17 @@ function openSessionModal(id, presetDate) {
 
   const syncTotals = () => {
     if (stepsState.length) { $('#f-dur').value = stepsDuration(stepsState); $('#f-load').value = stepsLoad(a, stepsState); }
+    const fl = $('#focus-line');
+    if (fl) {
+      const f = sessionFocus({ steps: stepsState, sport: $('#f-sport').value });
+      fl.innerHTML = f.label === '—' ? '' : `<span class="sub">Training focus: </span><span class="badge" style="border:1px solid ${f.color};color:${f.color}"><span class="dot" style="background:${f.color}"></span>${f.label}</span>${f.dist ? ` <span class="sub">· ${f.dist.lit}/${f.dist.mod}/${f.dist.hit}% LIT/MOD/HIT</span>` : ''}`;
+    }
   };
   mountStepBuilder('steps-block', stepsState, a, canEdit, syncTotals);
+  syncTotals();
   renderStrengthEditor(strengthState, canEdit, strengthMeta);
 
-  $('#f-sport').addEventListener('change', () => renderStrengthEditor(strengthState, canEdit, strengthMeta));
+  $('#f-sport').addEventListener('change', () => { renderStrengthEditor(strengthState, canEdit, strengthMeta); syncTotals(); });
 
   $('#f-save').addEventListener('click', () => {
     const obj = {
@@ -1339,6 +1426,14 @@ function viewFitness() {
         <span><i style="background:var(--yellow)"></i>Form (TSB)</span>
       </div>
       <p class="sub" style="margin-top:8px">Tip: form dips negative during hard blocks and rises positive as you taper toward an event. Values grow as you complete more sessions.</p>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Training load by sport — last 12 weeks</h3>
+        ${(() => { const wd = weekDistribution(a.id, weekKey(new Date())); return wd ? `<span class="badge" title="This week's intensity distribution (Seiler)"><span class="dot" style="background:var(--accent)"></span>${wd.model} · ${wd.lit}/${wd.mod}/${wd.hit}% LIT/MOD/HIT</span>` : ''; })()}
+      </div>
+      ${stackedLoadChart(weeklyLoadBySport(a.id, 12))}
+      <div class="sub" style="margin-top:6px">Total weekly load and its split across sports. LIT = easy (Z1–2), MOD = tempo (Z3), HIT = threshold+ (Z4+).</div>
     </div>`;
 }
 function fitnessChart(data) {
@@ -1518,7 +1613,7 @@ function viewMonitor() {
     <div class="list">${sleep.length ? sleep.map(s => `<div class="row"><div class="grow"><div class="title">${s.hours}h · quality ${s.quality}/10 · felt ${s.feel}/10</div><div class="meta">${fmtDate(s.date)}${s.note ? ' · ' + esc(s.note) : ''}</div></div></div>`).join('') : '<div class="empty">No sleep check-ins.</div>'}</div>
 
     <div class="section-title">Session feedback</div>
-    <div class="list">${rpe.length ? rpe.map(s => { const ses = state.sessions.find(x => x.id === s.sessionId); return `<div class="row"><div class="grow"><div class="title">RPE ${s.rpe}/10 — ${esc(ses ? ses.name : 'session')}</div><div class="meta">${fmtDate(s.date)}${s.note ? ' · ' + esc(s.note) : ''}</div></div></div>`; }).join('') : '<div class="empty">No session feedback.</div>'}</div>
+    <div class="list">${rpe.length ? rpe.map(s => { const ses = state.sessions.find(x => x.id === s.sessionId); return `<div class="row"><div class="grow"><div class="title">RPE ${s.rpe}/10 — ${esc(ses ? ses.name : 'session')} ${ses ? focusBadge(ses) : ''}</div><div class="meta">${fmtDate(s.date)}${s.note ? ' · ' + esc(s.note) : ''}</div></div></div>`; }).join('') : '<div class="empty">No session feedback.</div>'}</div>
 
     <div class="section-title">Weekly reflections</div>
     <div class="list">${weekly.length ? weekly.map(w => `<div class="row"><div class="grow"><div class="title">Training ${w.training}/10 · Self ${w.self}/10</div><div class="meta">Week of ${fmtDate(w.week)}${w.note ? ' · ' + esc(w.note) : ''}</div></div></div>`).join('') : '<div class="empty">No weekly reflections.</div>'}</div>`;
