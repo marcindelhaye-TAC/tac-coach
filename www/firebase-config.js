@@ -8,3 +8,5 @@ window.FIREBASE_CONFIG = {
   messagingSenderId: "458764699381",
   appId: "1:458764699381:web:48fa254e87af3651a927bc"
 };
+// Web Push (VAPID) public key — safe to ship.
+window.FIREBASE_VAPID_KEY = "BEnLrEj1VpokS7TJYHqwfo6oS9E4qLcm_TC1zfE8AWp4rqndervhLnXMDiRqiXYksN4BKgYPwNURlbmHlrsWTZ8";

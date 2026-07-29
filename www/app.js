@@ -1718,7 +1718,11 @@ function viewSettings() {
     if (e.target.checked) {
       const ok = await requestNotifPermission();
       nt.enabled = ok; save();
-      if (ok) { toast('Notifications on'); checkReminders(); } else { e.target.checked = false; toast('Permission denied in browser'); }
+      if (ok) {
+        checkReminders();
+        const pushed = await PushKit.enableForCurrentUser();
+        toast(pushed ? 'Notifications + phone push on 🔔' : 'Notifications on (phone push not set up yet)');
+      } else { e.target.checked = false; toast('Permission denied in browser'); }
     } else { nt.enabled = false; save(); toast('Notifications off'); }
   });
   $('#nt-test').addEventListener('click', async () => {
@@ -1739,6 +1743,7 @@ function viewSettings() {
           <label style="margin:0"><input type="checkbox" data-rtog="${r.id}" ${r.active ? 'checked' : ''} style="width:auto"/></label>
           <div class="grow"><div class="title">${esc(r.title || 'Reminder')}</div>
             <div class="meta">${esc(r.body || '')} · ⏰ ${esc(r.time || '07:00')} · ${FREQ[r.freq] || 'Every day'} · ${esc(who)}</div></div>
+          <button class="btn sm" data-rsend="${r.id}" title="Send this now">Send now</button>
           <button class="btn sm" data-redit="${r.id}">Edit</button>
           <button class="btn sm danger" data-rdel="${r.id}">Delete</button>
         </div>`;
@@ -1746,13 +1751,19 @@ function viewSettings() {
       $$('[data-rtog]').forEach(b => b.addEventListener('change', () => { const r = state.reminders.find(x => x.id === b.dataset.rtog); r.active = b.checked; save(); }));
       $$('[data-redit]').forEach(b => b.addEventListener('click', () => openReminderModal(b.dataset.redit, drawRems)));
       $$('[data-rdel]').forEach(b => b.addEventListener('click', () => { state.reminders = state.reminders.filter(x => x.id !== b.dataset.rdel); save(); drawRems(); }));
+      $$('[data-rsend]').forEach(b => b.addEventListener('click', async () => {
+        const r = state.reminders.find(x => x.id === b.dataset.rsend);
+        if (!Cloud.enabled || !Cloud.user) { toast('Sign in to send'); return; }
+        try { await Cloud.db.collection('pushQueue').add({ title: r.title, body: r.body, target: r.target || 'all', createdAt: Date.now(), sent: false, by: Cloud.user.email }); toast('Queued — arrives on athletes’ phones within ~15 min'); }
+        catch (e) { toast('Send failed: ' + (e.code || e.message)); }
+      }));
     };
     drawRems();
     $('#rem-add').addEventListener('click', () => openReminderModal(null, drawRems));
 
     // push delivery status
     const ps = $('#push-status');
-    if (ps) ps.textContent = (window.PushKit && PushKit.configured()) ? 'Push configured ✅' : 'Not set up yet — see the push setup guide';
+    if (ps) ps.textContent = (typeof PushKit !== 'undefined' && PushKit.configured()) ? 'Push configured ✅ (athletes enable it on their phone via Settings → notifications)' : 'Not set up yet — see the push setup guide';
   }
 }
 
@@ -2061,6 +2072,46 @@ const Cloud = {
   },
 
   logout() { this.teardown(); if (this.auth) this.auth.signOut(); }
+};
+
+/* ------------------------------ Push (FCM) client ----------------------- */
+const PushKit = {
+  messaging: null, swReg: null, inited: false,
+  configured() { return !!window.FIREBASE_VAPID_KEY && typeof firebase !== 'undefined' && !!firebase.messaging; },
+  async init() {
+    if (this.inited) return !!this.messaging;
+    this.inited = true;
+    if (!this.configured()) return false;
+    try {
+      this.swReg = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './fcm/' });
+      this.messaging = firebase.messaging();
+      this.messaging.onMessage((payload) => {
+        const n = (payload && payload.notification) || (payload && payload.data) || {};
+        if (n.title) notify(n.title, n.body || '');
+      });
+      return true;
+    } catch (e) { console.warn('push init failed', e); return false; }
+  },
+  async enableForCurrentUser() {
+    if (!(await this.init())) return false;
+    if (Notification.permission !== 'granted') { const p = await Notification.requestPermission(); if (p !== 'granted') return false; }
+    try {
+      const token = await this.messaging.getToken({ vapidKey: window.FIREBASE_VAPID_KEY, serviceWorkerRegistration: this.swReg });
+      if (!token) return false;
+      await this.storeToken(token);
+      return true;
+    } catch (e) { console.warn('getToken failed', e); return false; }
+  },
+  async storeToken(token) {
+    if (!Cloud.enabled || !Cloud.user) return;
+    try {
+      await Cloud.db.collection('pushTokens').doc(Cloud.myUid).set({
+        uid: Cloud.myUid, role: Cloud.role || state.role, athleteId: Cloud.myUid,
+        email: Cloud.user.email, updatedAt: Date.now(),
+        tokens: firebase.firestore.FieldValue.arrayUnion(token)
+      }, { merge: true });
+    } catch (e) { console.warn('storeToken failed', e); }
+  }
 };
 
 function showAuthScreen(msg) {

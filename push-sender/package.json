@@ -1,0 +1,9 @@
+{
+  "name": "tac-push-sender",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scheduled push sender for Tour Against Cancer (runs on GitHub Actions).",
+  "dependencies": {
+    "firebase-admin": "^12.3.1"
+  }
+}
