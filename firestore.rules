@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Each person can read the team roster (names) and write only their own profile.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Shared team data — any signed-in team member can read and edit.
+    match /team/{doc} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

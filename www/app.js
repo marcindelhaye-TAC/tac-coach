@@ -153,7 +153,10 @@ function migrate(s) {
 }
 function currentCoach() { return state.coaches.find(c => c.id === state.currentCoachId) || state.coaches[0]; }
 function athleteCoaches(a) { return (a.coachIds || []).map(id => state.coaches.find(c => c.id === id)).filter(Boolean); }
-function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function save() {
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  if (Cloud.enabled && Cloud.user && !Cloud.applyingRemote) Cloud.push();
+}
 
 /* ------------------------------ Date utils ------------------------------ */
 function toISO(d) {
@@ -328,6 +331,10 @@ function render() {
               ${state.coaches.map(c => `<option value="${c.id}" ${c.id === state.currentCoachId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
             </select>
           </div>` : ''}
+          ${Cloud.user ? `<div class="who" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:space-between">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🟢 ${esc(Cloud.user.email)}</span>
+            <button class="btn sm ghost" id="logout-btn" style="flex:0 0 auto">Log out</button>
+          </div>` : ''}
         </div>
       </aside>
 
@@ -348,6 +355,7 @@ function render() {
   $$('[data-role]').forEach(b => b.addEventListener('click', () => { state.role = b.dataset.role; save(); render(); }));
   $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('[data-coach-select]')) $('[data-coach-select]').addEventListener('change', (e) => { state.currentCoachId = e.target.value; save(); render(); });
+  if ($('#logout-btn')) $('#logout-btn').addEventListener('click', () => Cloud.logout());
 
   const views = {
     dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
@@ -1647,8 +1655,149 @@ function checkReminders() {
   }
 }
 
+/* ------------------------------ Cloud sync (Firebase) ------------------- */
+const Cloud = {
+  enabled: false, auth: null, db: null, user: null, teamRef: null,
+  applyingRemote: false, saveTimer: null,
+  // which parts of `state` are shared across devices (view prefs & device settings stay local)
+  DATA_KEYS: ['athletes', 'coaches', 'sessions', 'library', 'questionnaires', 'responses', 'checkins', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals'],
+
+  init() {
+    if (!window.FIREBASE_CONFIG || typeof firebase === 'undefined') return false;
+    try {
+      firebase.initializeApp(window.FIREBASE_CONFIG);
+      this.auth = firebase.auth();
+      this.db = firebase.firestore();
+      this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+      this.enabled = true;
+      return true;
+    } catch (e) { console.warn('Firebase init failed', e); return false; }
+  },
+
+  start() {
+    this.auth.onAuthStateChanged((u) => {
+      this.user = u;
+      if (u) this.onLogin(); else showAuthScreen();
+    });
+  },
+
+  async onLogin() {
+    // record/refresh this user's profile
+    try {
+      await this.db.collection('users').doc(this.user.uid).set({
+        email: this.user.email, name: this.user.displayName || '', lastSeen: Date.now()
+      }, { merge: true });
+    } catch (e) {}
+
+    this.teamRef = this.db.collection('team').doc('main');
+    render(); // show app immediately with local cache
+
+    this.teamRef.onSnapshot((snap) => {
+      if (snap.metadata.hasPendingWrites) return;         // ignore our own echo
+      if (!snap.exists) { this.pushNow(); return; }        // first user seeds the shared team
+      const data = snap.data();
+      this.applyingRemote = true;
+      this.DATA_KEYS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
+      migrate(state);
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      this.applyingRemote = false;
+      if (!document.querySelector('#modal-root .modal')) render(); // don't clobber an open modal
+    }, (err) => toast('Sync error: ' + err.message));
+
+    checkReminders();
+    if (!this._interval) { this._interval = setInterval(checkReminders, 5 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); }); }
+  },
+
+  push() {
+    if (!this.enabled || !this.user || this.applyingRemote) return;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.pushNow(), 600);
+  },
+  pushNow() {
+    if (!this.teamRef) return;
+    const payload = { _updatedAt: Date.now(), _updatedBy: (this.user && this.user.email) || '' };
+    this.DATA_KEYS.forEach(k => { payload[k] = state[k]; });
+    this.teamRef.set(payload).catch(e => toast('Sync error: ' + e.message));
+  },
+
+  logout() { if (this.auth) this.auth.signOut(); }
+};
+
+function showAuthScreen(msg) {
+  const app = $('#app');
+  app.innerHTML = `
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <img class="logo" src="./icons/logo.svg" alt="logo"/>
+        <h2 style="text-align:center;margin:0 0 4px">Tour Against Cancer</h2>
+        <p class="sub" style="text-align:center;margin:0 0 18px">Coaching platform — log in to sync across your devices.</p>
+        <div class="seg" style="display:flex;background:var(--panel-2);border-radius:10px;padding:3px;margin-bottom:14px">
+          <button class="authseg active" data-mode="login" style="flex:1;border:0;background:transparent;color:var(--text);padding:9px;border-radius:8px;cursor:pointer;font-weight:600">Log in</button>
+          <button class="authseg" data-mode="signup" style="flex:1;border:0;background:transparent;color:var(--muted);padding:9px;border-radius:8px;cursor:pointer;font-weight:600">Create account</button>
+        </div>
+        <div id="signup-fields" style="display:none">
+          <label>Your name</label><input id="au-name" placeholder="e.g. Marcin"/>
+          <label>I am a…</label>
+          <select id="au-role"><option value="coach">Coach</option><option value="athlete">Athlete</option></select>
+        </div>
+        <label>Email</label><input id="au-email" type="email" autocomplete="email" placeholder="you@example.com"/>
+        <label>Password</label><input id="au-pass" type="password" autocomplete="current-password" placeholder="At least 6 characters"/>
+        <div id="au-err" style="color:var(--bad);font-size:13px;margin-top:10px;min-height:16px">${esc(msg || '')}</div>
+        <button class="btn primary" id="au-go" style="width:100%;justify-content:center;margin-top:6px">Log in</button>
+        <p class="sub" style="text-align:center;margin-top:14px;font-size:12px">Your data is stored securely in your team's private cloud.</p>
+      </div>
+    </div>`;
+
+  let mode = 'login';
+  const setMode = (m) => {
+    mode = m;
+    $$('.authseg').forEach(b => { const on = b.dataset.mode === m; b.classList.toggle('active', on); b.style.background = on ? 'var(--accent)' : 'transparent'; b.style.color = on ? 'var(--accent-ink)' : (on ? '#fff' : 'var(--muted)'); });
+    $('#signup-fields').style.display = m === 'signup' ? 'block' : 'none';
+    $('#au-go').textContent = m === 'signup' ? 'Create account' : 'Log in';
+  };
+  $$('.authseg').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+  const go = async () => {
+    const email = $('#au-email').value.trim(), pass = $('#au-pass').value;
+    $('#au-err').textContent = '';
+    if (!email || !pass) { $('#au-err').textContent = 'Enter your email and password.'; return; }
+    $('#au-go').disabled = true;
+    try {
+      if (mode === 'signup') {
+        const cred = await Cloud.auth.createUserWithEmailAndPassword(email, pass);
+        const name = $('#au-name').value.trim() || email.split('@')[0];
+        await cred.user.updateProfile({ displayName: name });
+        await Cloud.db.collection('users').doc(cred.user.uid).set({ email, name, role: $('#au-role').value, createdAt: Date.now() }, { merge: true });
+        state.role = $('#au-role').value; save();
+      } else {
+        await Cloud.auth.signInWithEmailAndPassword(email, pass);
+      }
+      // onAuthStateChanged takes over from here
+    } catch (e) {
+      $('#au-go').disabled = false;
+      $('#au-err').textContent = friendlyAuthError(e);
+    }
+  };
+  $('#au-go').addEventListener('click', go);
+  $('#au-pass').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+}
+function friendlyAuthError(e) {
+  const c = (e && e.code) || '';
+  if (c.includes('email-already-in-use')) return 'That email already has an account — try logging in.';
+  if (c.includes('invalid-email')) return 'That email address looks invalid.';
+  if (c.includes('weak-password')) return 'Password must be at least 6 characters.';
+  if (c.includes('wrong-password') || c.includes('invalid-credential')) return 'Wrong email or password.';
+  if (c.includes('user-not-found')) return 'No account with that email — create one first.';
+  if (c.includes('network')) return 'Network problem — check your connection.';
+  return (e && e.message) || 'Something went wrong.';
+}
+
 /* ------------------------------ Boot ------------------------------------ */
-render();
-checkReminders();
-setInterval(checkReminders, 5 * 60 * 1000); // re-check every 5 min while open
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); });
+if (Cloud.init()) {
+  Cloud.start();               // cloud mode: auth gate + live sync
+} else {
+  render();                    // local-only fallback (offline / no Firebase)
+  checkReminders();
+  setInterval(checkReminders, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); });
+}

@@ -293,5 +293,12 @@ textarea { min-height: 74px; resize: vertical; }
 .ring b { position: relative; font-size: 17px; }
 .ring-wrap { position: relative; display: inline-flex; }
 
+/* ---------- Auth screen ---------- */
+.auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: radial-gradient(1200px 500px at 50% -10%, rgba(59,48,230,.18), transparent), radial-gradient(900px 500px at 100% 110%, rgba(229,9,20,.16), transparent); }
+.auth-card { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px; box-shadow: var(--shadow); }
+.auth-card .logo { width: 64px; height: 64px; border-radius: 14px; display: block; margin: 0 auto 14px; box-shadow: var(--shadow); }
+.auth-card h2 { font-size: 19px; }
+
 .note-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); display: inline-block; }
 .day-note { font-size: 11px; color: var(--yellow); background: rgba(245,197,24,.1); border-radius: 6px; padding: 3px 5px; }

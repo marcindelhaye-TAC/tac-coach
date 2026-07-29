@@ -1,9 +1,10 @@
-const CACHE = 'tac-coach-v4';
+const CACHE = 'tac-coach-v5';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './firebase-config.js',
   './manifest.webmanifest',
   './icons/logo.svg'
 ];
@@ -33,6 +34,8 @@ self.addEventListener('notificationclick', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  // Only handle our own origin. Let Firebase/Firestore/Google CDN traffic go straight to the network.
+  if (new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(req).then((cached) => {
       const network = fetch(req).then((res) => {
