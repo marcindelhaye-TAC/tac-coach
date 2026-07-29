@@ -117,6 +117,10 @@ function seed() {
     goals: [
       { id: uid(), athleteId: a1, by: 'coach', text: 'Raise FTP to 270 W by June', due: iso(150), status: 'open', createdAt: iso(-20) },
       { id: uid(), athleteId: a1, by: 'athlete', text: 'Complete first 100 km ride', due: iso(60), status: 'open', createdAt: iso(-10) }
+    ],
+    reminders: [
+      { id: uid(), kind: 'sleep', title: 'Good morning 🌙', body: 'How did you sleep? Log your morning check-in.', time: '07:00', freq: 'daily', target: 'all', active: true },
+      { id: uid(), kind: 'weekly', title: 'Weekly reflection 📆', body: 'How did this week feel? Fill in your weekly check-in.', time: '20:00', freq: 'sun', target: 'all', active: true }
     ]
   };
 }
@@ -142,6 +146,7 @@ function migrate(s) {
   if (!Array.isArray(s.dayNotes)) s.dayNotes = [];
   if (!Array.isArray(s.nutrition)) s.nutrition = [];
   if (!Array.isArray(s.goals)) s.goals = [];
+  if (!Array.isArray(s.reminders)) s.reminders = [];
   if (!s.settings) s.settings = {};
   if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
   s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
@@ -1655,6 +1660,14 @@ function viewSettings() {
       <div class="hint">Web notifications fire reliably while the app is open or recently in the background. For alerts when the app is fully closed — especially on iPhone — a small push server is needed (can be added later). Install the app (below) for the best reminder reliability.</div>
     </div>
 
+    ${state.role === 'coach' ? `<div class="card" style="max-width:640px;margin-top:16px">
+      <h3>Athlete reminders</h3>
+      <p class="sub">Reminders you set here go to your athletes (e.g. morning sleep check-in, fill in a questionnaire). They fire on the athlete's phone at the chosen time. <b>Real push to a closed phone</b> also needs the one-time push setup (below the list).</p>
+      <div class="list" id="rem-list"></div>
+      <div class="btn-row" style="margin-top:10px"><button class="btn primary sm" id="rem-add">+ Add reminder</button></div>
+      <div class="hint" style="margin-top:10px">Push delivery status: <b id="push-status">checking…</b></div>
+    </div>` : ''}
+
     <div class="card" style="max-width:640px;margin-top:16px">
       <h3>App data</h3>
       <p class="sub">Everything is saved on this device. Export a backup or reset the app.</p>
@@ -1714,6 +1727,65 @@ function viewSettings() {
   });
 
   $('#do-install').addEventListener('click', () => triggerInstall());
+
+  // Coach: manage athlete reminders
+  if (state.role === 'coach' && $('#rem-list')) {
+    const FREQ = { daily: 'Every day', weekdays: 'Weekdays', sun: 'Sunday' };
+    const drawRems = () => {
+      const list = state.reminders || [];
+      $('#rem-list').innerHTML = list.length ? list.map(r => {
+        const who = (!r.target || r.target === 'all') ? 'All athletes' : ((state.athletes.find(x => x.id === r.target) || {}).name || 'Athlete');
+        return `<div class="row">
+          <label style="margin:0"><input type="checkbox" data-rtog="${r.id}" ${r.active ? 'checked' : ''} style="width:auto"/></label>
+          <div class="grow"><div class="title">${esc(r.title || 'Reminder')}</div>
+            <div class="meta">${esc(r.body || '')} · ⏰ ${esc(r.time || '07:00')} · ${FREQ[r.freq] || 'Every day'} · ${esc(who)}</div></div>
+          <button class="btn sm" data-redit="${r.id}">Edit</button>
+          <button class="btn sm danger" data-rdel="${r.id}">Delete</button>
+        </div>`;
+      }).join('') : '<div class="empty">No reminders yet.</div>';
+      $$('[data-rtog]').forEach(b => b.addEventListener('change', () => { const r = state.reminders.find(x => x.id === b.dataset.rtog); r.active = b.checked; save(); }));
+      $$('[data-redit]').forEach(b => b.addEventListener('click', () => openReminderModal(b.dataset.redit, drawRems)));
+      $$('[data-rdel]').forEach(b => b.addEventListener('click', () => { state.reminders = state.reminders.filter(x => x.id !== b.dataset.rdel); save(); drawRems(); }));
+    };
+    drawRems();
+    $('#rem-add').addEventListener('click', () => openReminderModal(null, drawRems));
+
+    // push delivery status
+    const ps = $('#push-status');
+    if (ps) ps.textContent = (window.PushKit && PushKit.configured()) ? 'Push configured ✅' : 'Not set up yet — see the push setup guide';
+  }
+}
+
+function openReminderModal(id, onSave) {
+  const editing = id ? state.reminders.find(r => r.id === id) : null;
+  const r = editing || { kind: 'sleep', title: 'Good morning 🌙', body: 'How did you sleep? Log your morning check-in.', time: '07:00', freq: 'daily', target: 'all', active: true };
+  const presets = {
+    sleep: { title: 'Good morning 🌙', body: 'How did you sleep? Log your morning check-in.' },
+    questionnaire: { title: 'Questionnaire 📝', body: 'Your coach asked you to fill in a questionnaire.' },
+    weekly: { title: 'Weekly reflection 📆', body: 'How did this week feel? Fill in your weekly check-in.' },
+    custom: { title: '', body: '' }
+  };
+  const kindOpts = [['sleep', 'Morning — sleep'], ['questionnaire', 'Fill in questionnaire'], ['weekly', 'Weekly reflection'], ['custom', 'Custom message']].map(([k, l]) => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${l}</option>`).join('');
+  const freqOpts = [['daily', 'Every day'], ['weekdays', 'Weekdays (Mon–Fri)'], ['sun', 'Sunday only']].map(([k, l]) => `<option value="${k}" ${r.freq === k ? 'selected' : ''}>${l}</option>`).join('');
+  const athOpts = `<option value="all" ${r.target === 'all' ? 'selected' : ''}>All athletes</option>` + state.athletes.map(a => `<option value="${a.id}" ${r.target === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  const body = `
+    <label>Type</label><select id="r-kind">${kindOpts}</select>
+    <label>Title</label><input id="r-title" value="${esc(r.title)}" placeholder="e.g. Good morning 🌙"/>
+    <label>Message</label><textarea id="r-body" placeholder="What the athlete sees">${esc(r.body)}</textarea>
+    <div class="inline">
+      <div><label>Time</label><input id="r-time" type="time" value="${r.time || '07:00'}"/></div>
+      <div><label>Repeat</label><select id="r-freq">${freqOpts}</select></div>
+    </div>
+    <label>Send to</label><select id="r-target">${athOpts}</select>`;
+  openModal(editing ? 'Edit reminder' : 'New reminder', body, `<button class="btn primary" id="r-save">Save</button>`);
+  $('#r-kind').addEventListener('change', () => {
+    const p = presets[$('#r-kind').value]; if (p && ($('#r-title').value === '' || p.title)) { $('#r-title').value = p.title; $('#r-body').value = p.body; }
+  });
+  $('#r-save').addEventListener('click', () => {
+    const obj = { id: r.id || uid(), kind: $('#r-kind').value, title: $('#r-title').value.trim() || 'Reminder', body: $('#r-body').value.trim(), time: $('#r-time').value, freq: $('#r-freq').value, target: $('#r-target').value, active: r.active !== false };
+    if (editing) Object.assign(editing, obj); else state.reminders.push(obj);
+    save(); closeModal(); toast('Reminder saved'); onSave && onSave();
+  });
 }
 
 async function triggerInstall() {
@@ -1778,6 +1850,25 @@ function checkReminders() {
     const hasWeekly = state.checkins.weekly.some(w => w.athleteId === a.id && w.week === wk);
     if (!hasWeekly) { notify('Weekly reflection 📆', 'How did this week feel? Tap to fill in your weekly check-in.'); markFired('sunday'); }
   }
+
+  // Coach-configured reminders — fire on the athlete's own device.
+  if (state.role === 'athlete') {
+    (state.reminders || []).forEach(r => {
+      if (!r.active) return;
+      if (r.target && r.target !== 'all' && r.target !== a.id) return;
+      if (!dueToday(r.freq, now)) return;
+      if (hhmm < (r.time || '07:00')) return;
+      if (alreadyFired('cr_' + r.id)) return;
+      notify(r.title || 'Reminder', r.body || 'Tap to open your app.');
+      markFired('cr_' + r.id);
+    });
+  }
+}
+function dueToday(freq, now) {
+  const d = now.getDay(); // 0=Sun..6=Sat
+  if (freq === 'sun') return d === 0;
+  if (freq === 'weekdays') return d >= 1 && d <= 5;
+  return true; // 'daily'
 }
 
 /* ------------------------------ Cloud sync (Firebase) ------------------- */
@@ -1872,6 +1963,7 @@ const Cloud = {
     if (d.coaches) state.coaches = d.coaches;
     if (d.library) state.library = d.library;
     if (d.questionnaires) state.questionnaires = d.questionnaires;
+    if (d.reminders) state.reminders = d.reminders;
     if (!state.currentCoachId || !state.coaches.find(c => c.id === state.currentCoachId)) state.currentCoachId = (state.coaches[0] || {}).id;
   },
   reRender() { if (!document.querySelector('#modal-root .modal')) render(); },
@@ -1939,7 +2031,7 @@ const Cloud = {
     });
     this.pendingAthletes.clear();
     if (this.role === 'coach' && this.sharedDirty) {
-      this.db.collection('shared').doc('coach').set({ coaches: state.coaches, library: state.library, questionnaires: state.questionnaires, _updatedAt: Date.now() }).catch(() => {});
+      this.db.collection('shared').doc('coach').set({ coaches: state.coaches, library: state.library, questionnaires: state.questionnaires, reminders: state.reminders, _updatedAt: Date.now() }).catch(() => {});
       this.sharedDirty = false;
     }
   },
@@ -1963,7 +2055,7 @@ const Cloud = {
         doc._updatedAt = Date.now(); doc._updatedBy = 'migration';
         batch.set(this.db.collection('athletes').doc(aid), doc);
       });
-      batch.set(this.db.collection('shared').doc('coach'), { coaches: t.coaches || [], library: t.library || [], questionnaires: t.questionnaires || [], _updatedAt: Date.now() });
+      batch.set(this.db.collection('shared').doc('coach'), { coaches: t.coaches || [], library: t.library || [], questionnaires: t.questionnaires || [], reminders: t.reminders || [], _updatedAt: Date.now() });
       await batch.commit();
     } catch (e) { console.warn('migration failed', e); }
   },
