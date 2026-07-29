@@ -259,6 +259,19 @@ textarea { min-height: 74px; resize: vertical; }
 .seg2 button { border: 0; background: transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; }
 .seg2 button.active { background: var(--accent); color: var(--accent-ink); }
 
+/* ---------- Strength exercise / set editor ---------- */
+.ex-card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+.ex-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ex-head .ex-name { font-weight: 600; }
+.set-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 340px; }
+.set-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-align: left; padding: 2px 4px; }
+.set-table td { padding: 2px 4px; }
+.set-table td.setn { color: var(--muted); width: 24px; text-align: center; }
+.set-table input { padding: 6px; width: 100%; min-width: 48px; }
+.set-table td.setacts { white-space: nowrap; width: 1%; }
+.mini { border: 1px solid var(--line); background: var(--panel-2); color: var(--text); border-radius: 6px; cursor: pointer; padding: 4px 8px; font-size: 13px; margin-left: 3px; }
+.mini:hover { background: var(--panel); }
+
 /* ---------- Chat ---------- */
 .chat { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow-y: auto; padding: 6px; }
 .bubble { max-width: 78%; padding: 9px 12px; border-radius: 14px; font-size: 14px; line-height: 1.35; }

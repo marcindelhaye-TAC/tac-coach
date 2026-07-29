@@ -699,33 +699,60 @@ function renderStrengthEditor(list, canEdit, meta) {
   if (!block) return;
   if ($('#f-sport').value !== 'strength') { block.innerHTML = ''; return; }
   meta = meta || {};
+  const blankSet = () => ({ reps: '', weight: '', rest: '', rpe: '' });
+  // normalise old {sets:n, reps, weight, rest} rows -> per-set rows
+  list.forEach(ex => {
+    if (!Array.isArray(ex.setRows)) {
+      const n = Math.max(1, Number(ex.sets) || 1);
+      ex.setRows = Array.from({ length: n }, () => ({ reps: ex.reps || '', weight: ex.weight || '', rest: ex.rest || '', rpe: ex.rpe || '' }));
+    }
+    if (!ex.setRows.length) ex.setRows.push(blankSet());
+  });
+
   block.innerHTML = `
     <div class="inline">
       <div style="flex:2"><label>Focus of the training</label><input id="str-focus" value="${esc(meta.focus || '')}" ${canEdit ? '' : 'disabled'} placeholder="e.g. Max strength — legs & core"/></div>
-      <div><label>Target RPE (1–10)</label><input id="str-rpe" type="number" min="1" max="10" value="${esc(meta.targetRpe || '')}" ${canEdit ? '' : 'disabled'} placeholder="e.g. 8"/></div>
+      <div><label>Overall RPE (1–10)</label><input id="str-rpe" type="number" min="1" max="10" value="${esc(meta.targetRpe || '')}" ${canEdit ? '' : 'disabled'} placeholder="8"/></div>
     </div>
-    <label style="margin-top:12px">Strength exercises</label>
-    <table class="ztable"><thead><tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Weight</th><th>Rest</th>${canEdit ? '<th></th>' : ''}</tr></thead>
-      <tbody id="str-rows"></tbody></table>
-    ${canEdit ? '<div class="btn-row" style="margin-top:8px"><button class="btn sm" id="str-add">+ Add exercise</button></div>' : ''}`;
+    <label style="margin-top:12px">Exercises</label>
+    <div id="ex-list"></div>
+    ${canEdit ? '<button class="btn sm primary" id="ex-add" style="margin-top:8px">+ Add exercise</button>' : ''}`;
   if ($('#str-focus')) $('#str-focus').addEventListener('input', e => { meta.focus = e.target.value; });
   if ($('#str-rpe')) $('#str-rpe').addEventListener('input', e => { meta.targetRpe = e.target.value; });
-  const rows = $('#str-rows');
+
+  const listEl = $('#ex-list');
   function draw() {
-    rows.innerHTML = list.map((ex, i) => `
-      <tr>
-        <td><input data-si="${i}" data-k="exercise" value="${esc(ex.exercise)}" ${canEdit ? '' : 'disabled'}/></td>
-        <td><input data-si="${i}" data-k="sets" value="${esc(ex.sets)}" ${canEdit ? '' : 'disabled'} style="width:56px"/></td>
-        <td><input data-si="${i}" data-k="reps" value="${esc(ex.reps)}" ${canEdit ? '' : 'disabled'} style="width:64px"/></td>
-        <td><input data-si="${i}" data-k="weight" value="${esc(ex.weight)}" ${canEdit ? '' : 'disabled'} style="width:74px"/></td>
-        <td><input data-si="${i}" data-k="rest" value="${esc(ex.rest)}" ${canEdit ? '' : 'disabled'} style="width:64px"/></td>
-        ${canEdit ? `<td><button class="x" data-del="${i}">&times;</button></td>` : ''}
-      </tr>`).join('');
-    $$('#str-rows input').forEach(inp => inp.addEventListener('input', () => { list[inp.dataset.si][inp.dataset.k] = inp.value; }));
-    $$('#str-rows [data-del]').forEach(b => b.addEventListener('click', () => { list.splice(Number(b.dataset.del), 1); draw(); }));
+    listEl.innerHTML = list.length ? list.map((ex, i) => `
+      <div class="ex-card">
+        <div class="ex-head">
+          <input class="ex-name" data-exi="${i}" value="${esc(ex.exercise || '')}" ${canEdit ? '' : 'disabled'} placeholder="Exercise — e.g. Back squat"/>
+          ${canEdit ? `<button class="x" data-exdel="${i}" title="Remove exercise">&times;</button>` : ''}
+        </div>
+        <div style="overflow-x:auto">
+        <table class="set-table"><thead><tr><th>Set</th><th>Reps</th><th>Weight</th><th>Rest</th><th>RPE</th>${canEdit ? '<th></th>' : ''}</tr></thead>
+          <tbody>
+            ${ex.setRows.map((s, si) => `<tr>
+              <td class="setn">${si + 1}</td>
+              <td><input data-exi="${i}" data-si="${si}" data-k="reps" value="${esc(s.reps)}" ${canEdit ? '' : 'disabled'} placeholder="8"/></td>
+              <td><input data-exi="${i}" data-si="${si}" data-k="weight" value="${esc(s.weight)}" ${canEdit ? '' : 'disabled'} placeholder="60kg"/></td>
+              <td><input data-exi="${i}" data-si="${si}" data-k="rest" value="${esc(s.rest)}" ${canEdit ? '' : 'disabled'} placeholder="2:00"/></td>
+              <td><input data-exi="${i}" data-si="${si}" data-k="rpe" value="${esc(s.rpe)}" ${canEdit ? '' : 'disabled'} placeholder="8"/></td>
+              ${canEdit ? `<td class="setacts"><button class="mini" data-dup="${i}:${si}" title="Duplicate this set">⧉</button><button class="mini" data-setdel="${i}:${si}" title="Remove set">&times;</button></td>` : ''}
+            </tr>`).join('')}
+          </tbody></table></div>
+        ${canEdit ? `<div class="btn-row" style="margin-top:6px"><button class="btn sm ghost" data-addset="${i}">+ Add set</button><button class="btn sm ghost" data-dupset="${i}">⧉ Duplicate last set</button></div>` : ''}
+      </div>`).join('') : `<div class="sub" style="padding:6px">No exercises yet.${canEdit ? ' Tap “+ Add exercise”.' : ''}</div>`;
+
+    listEl.querySelectorAll('.ex-name').forEach(inp => inp.addEventListener('input', () => { list[inp.dataset.exi].exercise = inp.value; }));
+    listEl.querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('input', () => { list[inp.dataset.exi].setRows[inp.dataset.si][inp.dataset.k] = inp.value; }));
+    listEl.querySelectorAll('[data-exdel]').forEach(b => b.addEventListener('click', () => { list.splice(Number(b.dataset.exdel), 1); draw(); }));
+    listEl.querySelectorAll('[data-setdel]').forEach(b => b.addEventListener('click', () => { const [i, si] = b.dataset.setdel.split(':').map(Number); list[i].setRows.splice(si, 1); if (!list[i].setRows.length) list[i].setRows.push(blankSet()); draw(); }));
+    listEl.querySelectorAll('[data-dup]').forEach(b => b.addEventListener('click', () => { const [i, si] = b.dataset.dup.split(':').map(Number); list[i].setRows.splice(si + 1, 0, { ...list[i].setRows[si] }); draw(); }));
+    listEl.querySelectorAll('[data-addset]').forEach(b => b.addEventListener('click', () => { list[Number(b.dataset.addset)].setRows.push(blankSet()); draw(); }));
+    listEl.querySelectorAll('[data-dupset]').forEach(b => b.addEventListener('click', () => { const rows = list[Number(b.dataset.dupset)].setRows; rows.push({ ...(rows[rows.length - 1] || blankSet()) }); draw(); }));
   }
   draw();
-  if ($('#str-add')) $('#str-add').addEventListener('click', () => { list.push({ exercise: '', sets: 3, reps: '10', weight: '', rest: '1:00' }); draw(); });
+  if ($('#ex-add')) $('#ex-add').addEventListener('click', () => { list.push({ exercise: '', setRows: [blankSet()] }); draw(); });
 }
 
 /* ------------------------------ Check-in modals ------------------------- */
