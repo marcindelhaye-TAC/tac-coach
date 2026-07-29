@@ -562,6 +562,35 @@ function weekDistribution(aid, wk) {
   return { model, lit: Math.round(pLit * 100), mod: Math.round(pMod * 100), hit: Math.round(pHit * 100) };
 }
 
+// Workout profile graph (Intervals.icu-style stepped bars: width = time, height/colour = zone).
+function workoutProfileSVG(steps) {
+  const total = stepsDuration(steps);
+  if (!total) return '';
+  const W = 700, H = 120;
+  let x = 0, bars = '';
+  (steps || []).forEach(s => {
+    const w = (Number(s.min) || 0) / total * W;
+    const h = Math.max(6, ((s.z + 1) / 7) * (H - 6));
+    bars += `<rect x="${x.toFixed(2)}" y="${(H - h).toFixed(2)}" width="${Math.max(0, w).toFixed(2)}" height="${h.toFixed(2)}" fill="${zoneColor(s.z)}"><title>Z${s.z + 1} · ${s.min}min</title></rect>`;
+    x += w;
+  });
+  return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="height:110px;display:block;background:var(--bg-2);border-radius:8px;min-width:260px">${bars}</svg></div>`;
+}
+// Time-in-zone breakdown rows (like the Intervals side panel).
+function zoneDistHTML(steps) {
+  const byZone = {}; let total = 0;
+  (steps || []).forEach(s => { byZone[s.z] = (byZone[s.z] || 0) + (Number(s.min) || 0); total += Number(s.min) || 0; });
+  if (!total) return '';
+  return Object.keys(byZone).map(Number).sort((a, b) => a - b).map(z => {
+    const m = byZone[z], pct = Math.round(m / total * 100);
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0">
+      <span class="zbadge" style="background:${zoneColor(z)};color:#111;border:0;min-width:32px;text-align:center">Z${z + 1}</span>
+      <span style="flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden"><span style="display:block;height:100%;width:${pct}%;background:${zoneColor(z)}"></span></span>
+      <span class="sub" style="min-width:78px;text-align:right;color:var(--text)">${m}m · ${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
 /* ------------------------------ Calendar -------------------------------- */
 function viewCalendar() {
   const actions = $('#topbar-actions');
@@ -732,6 +761,7 @@ function openSessionModal(id, presetDate) {
     </div>
     <div id="steps-block" style="margin-top:12px"></div>
     <div id="focus-line" style="margin-top:8px"></div>
+    <div id="profile-line" style="margin-top:10px"></div>
     <label>Notes / extra instructions</label>
     <textarea id="f-desc" ${canEdit ? '' : 'disabled'} placeholder="e.g. keep cadence high, fuel every 30min">${esc(s.desc)}</textarea>
     <div id="strength-block"></div>
@@ -754,6 +784,8 @@ function openSessionModal(id, presetDate) {
       const f = sessionFocus({ steps: stepsState, sport: $('#f-sport').value });
       fl.innerHTML = f.label === '—' ? '' : `<span class="sub">Training focus: </span><span class="badge" style="border:1px solid ${f.color};color:${f.color}"><span class="dot" style="background:${f.color}"></span>${f.label}</span>${f.dist ? ` <span class="sub">· ${f.dist.lit}/${f.dist.mod}/${f.dist.hit}% LIT/MOD/HIT</span>` : ''}`;
     }
+    const pl = $('#profile-line');
+    if (pl) pl.innerHTML = stepsState.length ? `<label>Workout profile</label>${workoutProfileSVG(stepsState)}<div style="margin-top:8px">${zoneDistHTML(stepsState)}</div>` : '';
   };
   mountStepBuilder('steps-block', stepsState, a, canEdit, syncTotals);
   syncTotals();
@@ -786,6 +818,7 @@ function openSessionModal(id, presetDate) {
   });
 }
 
+const EXERCISE_TYPES = ['', 'Squat', 'Hinge / Deadlift', 'Push', 'Pull', 'Lunge / Single-leg', 'Core / Trunk', 'Olympic / Power', 'Plyometric', 'Carry', 'Mobility', 'Other'];
 function renderStrengthEditor(list, canEdit, meta) {
   const block = $('#strength-block');
   if (!block) return;
@@ -818,6 +851,9 @@ function renderStrengthEditor(list, canEdit, meta) {
       <div class="ex-card">
         <div class="ex-head">
           <input class="ex-name" data-exi="${i}" value="${esc(ex.exercise || '')}" ${canEdit ? '' : 'disabled'} placeholder="Exercise — e.g. Back squat"/>
+          <select class="ex-type" data-extype="${i}" ${canEdit ? '' : 'disabled'} title="Type of exercise">
+            ${EXERCISE_TYPES.map(t => `<option value="${esc(t)}" ${(ex.type || '') === t ? 'selected' : ''}>${t === '' ? 'Type…' : esc(t)}</option>`).join('')}
+          </select>
           ${canEdit ? `<button class="x" data-exdel="${i}" title="Remove exercise">&times;</button>` : ''}
         </div>
         <div style="overflow-x:auto">
@@ -836,6 +872,7 @@ function renderStrengthEditor(list, canEdit, meta) {
       </div>`).join('') : `<div class="sub" style="padding:6px">No exercises yet.${canEdit ? ' Tap “+ Add exercise”.' : ''}</div>`;
 
     listEl.querySelectorAll('.ex-name').forEach(inp => inp.addEventListener('input', () => { list[inp.dataset.exi].exercise = inp.value; }));
+    listEl.querySelectorAll('.ex-type').forEach(sel => sel.addEventListener('change', () => { list[sel.dataset.extype].type = sel.value; }));
     listEl.querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('input', () => { list[inp.dataset.exi].setRows[inp.dataset.si][inp.dataset.k] = inp.value; }));
     listEl.querySelectorAll('[data-exdel]').forEach(b => b.addEventListener('click', () => { list.splice(Number(b.dataset.exdel), 1); draw(); }));
     listEl.querySelectorAll('[data-setdel]').forEach(b => b.addEventListener('click', () => { const [i, si] = b.dataset.setdel.split(':').map(Number); list[i].setRows.splice(si, 1); if (!list[i].setRows.length) list[i].setRows.push(blankSet()); draw(); }));
