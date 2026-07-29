@@ -1864,7 +1864,10 @@ function showAuthScreen(msg) {
         <div id="signup-fields" style="display:none">
           <label>Your name</label><input id="au-name" placeholder="e.g. Marcin"/>
           <label>I am a…</label>
-          <select id="au-role"><option value="coach">Coach</option><option value="athlete">Athlete</option></select>
+          <div class="role-pick">
+            <button type="button" class="rolebtn active" data-arole="coach"><span class="ic">🧑‍🏫</span><b>Coach</b><small>Programs & follows athletes</small></button>
+            <button type="button" class="rolebtn" data-arole="athlete"><span class="ic">🏃</span><b>Athlete</b><small>Follows my own plan</small></button>
+          </div>
         </div>
         <label>Email</label><input id="au-email" type="email" autocomplete="email" placeholder="you@example.com"/>
         <label>Password</label><input id="au-pass" type="password" autocomplete="current-password" placeholder="At least 6 characters"/>
@@ -1876,6 +1879,7 @@ function showAuthScreen(msg) {
     </div>`;
 
   let mode = 'login';
+  let signupRole = 'coach';
   const setMode = (m) => {
     mode = m;
     $$('.authseg').forEach(b => { const on = b.dataset.mode === m; b.classList.toggle('active', on); b.style.background = on ? 'var(--accent)' : 'transparent'; b.style.color = on ? 'var(--accent-ink)' : (on ? '#fff' : 'var(--muted)'); });
@@ -1883,6 +1887,10 @@ function showAuthScreen(msg) {
     $('#au-go').textContent = m === 'signup' ? 'Create account' : 'Log in';
   };
   $$('.authseg').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $$('.rolebtn').forEach(b => b.addEventListener('click', () => {
+    signupRole = b.dataset.arole;
+    $$('.rolebtn').forEach(x => x.classList.toggle('active', x === b));
+  }));
 
   const go = async () => {
     const email = $('#au-email').value.trim(), pass = $('#au-pass').value;
@@ -1892,7 +1900,7 @@ function showAuthScreen(msg) {
     try {
       if (mode === 'signup') {
         const name = $('#au-name').value.trim() || email.split('@')[0];
-        const role = $('#au-role').value;
+        const role = signupRole;
         Cloud.pendingSignup = { role, name };   // onLogin picks this up before users-doc exists
         const cred = await Cloud.auth.createUserWithEmailAndPassword(email, pass);
         await cred.user.updateProfile({ displayName: name });

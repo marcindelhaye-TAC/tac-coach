@@ -299,6 +299,17 @@ textarea { min-height: 74px; resize: vertical; }
 .auth-card { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px; box-shadow: var(--shadow); }
 .auth-card .logo { width: 64px; height: 64px; border-radius: 14px; display: block; margin: 0 auto 14px; box-shadow: var(--shadow); }
 .auth-card h2 { font-size: 19px; }
+.role-pick { display: flex; gap: 10px; }
+.role-pick .rolebtn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 12px 8px; border-radius: 12px; cursor: pointer; text-align: center;
+  background: var(--bg-2); border: 2px solid var(--line); color: var(--text);
+}
+.role-pick .rolebtn .ic { font-size: 22px; }
+.role-pick .rolebtn b { font-size: 14px; }
+.role-pick .rolebtn small { color: var(--muted); font-size: 11px; line-height: 1.2; }
+.role-pick .rolebtn.active { border-color: var(--accent); background: rgba(59,48,230,.12); }
+.role-pick .rolebtn.active small { color: var(--text); }
 
 .note-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); display: inline-block; }
 .day-note { font-size: 11px; color: var(--yellow); background: rgba(245,197,24,.1); border-radius: 6px; padding: 3px 5px; }
