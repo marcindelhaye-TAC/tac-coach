@@ -996,19 +996,40 @@ function viewLibrary() {
 }
 function openLibModal(id) {
   const editing = id ? state.library.find(w => w.id === id) : null;
-  const w = editing || { sport: 'biking', name: '', duration: 60, load: 50, desc: '', strength: [] };
+  const w = editing || { sport: 'biking', name: '', duration: 60, load: 50, desc: '', steps: [], strength: [], focus: '', targetRpe: '' };
+  const a = currentAthlete();
   const sportOpts = Object.entries(SPORTS).map(([k, sp]) => `<option value="${k}" ${w.sport === k ? 'selected' : ''}>${sp.icon} ${sp.label}</option>`).join('');
   const body = `
-    <label>Sport</label><select id="l-sport">${sportOpts}</select>
-    <label>Name</label><input id="l-name" value="${esc(w.name)}"/>
+    <label>Sport</label><select id="f-sport">${sportOpts}</select>
+    <label>Name</label><input id="l-name" value="${esc(w.name)}" placeholder="e.g. Threshold 2x20"/>
     <div class="inline">
-      <div><label>Duration (min)</label><input id="l-dur" type="number" value="${w.duration}"/></div>
-      <div><label>Load (TSS)</label><input id="l-load" type="number" value="${w.load}"/></div>
+      <div><label>Duration (min)</label><input id="f-dur" type="number" value="${w.duration}"/></div>
+      <div><label>Load (TSS)</label><input id="f-load" type="number" value="${w.load}"/></div>
     </div>
-    <label>Workout / steps</label><textarea id="l-desc">${esc(w.desc)}</textarea>`;
+    <div id="steps-block" style="margin-top:12px"></div>
+    <div id="focus-line" style="margin-top:8px"></div>
+    <div id="profile-line" style="margin-top:10px"></div>
+    <label>Notes / extra instructions</label><textarea id="l-desc" placeholder="e.g. keep cadence high, fuel every 30min">${esc(w.desc)}</textarea>
+    <div id="strength-block"></div>`;
   openModal(editing ? 'Edit workout' : 'New workout', body, `<button class="btn primary" id="l-save">Save</button>`);
+
+  const stepsState = clone(w.steps || []);
+  const strengthState = clone(w.strength || []);
+  const strengthMeta = { focus: w.focus || '', targetRpe: w.targetRpe || '' };
+  const syncTotals = () => {
+    if (stepsState.length) { $('#f-dur').value = stepsDuration(stepsState); $('#f-load').value = stepsLoad(a, stepsState); }
+    const fl = $('#focus-line');
+    if (fl) { const f = sessionFocus({ steps: stepsState, sport: $('#f-sport').value }); fl.innerHTML = f.label === '—' ? '' : `<span class="sub">Training focus: </span><span class="badge" style="border:1px solid ${f.color};color:${f.color}"><span class="dot" style="background:${f.color}"></span>${f.label}</span>`; }
+    const pl = $('#profile-line');
+    if (pl) pl.innerHTML = stepsState.length ? `<label>Workout profile</label>${workoutProfileSVG(stepsState)}<div style="margin-top:8px">${zoneDistHTML(stepsState)}</div>` : '';
+  };
+  mountStepBuilder('steps-block', stepsState, a, true, syncTotals);
+  renderStrengthEditor(strengthState, true, strengthMeta);
+  $('#f-sport').addEventListener('change', () => { renderStrengthEditor(strengthState, true, strengthMeta); syncTotals(); });
+  syncTotals();
+
   $('#l-save').addEventListener('click', () => {
-    const obj = { id: w.id || uid(), sport: $('#l-sport').value, name: $('#l-name').value.trim() || 'Untitled', duration: Number($('#l-dur').value) || 0, load: Number($('#l-load').value) || 0, desc: $('#l-desc').value, strength: w.strength || [] };
+    const obj = { id: w.id || uid(), sport: $('#f-sport').value, name: $('#l-name').value.trim() || 'Untitled', duration: Number($('#f-dur').value) || 0, load: Number($('#f-load').value) || 0, desc: $('#l-desc').value, steps: stepsState, strength: strengthState, focus: strengthMeta.focus, targetRpe: strengthMeta.targetRpe };
     if (editing) Object.assign(editing, obj); else state.library.push(obj);
     save(); closeModal(); viewLibrary(); toast('Saved');
   });
@@ -1018,7 +1039,7 @@ function scheduleFromLib(id) {
   const body = `<label>Add "<b>${esc(w.name)}</b>" to ${esc(currentAthlete().name)} on:</label><input id="sch-date" type="date" value="${todayISO()}"/>`;
   openModal('Add to calendar', body, `<button class="btn primary" id="sch-go">Add</button>`);
   $('#sch-go').addEventListener('click', () => {
-    state.sessions.push({ id: uid(), athleteId: state.currentAthleteId, sport: w.sport, name: w.name, date: $('#sch-date').value, duration: w.duration, load: w.load, desc: w.desc, strength: clone(w.strength || []), status: 'planned' });
+    state.sessions.push({ id: uid(), athleteId: state.currentAthleteId, sport: w.sport, name: w.name, date: $('#sch-date').value, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: clone(w.strength || []), focus: w.focus || '', targetRpe: w.targetRpe || '', status: 'planned' });
     save(); closeModal(); toast('Added to calendar'); go('calendar');
   });
 }
