@@ -2,13 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Each person can read the team roster (names) and write only their own profile.
-    match /users/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+    // A signed-in user is a coach if their users/{uid} doc says so.
+    function isCoach() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
     }
 
-    // Shared team data — any signed-in team member can read and edit.
+    // Everyone signed in can read the roster of names; you can only write your own profile.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Per-athlete data: a coach can read/write ALL athletes; an athlete only their own doc.
+    match /athletes/{aid} {
+      allow read, write: if isCoach() || (request.auth != null && request.auth.uid == aid);
+    }
+
+    // Coach-managed shared content (coaches list, workout templates, questionnaires).
+    match /shared/{doc} {
+      allow read: if request.auth != null;
+      allow write: if isCoach();
+    }
+
+    // Legacy phase-1 doc (used once for migration, then ignored).
     match /team/{doc} {
       allow read, write: if request.auth != null;
     }

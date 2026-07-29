@@ -315,16 +315,16 @@ function render() {
           ${nav.map(n => `<button data-nav="${n.id}" class="${view === n.id ? 'active' : ''}"><span class="ico">${n.icon}</span>${n.label}</button>`).join('')}
         </nav>
         <div class="role-switch">
-          <div class="seg">
+          ${!Cloud.user ? `<div class="seg">
             <button data-role="coach" class="${state.role === 'coach' ? 'active' : ''}">Coach</button>
             <button data-role="athlete" class="${state.role === 'athlete' ? 'active' : ''}">Athlete</button>
-          </div>
-          <div class="who">
+          </div>` : ''}
+          ${state.role === 'coach' ? `<div class="who">
             Athlete
             <select data-athlete-select>
               ${state.athletes.map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>
-          </div>
+          </div>` : ''}
           ${state.role === 'coach' ? `<div class="who">
             Acting as
             <select data-coach-select>
@@ -353,7 +353,7 @@ function render() {
 
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => go(b.dataset.nav)));
   $$('[data-role]').forEach(b => b.addEventListener('click', () => { state.role = b.dataset.role; save(); render(); }));
-  $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
+  if ($('[data-athlete-select]')) $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('[data-coach-select]')) $('[data-coach-select]').addEventListener('change', (e) => { state.currentCoachId = e.target.value; save(); render(); });
   if ($('#logout-btn')) $('#logout-btn').addEventListener('click', () => Cloud.logout());
 
@@ -1591,18 +1591,21 @@ function viewSettings() {
     if (ok) notify('Tour Against Cancer', 'Test notification — reminders are working ✅'); else toast('Enable notifications first');
   });
 
-  $('#do-install').addEventListener('click', async () => {
-    if (deferredInstall) {
-      deferredInstall.prompt();
-      const res = await deferredInstall.userChoice;
-      if (res.outcome === 'accepted') toast('Installing…'); else toast('Install dismissed');
-      deferredInstall = null;
-    } else if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
-      toast('Already installed 🎉');
-    } else {
-      toast('Use your browser menu → “Add to Home Screen” / “Install app”');
-    }
-  });
+  $('#do-install').addEventListener('click', () => triggerInstall());
+}
+
+async function triggerInstall() {
+  if (deferredInstall) {
+    deferredInstall.prompt();
+    const res = await deferredInstall.userChoice;
+    if (res.outcome === 'accepted') toast('Installing…'); else toast('Install dismissed');
+    deferredInstall = null;
+  } else if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+    toast('Already installed 🎉');
+  } else {
+    const iOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    toast(iOS ? 'iPhone: tap Share → “Add to Home Screen”' : 'Use your browser menu → “Install app” / “Add to Home Screen”');
+  }
 }
 
 /* ------------------------------ Install prompt -------------------------- */
@@ -1656,11 +1659,18 @@ function checkReminders() {
 }
 
 /* ------------------------------ Cloud sync (Firebase) ------------------- */
+/* Phase 2 — per-athlete privacy:
+   - athletes/{aid}  : one doc per athlete (profile + their own sessions/tests/… + checkins)
+   - shared/coach    : coach-managed content shared to everyone (coaches list, library, questionnaires)
+   Coaches can read/write all athlete docs; an athlete can read/write only their own (aid == their uid).
+*/
 const Cloud = {
-  enabled: false, auth: null, db: null, user: null, teamRef: null,
+  enabled: false, auth: null, db: null, user: null, role: null, myUid: null,
   applyingRemote: false, ready: false, saveTimer: null,
-  // which parts of `state` are shared across devices (view prefs & device settings stay local)
-  DATA_KEYS: ['athletes', 'coaches', 'sessions', 'library', 'questionnaires', 'responses', 'checkins', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals'],
+  pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
+
+  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'ownerUid'],
+  ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses'],
 
   init() {
     if (!window.FIREBASE_CONFIG || typeof firebase === 'undefined') return false;
@@ -1669,6 +1679,7 @@ const Cloud = {
       this.auth = firebase.auth();
       this.db = firebase.firestore();
       this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+      this.pendingAthletes = new Set();
       this.enabled = true;
       return true;
     } catch (e) { console.warn('Firebase init failed', e); return false; }
@@ -1677,52 +1688,165 @@ const Cloud = {
   start() {
     this.auth.onAuthStateChanged((u) => {
       this.user = u;
-      if (u) this.onLogin(); else showAuthScreen();
+      if (u) this.onLogin(); else { this.teardown(); showAuthScreen(); }
     });
   },
 
+  teardown() { if (this.unsub) { this.unsub.forEach(f => f && f()); } this.unsub = null; this.ready = false; },
+
   async onLogin() {
-    // record/refresh this user's profile
-    try {
-      await this.db.collection('users').doc(this.user.uid).set({
-        email: this.user.email, name: this.user.displayName || '', lastSeen: Date.now()
-      }, { merge: true });
-    } catch (e) {}
+    this.myUid = this.user.uid;
+    this.ready = false;
+    // determine role from users/{uid}, falling back to a pending signup choice
+    const uref = this.db.collection('users').doc(this.myUid);
+    let role = null;
+    try { const s = await uref.get(); if (s.exists) role = s.data().role; } catch (e) {}
+    if (!role && this.pendingSignup) role = this.pendingSignup.role;
+    if (!role) role = 'coach';
+    this.role = role; state.role = role;
+    try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', role, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
+    this.pendingSignup = null;
 
-    this.teamRef = this.db.collection('team').doc('main');
-    this.ready = false; // block local pushes until we've loaded the shared data at least once
-    render();           // show app shell immediately (render never pushes)
+    render(); // show shell immediately
 
-    this.teamRef.onSnapshot((snap) => {
-      if (snap.metadata.hasPendingWrites) return;         // ignore our own echo
-      if (!snap.exists) { this.pushNow(); this.ready = true; return; } // first user seeds the shared team
-      const data = snap.data();
-      this.applyingRemote = true;
-      this.DATA_KEYS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
-      migrate(state);
-      localStorage.setItem(LS_KEY, JSON.stringify(state));
-      this.applyingRemote = false;
-      this.ready = true;
-      if (!document.querySelector('#modal-root .modal')) render(); // don't clobber an open modal
-    }, (err) => toast('Sync error: ' + err.message));
+    if (role === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
+    else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
 
     checkReminders();
     if (!this._interval) { this._interval = setInterval(checkReminders, 5 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); }); }
   },
 
-  push() {
-    if (!this.enabled || !this.user || this.applyingRemote || !this.ready) return;
-    clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.pushNow(), 600);
+  // ---- build helpers ----
+  athleteDoc(a, aid) {
+    const doc = {};
+    this.PROFILE_KEYS.forEach(k => { if (a[k] !== undefined) doc[k] = a[k]; });
+    this.ATH_COLLECTIONS.forEach(k => { doc[k] = (state[k] || []).filter(x => x.athleteId === aid); });
+    doc.checkins = {
+      sleep: state.checkins.sleep.filter(x => x.athleteId === aid),
+      session: state.checkins.session.filter(x => x.athleteId === aid),
+      weekly: state.checkins.weekly.filter(x => x.athleteId === aid)
+    };
+    doc._updatedAt = Date.now(); doc._updatedBy = (this.user && this.user.email) || '';
+    return doc;
   },
-  pushNow() {
-    if (!this.teamRef) return;
-    const payload = { _updatedAt: Date.now(), _updatedBy: (this.user && this.user.email) || '' };
-    this.DATA_KEYS.forEach(k => { payload[k] = state[k]; });
-    this.teamRef.set(payload).catch(e => toast('Sync error: ' + e.message));
+  loadFromDocs(docs) {
+    state.athletes = [];
+    this.ATH_COLLECTIONS.forEach(k => state[k] = []);
+    state.checkins = { sleep: [], session: [], weekly: [] };
+    docs.forEach(({ id, data }) => {
+      const prof = { id };
+      this.PROFILE_KEYS.forEach(k => { if (data[k] !== undefined) prof[k] = data[k]; });
+      prof.powerZones = prof.powerZones || clone(DEFAULT_POWER_ZONES);
+      prof.hrZones = prof.hrZones || clone(DEFAULT_HR_ZONES);
+      prof.paceZones = prof.paceZones || clone(DEFAULT_PACE_ZONES);
+      state.athletes.push(prof);
+      this.ATH_COLLECTIONS.forEach(k => (data[k] || []).forEach(item => state[k].push({ ...item, athleteId: id })));
+      const ci = data.checkins || {};
+      ['sleep', 'session', 'weekly'].forEach(kk => (ci[kk] || []).forEach(item => state.checkins[kk].push({ ...item, athleteId: id })));
+    });
+    migrate(state);
+  },
+  applyShared(d) {
+    if (d.coaches) state.coaches = d.coaches;
+    if (d.library) state.library = d.library;
+    if (d.questionnaires) state.questionnaires = d.questionnaires;
+    if (!state.currentCoachId || !state.coaches.find(c => c.id === state.currentCoachId)) state.currentCoachId = (state.coaches[0] || {}).id;
+  },
+  reRender() { if (!document.querySelector('#modal-root .modal')) render(); },
+
+  // ---- athlete (self) ----
+  async ensureAthleteDoc() {
+    const ref = this.db.collection('athletes').doc(this.myUid);
+    let snap; try { snap = await ref.get(); } catch (e) { return; }
+    if (!snap.exists) {
+      const nm = this.user.displayName || this.user.email.split('@')[0];
+      const a = { name: nm, email: this.user.email, sport: 'biking', ftp: 250, maxHr: 190, thresholdHr: 168, thresholdPace: 240, powerZones: clone(DEFAULT_POWER_ZONES), hrZones: clone(DEFAULT_HR_ZONES), paceZones: clone(DEFAULT_PACE_ZONES), coachIds: [], ownerUid: this.myUid };
+      state.athletes = [{ id: this.myUid, ...a }];
+      try { await ref.set(this.athleteDoc(a, this.myUid)); } catch (e) { toast('Sync error: ' + e.message); }
+    }
+  },
+  subscribeAthlete() {
+    const aRef = this.db.collection('athletes').doc(this.myUid);
+    const u1 = aRef.onSnapshot(snap => {
+      if (snap.metadata.hasPendingWrites || !snap.exists) return;
+      this.applyingRemote = true;
+      this.loadFromDocs([{ id: snap.id, data: snap.data() }]);
+      state.currentAthleteId = this.myUid; state.role = 'athlete';
+      this.applyingRemote = false; this.ready = true;
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      this.reRender();
+    }, err => toast('Sync error: ' + err.message));
+    const u2 = this.db.collection('shared').doc('coach').onSnapshot(s => {
+      if (s.metadata.hasPendingWrites || !s.exists) return;
+      this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
+    }, () => {});
+    this.unsub = [u1, u2];
   },
 
-  logout() { if (this.auth) this.auth.signOut(); }
+  // ---- coach (all athletes) ----
+  subscribeCoach() {
+    const u1 = this.db.collection('athletes').onSnapshot(qs => {
+      if (qs.metadata.hasPendingWrites) return; // ignore our own write echoes
+      this.applyingRemote = true;
+      this.loadFromDocs(qs.docs.map(d => ({ id: d.id, data: d.data() })));
+      if (!state.athletes.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = (state.athletes[0] || {}).id;
+      this.applyingRemote = false; this.ready = true;
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      this.reRender();
+    }, err => toast('Sync error: ' + err.message));
+    const u2 = this.db.collection('shared').doc('coach').onSnapshot(s => {
+      if (s.metadata.hasPendingWrites || !s.exists) return;
+      this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
+    }, () => {});
+    this.unsub = [u1, u2];
+  },
+
+  // ---- writes ----
+  push() {
+    if (!this.enabled || !this.user || this.applyingRemote || !this.ready) return;
+    if (state.currentAthleteId) this.pendingAthletes.add(state.currentAthleteId);
+    if (this.role === 'coach') this.sharedDirty = true;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.flush(), 700);
+  },
+  flush() {
+    this.pendingAthletes.forEach(aid => {
+      const a = state.athletes.find(x => x.id === aid);
+      if (!a) { if (this.role === 'coach') this.db.collection('athletes').doc(aid).delete().catch(() => {}); return; }
+      this.db.collection('athletes').doc(aid).set(this.athleteDoc(a, aid)).catch(e => toast('Sync error: ' + e.message));
+    });
+    this.pendingAthletes.clear();
+    if (this.role === 'coach' && this.sharedDirty) {
+      this.db.collection('shared').doc('coach').set({ coaches: state.coaches, library: state.library, questionnaires: state.questionnaires, _updatedAt: Date.now() }).catch(() => {});
+      this.sharedDirty = false;
+    }
+  },
+
+  // ---- one-time migration from the phase-1 team/main doc ----
+  async migrateIfNeeded() {
+    let col; try { col = await this.db.collection('athletes').limit(1).get(); } catch (e) { return; }
+    if (!col.empty) return;
+    let team; try { team = await this.db.collection('team').doc('main').get(); } catch (e) { return; }
+    if (!team.exists) return;
+    const t = team.data();
+    try {
+      const batch = this.db.batch();
+      (t.athletes || []).forEach(a => {
+        const aid = a.id; const doc = {};
+        this.PROFILE_KEYS.forEach(k => { if (a[k] !== undefined) doc[k] = a[k]; });
+        doc.coachIds = a.coachIds || []; doc.ownerUid = a.ownerUid || null;
+        this.ATH_COLLECTIONS.forEach(k => { doc[k] = (t[k] || []).filter(x => x.athleteId === aid); });
+        const ci = t.checkins || {};
+        doc.checkins = { sleep: (ci.sleep || []).filter(x => x.athleteId === aid), session: (ci.session || []).filter(x => x.athleteId === aid), weekly: (ci.weekly || []).filter(x => x.athleteId === aid) };
+        doc._updatedAt = Date.now(); doc._updatedBy = 'migration';
+        batch.set(this.db.collection('athletes').doc(aid), doc);
+      });
+      batch.set(this.db.collection('shared').doc('coach'), { coaches: t.coaches || [], library: t.library || [], questionnaires: t.questionnaires || [], _updatedAt: Date.now() });
+      await batch.commit();
+    } catch (e) { console.warn('migration failed', e); }
+  },
+
+  logout() { this.teardown(); if (this.auth) this.auth.signOut(); }
 };
 
 function showAuthScreen(msg) {
@@ -1746,6 +1870,7 @@ function showAuthScreen(msg) {
         <label>Password</label><input id="au-pass" type="password" autocomplete="current-password" placeholder="At least 6 characters"/>
         <div id="au-err" style="color:var(--bad);font-size:13px;margin-top:10px;min-height:16px">${esc(msg || '')}</div>
         <button class="btn primary" id="au-go" style="width:100%;justify-content:center;margin-top:6px">Log in</button>
+        <button class="btn ghost" id="au-install" style="width:100%;justify-content:center;margin-top:8px">📲 Install as an app</button>
         <p class="sub" style="text-align:center;margin-top:14px;font-size:12px">Your data is stored securely in your team's private cloud.</p>
       </div>
     </div>`;
@@ -1766,22 +1891,25 @@ function showAuthScreen(msg) {
     $('#au-go').disabled = true;
     try {
       if (mode === 'signup') {
-        const cred = await Cloud.auth.createUserWithEmailAndPassword(email, pass);
         const name = $('#au-name').value.trim() || email.split('@')[0];
+        const role = $('#au-role').value;
+        Cloud.pendingSignup = { role, name };   // onLogin picks this up before users-doc exists
+        const cred = await Cloud.auth.createUserWithEmailAndPassword(email, pass);
         await cred.user.updateProfile({ displayName: name });
-        await Cloud.db.collection('users').doc(cred.user.uid).set({ email, name, role: $('#au-role').value, createdAt: Date.now() }, { merge: true });
-        state.role = $('#au-role').value; save();
+        await Cloud.db.collection('users').doc(cred.user.uid).set({ email, name, role, createdAt: Date.now() }, { merge: true });
       } else {
         await Cloud.auth.signInWithEmailAndPassword(email, pass);
       }
-      // onAuthStateChanged takes over from here
+      // onAuthStateChanged / onLogin takes over from here
     } catch (e) {
+      Cloud.pendingSignup = null;
       $('#au-go').disabled = false;
       $('#au-err').textContent = friendlyAuthError(e);
     }
   };
   $('#au-go').addEventListener('click', go);
   $('#au-pass').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  if ($('#au-install')) $('#au-install').addEventListener('click', () => triggerInstall());
 }
 function friendlyAuthError(e) {
   const c = (e && e.code) || '';
