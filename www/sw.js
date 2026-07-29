@@ -1,4 +1,4 @@
-const CACHE = 'tac-coach-v5';
+const CACHE = 'tac-coach-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -36,14 +36,12 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   // Only handle our own origin. Let Firebase/Firestore/Google CDN traffic go straight to the network.
   if (new URL(req.url).origin !== self.location.origin) return;
+  // Network-first: always try to load the latest version online; fall back to cache when offline.
   e.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    fetch(req).then((res) => {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+      return res;
+    }).catch(() => caches.match(req))
   );
 });
