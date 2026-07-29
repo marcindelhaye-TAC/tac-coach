@@ -46,11 +46,14 @@ function uid() { return Math.random().toString(36).slice(2, 10); }
 
 function seed() {
   const a1 = uid();
+  const co1 = uid(), co2 = uid();
   const t = new Date();
   const iso = (offset) => toISO(addDays(t, offset));
   return {
     role: 'coach',
     currentAthleteId: a1,
+    coaches: [{ id: co1, name: 'Coach 1' }, { id: co2, name: 'Coach 2' }],
+    currentCoachId: co1,
     ui: { view: 'dashboard', calMonth: t.getMonth(), calYear: t.getFullYear() },
     settings: {
       weekStart: 1,
@@ -59,6 +62,7 @@ function seed() {
     },
     athletes: [{
       id: a1, name: 'Demo Athlete', email: '', sport: 'biking',
+      coachIds: [co1, co2],
       ftp: 250, maxHr: 190, thresholdHr: 168, thresholdPace: 240, /* sec/km */
       powerZones: clone(DEFAULT_POWER_ZONES),
       hrZones: clone(DEFAULT_HR_ZONES),
@@ -141,8 +145,14 @@ function migrate(s) {
   if (!s.settings) s.settings = {};
   if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
   s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
+  // Coaches (2 coaches per athlete support)
+  if (!Array.isArray(s.coaches) || !s.coaches.length) s.coaches = [{ id: uid(), name: 'Coach 1' }, { id: uid(), name: 'Coach 2' }];
+  if (!s.currentCoachId || !s.coaches.find(c => c.id === s.currentCoachId)) s.currentCoachId = s.coaches[0].id;
+  s.athletes.forEach(a => { if (!Array.isArray(a.coachIds)) a.coachIds = [s.coaches[0].id]; });
   return s;
 }
+function currentCoach() { return state.coaches.find(c => c.id === state.currentCoachId) || state.coaches[0]; }
+function athleteCoaches(a) { return (a.coachIds || []).map(id => state.coaches.find(c => c.id === id)).filter(Boolean); }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 
 /* ------------------------------ Date utils ------------------------------ */
@@ -312,6 +322,12 @@ function render() {
               ${state.athletes.map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>
           </div>
+          ${state.role === 'coach' ? `<div class="who">
+            Acting as
+            <select data-coach-select>
+              ${state.coaches.map(c => `<option value="${c.id}" ${c.id === state.currentCoachId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+            </select>
+          </div>` : ''}
         </div>
       </aside>
 
@@ -331,6 +347,7 @@ function render() {
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => go(b.dataset.nav)));
   $$('[data-role]').forEach(b => b.addEventListener('click', () => { state.role = b.dataset.role; save(); render(); }));
   $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
+  if ($('[data-coach-select]')) $('[data-coach-select]').addEventListener('change', (e) => { state.currentCoachId = e.target.value; save(); render(); });
 
   const views = {
     dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
@@ -634,21 +651,23 @@ function openSessionModal(id, presetDate) {
 
   const stepsState = clone(s.steps || []);
   const strengthState = clone(s.strength || []);
+  const strengthMeta = { focus: s.focus || '', targetRpe: s.targetRpe || '' };
 
   const syncTotals = () => {
     if (stepsState.length) { $('#f-dur').value = stepsDuration(stepsState); $('#f-load').value = stepsLoad(a, stepsState); }
   };
   mountStepBuilder('steps-block', stepsState, a, canEdit, syncTotals);
-  renderStrengthEditor(strengthState, canEdit);
+  renderStrengthEditor(strengthState, canEdit, strengthMeta);
 
-  $('#f-sport').addEventListener('change', () => renderStrengthEditor(strengthState, canEdit));
+  $('#f-sport').addEventListener('change', () => renderStrengthEditor(strengthState, canEdit, strengthMeta));
 
   $('#f-save').addEventListener('click', () => {
     const obj = {
       id: s.id || uid(), athleteId: state.currentAthleteId,
       sport: $('#f-sport').value, name: $('#f-name').value.trim() || 'Untitled',
       date: $('#f-date').value, duration: Number($('#f-dur').value) || 0, load: Number($('#f-load').value) || 0,
-      desc: $('#f-desc').value, steps: stepsState, strength: strengthState, status: s.status || 'planned',
+      desc: $('#f-desc').value, steps: stepsState, strength: strengthState,
+      focus: strengthMeta.focus, targetRpe: strengthMeta.targetRpe, status: s.status || 'planned',
       rpe: s.rpe, feeling: s.feeling, feltNote: s.feltNote, actual: s.actual
     };
     if (editing) Object.assign(editing, obj); else state.sessions.push(obj);
@@ -660,22 +679,29 @@ function openSessionModal(id, presetDate) {
   });
   if ($('#f-done')) $('#f-done').addEventListener('click', () => {
     let target = editing;
-    if (!target) { target = { ...s, id: uid(), athleteId: state.currentAthleteId, steps: stepsState, strength: strengthState }; state.sessions.push(target); }
-    else { target.steps = stepsState; target.strength = strengthState; }
+    if (!target) { target = { ...s, id: uid(), athleteId: state.currentAthleteId, steps: stepsState, strength: strengthState, focus: strengthMeta.focus, targetRpe: strengthMeta.targetRpe }; state.sessions.push(target); }
+    else { target.steps = stepsState; target.strength = strengthState; target.focus = strengthMeta.focus; target.targetRpe = strengthMeta.targetRpe; }
     target.status = 'done'; save(); closeModal(); render();
     openRpeModal(target.id); // trigger post-session check-in
   });
 }
 
-function renderStrengthEditor(list, canEdit) {
+function renderStrengthEditor(list, canEdit, meta) {
   const block = $('#strength-block');
   if (!block) return;
   if ($('#f-sport').value !== 'strength') { block.innerHTML = ''; return; }
+  meta = meta || {};
   block.innerHTML = `
-    <label>Strength exercises</label>
+    <div class="inline">
+      <div style="flex:2"><label>Focus of the training</label><input id="str-focus" value="${esc(meta.focus || '')}" ${canEdit ? '' : 'disabled'} placeholder="e.g. Max strength — legs & core"/></div>
+      <div><label>Target RPE (1–10)</label><input id="str-rpe" type="number" min="1" max="10" value="${esc(meta.targetRpe || '')}" ${canEdit ? '' : 'disabled'} placeholder="e.g. 8"/></div>
+    </div>
+    <label style="margin-top:12px">Strength exercises</label>
     <table class="ztable"><thead><tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Weight</th><th>Rest</th>${canEdit ? '<th></th>' : ''}</tr></thead>
       <tbody id="str-rows"></tbody></table>
     ${canEdit ? '<div class="btn-row" style="margin-top:8px"><button class="btn sm" id="str-add">+ Add exercise</button></div>' : ''}`;
+  if ($('#str-focus')) $('#str-focus').addEventListener('input', e => { meta.focus = e.target.value; });
+  if ($('#str-rpe')) $('#str-rpe').addEventListener('input', e => { meta.targetRpe = e.target.value; });
   const rows = $('#str-rows');
   function draw() {
     rows.innerHTML = list.map((ex, i) => `
@@ -967,6 +993,15 @@ function viewAthletes() {
       </div>
     </div>
 
+    <div class="card" style="margin-top:16px">
+      <h3>Coaches for ${esc(a.name)}</h3>
+      <p class="sub">Assign up to 2 coaches to this athlete. Both can program and message. Use “Acting as” in the sidebar to switch which coach you are.</p>
+      <div id="coach-assign"></div>
+      <div class="section-title" style="margin-top:14px">All coaches</div>
+      <div id="coach-list"></div>
+      <div class="btn-row" style="margin-top:10px"><button class="btn sm" id="coach-add">+ Add coach</button></div>
+    </div>
+
     <div class="pill-tabs" style="margin-top:18px" id="ztabs">
       <button data-zt="powerZones" class="active">Power zones</button>
       <button data-zt="hrZones">HR zones</button>
@@ -983,6 +1018,38 @@ function viewAthletes() {
   if ($('#a-del')) $('#a-del').addEventListener('click', () => {
     state.athletes = state.athletes.filter(x => x.id !== a.id); state.currentAthleteId = state.athletes[0].id; save(); render();
   });
+
+  // ----- Coaches (max 2 per athlete) -----
+  function drawCoaches() {
+    a.coachIds = a.coachIds || [];
+    const atMax = a.coachIds.length >= 2;
+    $('#coach-assign').innerHTML = a.coachIds.length
+      ? a.coachIds.map(id => { const c = state.coaches.find(x => x.id === id); return c ? `<span class="badge" style="background:var(--accent);color:var(--accent-ink);margin:0 6px 6px 0">👤 ${esc(c.name)} <button class="x" data-unassign="${id}" style="color:var(--accent-ink);font-size:16px">&times;</button></span>` : ''; }).join('')
+      : '<div class="sub">No coaches assigned yet.</div>';
+
+    $('#coach-list').innerHTML = state.coaches.map(c => {
+      const assigned = a.coachIds.includes(c.id);
+      return `<div class="row">
+        <span class="dot" style="background:${assigned ? 'var(--ok)' : 'var(--line)'}"></span>
+        <div class="grow"><input data-coach-name="${c.id}" value="${esc(c.name)}" style="border:0;background:transparent;padding:4px 0;font-weight:600"/></div>
+        ${assigned ? `<button class="btn sm" data-unassign="${c.id}">Unassign</button>` : `<button class="btn sm primary" data-assign="${c.id}" ${atMax ? 'disabled title="Max 2 coaches"' : ''}>Assign</button>`}
+        ${state.coaches.length > 1 ? `<button class="btn sm danger" data-coach-del="${c.id}">Delete</button>` : ''}
+      </div>`;
+    }).join('');
+
+    $$('[data-assign]').forEach(b => b.addEventListener('click', () => { if (a.coachIds.length < 2 && !a.coachIds.includes(b.dataset.assign)) { a.coachIds.push(b.dataset.assign); save(); drawCoaches(); } }));
+    $$('[data-unassign]').forEach(b => b.addEventListener('click', () => { a.coachIds = a.coachIds.filter(id => id !== b.dataset.unassign); save(); drawCoaches(); }));
+    $$('[data-coach-name]').forEach(inp => inp.addEventListener('change', () => { const c = state.coaches.find(x => x.id === inp.dataset.coachName); if (c) { c.name = inp.value.trim() || 'Coach'; save(); render(); } }));
+    $$('[data-coach-del]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.coachDel;
+      state.coaches = state.coaches.filter(c => c.id !== id);
+      state.athletes.forEach(at => { at.coachIds = (at.coachIds || []).filter(cid => cid !== id); });
+      if (state.currentCoachId === id) state.currentCoachId = state.coaches[0] ? state.coaches[0].id : null;
+      save(); render();
+    }));
+  }
+  $('#coach-add').addEventListener('click', () => { state.coaches.push({ id: uid(), name: 'Coach ' + (state.coaches.length + 1) }); save(); drawCoaches(); });
+  drawCoaches();
 
   let ztab = 'powerZones';
   function drawZones() {
@@ -1356,7 +1423,11 @@ function viewMessages() {
       <div class="card">
         <h3>💬 Chat ${me === 'coach' ? 'with ' + esc(a.name) : 'with coach'}</h3>
         <div class="chat" id="chat">
-          ${msgs.length ? msgs.map(m => `<div class="bubble ${m.from === me ? 'me' : 'them'}">${esc(m.text)}<span class="when">${m.from === me ? 'You' : (m.from === 'coach' ? 'Coach' : esc(a.name))} · ${fmtDate(m.date)}</span></div>`).join('') : '<div class="sub">No messages yet.</div>'}
+          ${msgs.length ? msgs.map(m => {
+            const author = m.from === 'coach' ? ((state.coaches.find(c => c.id === m.coachId) || {}).name || 'Coach') : esc(a.name);
+            const isMe = m.from === me;
+            return `<div class="bubble ${isMe ? 'me' : 'them'}">${esc(m.text)}<span class="when">${isMe && m.from === 'athlete' ? 'You' : esc(author)} · ${fmtDate(m.date)}</span></div>`;
+          }).join('') : '<div class="sub">No messages yet.</div>'}
         </div>
         <div class="chat-input">
           <input id="msg-text" placeholder="Type a message..."/>
@@ -1380,7 +1451,7 @@ function viewMessages() {
   const chatEl = $('#chat'); if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
   const send = () => {
     const t = $('#msg-text').value.trim(); if (!t) return;
-    state.messages.push({ id: uid(), athleteId: a.id, from: me, date: todayISO(), ts: Date.now(), text: t });
+    state.messages.push({ id: uid(), athleteId: a.id, from: me, coachId: me === 'coach' ? state.currentCoachId : undefined, date: todayISO(), ts: Date.now(), text: t });
     save(); viewMessages();
   };
   $('#msg-send').addEventListener('click', send);
