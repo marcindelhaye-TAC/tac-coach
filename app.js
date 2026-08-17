@@ -1927,7 +1927,9 @@ function viewMonitor() {
 /* ------------------------------ Settings -------------------------------- */
 function viewSettings() {
   const v = $('#view');
-  const iv = state.settings.intervals;
+  const ivAthlete = currentAthlete();
+  if (ivAthlete && !ivAthlete.intervals) ivAthlete.intervals = { athleteId: '', apiKey: '', lastSync: null };
+  const iv = (ivAthlete && ivAthlete.intervals) || { athleteId: '', apiKey: '', lastSync: null };
   const nt = state.settings.notifications;
   const dualCoach = Cloud.user && Cloud.accountRole === 'coach';
   v.innerHTML = `
@@ -1945,16 +1947,15 @@ function viewSettings() {
       <div class="btn-row" style="margin-top:14px"><button class="btn danger" id="acct-logout">Log out</button></div>
     </div>` : ''}
     <div class="card" style="max-width:640px">
-      <h3>Intervals.icu connection</h3>
-      <p class="sub">Connect your Intervals.icu account so activities and training-load calculations stay in sync. Create an API key in Intervals.icu → Settings → Developer.</p>
-      <label>Athlete ID</label><input id="iv-id" value="${esc(iv.athleteId)}" placeholder="i12345"/>
-      <label>API key</label><input id="iv-key" type="password" value="${esc(iv.apiKey)}" placeholder="Paste your API key"/>
-      <div class="hint">Stored only on this device. Live two-way sync activates once a small sync connector is enabled.</div>
+      <h3>Intervals.icu connection — ${esc(ivAthlete ? ivAthlete.name : '')}</h3>
+      <p class="sub">Planned trainings for this athlete are pushed to their Intervals.icu calendar automatically every morning (and a few times a day). Create an API key in Intervals.icu → Settings → Developer, and find the Athlete ID there too (e.g. i12345).</p>
+      <label>Athlete ID</label><input id="iv-id" value="${esc(iv.athleteId || '')}" placeholder="i12345"/>
+      <label>API key</label><input id="iv-key" type="password" value="${esc(iv.apiKey || '')}" placeholder="Paste your API key"/>
+      <div class="hint">Stored securely in your team's private cloud so the sync server can use it. One-way for now: TAC → Intervals (planned workouts).</div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn primary" id="iv-save">Save connection</button>
-        <button class="btn" id="iv-sync">Sync now</button>
       </div>
-      <div class="sub" style="margin-top:10px">${iv.lastSync ? 'Last sync: ' + iv.lastSync : 'Not synced yet.'}</div>
+      <div class="sub" style="margin-top:10px">${iv.apiKey ? '✅ Connected — syncs automatically.' : 'Not connected yet.'} ${iv.lastSync ? '· Last sync: ' + esc(iv.lastSync) : ''}</div>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:16px">
@@ -2006,11 +2007,10 @@ function viewSettings() {
   $$('#acct-mode button').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
   if ($('#acct-athlete')) $('#acct-athlete').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
 
-  $('#iv-save').addEventListener('click', () => { iv.athleteId = $('#iv-id').value.trim(); iv.apiKey = $('#iv-key').value.trim(); save(); toast('Connection saved'); });
-  $('#iv-sync').addEventListener('click', () => {
-    if (!iv.apiKey || !iv.athleteId) { toast('Enter athlete ID and API key first'); return; }
-    iv.lastSync = new Date().toLocaleString(); save(); viewSettings();
-    toast('Sync stub ran — enable connector for live data');
+  $('#iv-save').addEventListener('click', () => {
+    if (!ivAthlete) return;
+    ivAthlete.intervals = { athleteId: $('#iv-id').value.trim(), apiKey: $('#iv-key').value.trim(), lastSync: iv.lastSync || null };
+    save(); viewSettings(); toast('Intervals connection saved');
   });
   $('#d-export').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -2211,7 +2211,7 @@ const Cloud = {
   applyingRemote: false, ready: false, saveTimer: null,
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
-  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'ownerUid'],
+  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'ownerUid', 'intervals'],
   ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses'],
 
   init() {
