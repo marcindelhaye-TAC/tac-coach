@@ -6,7 +6,7 @@ const admin = require('firebase-admin');
 
 const API = 'https://intervals.icu/api/v1';
 const WINDOW_DAYS = 21;      // forward: how far ahead to push planned workouts
-const BACK_DAYS = 14;        // reverse: how far back to pull completed activities
+const BACK_DAYS = 60;        // reverse: how far back to pull completed activities (covers since ~early July)
 const TYPE = { biking: 'Ride', running: 'Run', swimming: 'Swim', walking: 'Walk', strength: 'WeightTraining', injury: 'Workout', stretching: 'Yoga', other: 'Workout' };
 const REV_TYPE = { Ride: 'biking', VirtualRide: 'biking', GravelRide: 'biking', Run: 'running', VirtualRun: 'running', TrailRun: 'running', Swim: 'swimming', OpenWaterSwim: 'swimming', Walk: 'walking', Hike: 'walking', WeightTraining: 'strength', Workout: 'other', Yoga: 'stretching' };
 function rid() { return Math.random().toString(36).slice(2, 10); }
@@ -120,7 +120,13 @@ async function pullFromIntervals(aid, key, id) {
     // completed activities → mark planned done / import new
     for (const act of acts) {
       const actId = 'iv-' + act.id;
-      if (sessions.some(s => s.intervalsActivityId === actId)) continue;
+      const arpe = act.icu_rpe != null ? Number(act.icu_rpe) : null;
+      const already = sessions.find(s => s.intervalsActivityId === actId);
+      if (already) {
+        // already imported — still refresh RPE from Intervals if TAC doesn't have one yet
+        if (already.rpe == null && arpe != null) { already.rpe = arpe; matched++; }
+        continue;
+      }
       const date = String(act.start_date_local || '').slice(0, 10); if (!date) continue;
       const sport = REV_TYPE[act.type] || 'other';
       const load = Math.round(act.icu_training_load || 0);
@@ -129,11 +135,14 @@ async function pullFromIntervals(aid, key, id) {
       if (m) {
         m.status = 'done'; m.intervalsActivityId = actId;
         if (load) m.load = load; if (dur) m.duration = dur;
+        if (m.rpe == null && arpe != null) m.rpe = arpe;   // bring RPE entered in Intervals into TAC
         const zt = (m.steps && m.steps[0] && m.steps[0].zt) || 'power';
         const actual = zoneTimesFor(act, zt); if (actual.length) m.actual = actual;
         matched++;
       } else {
-        sessions.push({ id: rid(), athleteId: aid, date, sport, name: act.name || 'Activity', duration: dur, load, desc: 'Imported from Intervals.icu', steps: [], strength: [], status: 'done', intervalsActivityId: actId });
+        const ns = { id: rid(), athleteId: aid, date, sport, name: act.name || 'Activity', duration: dur, load, desc: 'Imported from Intervals.icu', steps: [], strength: [], status: 'done', intervalsActivityId: actId };
+        if (arpe != null) ns.rpe = arpe;
+        sessions.push(ns);
         imported++;
       }
     }
