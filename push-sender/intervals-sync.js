@@ -5,8 +5,18 @@
 const admin = require('firebase-admin');
 
 const API = 'https://intervals.icu/api/v1';
-const WINDOW_DAYS = 21;
+const WINDOW_DAYS = 21;      // forward: how far ahead to push planned workouts
+const BACK_DAYS = 14;        // reverse: how far back to pull completed activities
 const TYPE = { biking: 'Ride', running: 'Run', swimming: 'Swim', walking: 'Walk', strength: 'WeightTraining', injury: 'Workout', stretching: 'Yoga', other: 'Workout' };
+const REV_TYPE = { Ride: 'biking', VirtualRide: 'biking', GravelRide: 'biking', Run: 'running', VirtualRun: 'running', TrailRun: 'running', Swim: 'swimming', OpenWaterSwim: 'swimming', Walk: 'walking', Hike: 'walking', WeightTraining: 'strength', Workout: 'other', Yoga: 'stretching' };
+function rid() { return Math.random().toString(36).slice(2, 10); }
+function zoneTimesFor(act, zt) {
+  const arr = zt === 'hr' ? act.icu_hr_zone_times : act.icu_zone_times;
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  arr.forEach((z, i) => { const secs = typeof z === 'number' ? z : (z && (z.secs || z.time)) || 0; if (secs > 0) out.push({ zt, z: i, min: Math.round(secs / 60) }); });
+  return out;
+}
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) { console.error('Missing FIREBASE_SERVICE_ACCOUNT'); process.exit(1); }
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
@@ -66,9 +76,53 @@ async function syncAthlete(aid, data) {
     try { await ivFetch(key, `/athlete/${id}/events`, { method: 'POST', body: JSON.stringify(body) }); created++; }
     catch (e) { console.error('create failed', s.name, e.message); }
   }
-  // 3. stamp last sync (nested field update, won't clobber the rest)
+  // 3. reverse: pull completed activities from Intervals back into TAC
+  let matched = 0, imported = 0;
+  try { const r = await pullActivities(aid, key, id); matched = r.matched; imported = r.imported; }
+  catch (e) { console.error('pull failed', aid, e.message); }
+
+  // 4. stamp last sync (nested field update, won't clobber the rest)
   try { await db.collection('athletes').doc(aid).update({ 'intervals.lastSync': new Date().toISOString().replace('T', ' ').slice(0, 16) }); } catch (e) {}
-  return { athlete: data.name || aid, removed, created };
+  return { athlete: data.name || aid, removed, created, matched, imported };
+}
+
+// Pull completed Intervals activities → mark planned TAC sessions done / import new ones.
+async function pullActivities(aid, key, id) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const start = new Date(today); start.setDate(start.getDate() - BACK_DAYS);
+  const acts = await ivFetch(key, `/athlete/${id}/activities?oldest=${ymd(start)}&newest=${ymd(today)}`);
+  if (!Array.isArray(acts) || !acts.length) return { matched: 0, imported: 0 };
+  const ref = db.collection('athletes').doc(aid);
+  let matched = 0, imported = 0;
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(ref); if (!doc.exists) return;
+    const data = doc.data();
+    const sessions = data.sessions || [];
+    matched = 0; imported = 0;
+    for (const act of acts) {
+      const actId = 'iv-' + act.id;
+      if (sessions.some(s => s.intervalsActivityId === actId)) continue;   // already imported
+      const date = String(act.start_date_local || '').slice(0, 10);
+      if (!date) continue;
+      const sport = REV_TYPE[act.type] || 'other';
+      const load = Math.round(act.icu_training_load || 0);
+      const dur = Math.round((act.moving_time || 0) / 60);
+      const m = sessions.find(s => s.date === date && s.sport === sport && s.status !== 'done' && !s.intervalsActivityId);
+      if (m) {
+        m.status = 'done'; m.intervalsActivityId = actId;
+        if (load) m.load = load; if (dur) m.duration = dur;
+        const zt = (m.steps && m.steps[0] && m.steps[0].zt) || 'power';
+        const actual = zoneTimesFor(act, zt);
+        if (actual.length) m.actual = actual;
+        matched++;
+      } else {
+        sessions.push({ id: rid(), athleteId: aid, date, sport, name: act.name || 'Activity', duration: dur, load, desc: 'Imported from Intervals.icu', steps: [], strength: [], status: 'done', intervalsActivityId: actId });
+        imported++;
+      }
+    }
+    tx.update(ref, { sessions });
+  });
+  return { matched, imported };
 }
 
 async function run() {

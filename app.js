@@ -1948,10 +1948,10 @@ function viewSettings() {
     </div>` : ''}
     <div class="card" style="max-width:640px">
       <h3>Intervals.icu connection — ${esc(ivAthlete ? ivAthlete.name : '')}</h3>
-      <p class="sub">Planned trainings for this athlete are pushed to their Intervals.icu calendar automatically every morning (and a few times a day). Create an API key in Intervals.icu → Settings → Developer, and find the Athlete ID there too (e.g. i12345).</p>
+      <p class="sub">Two-way sync, automatic every morning (and a few times a day): planned trainings → Intervals calendar, and completed activities ← Intervals (marks sessions done with real load & zones). Create an API key in Intervals.icu → Settings → Developer, and find the Athlete ID there too (e.g. i12345).</p>
       <label>Athlete ID</label><input id="iv-id" value="${esc(iv.athleteId || '')}" placeholder="i12345"/>
       <label>API key</label><input id="iv-key" type="password" value="${esc(iv.apiKey || '')}" placeholder="Paste your API key"/>
-      <div class="hint">Stored securely in your team's private cloud so the sync server can use it. One-way for now: TAC → Intervals (planned workouts).</div>
+      <div class="hint">Stored securely in your team's private cloud so the sync server can use it. TAC ⇄ Intervals.icu.</div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn primary" id="iv-save">Save connection</button>
       </div>
