@@ -121,7 +121,8 @@ function seed() {
     reminders: [
       { id: uid(), kind: 'sleep', title: 'Good morning 🌙', body: 'How did you sleep? Log your morning check-in.', time: '07:00', freq: 'daily', target: 'all', active: true },
       { id: uid(), kind: 'weekly', title: 'Weekly reflection 📆', body: 'How did this week feel? Fill in your weekly check-in.', time: '20:00', freq: 'sun', target: 'all', active: true }
-    ]
+    ],
+    scienceCustom: []
   };
 }
 
@@ -238,6 +239,7 @@ function migrate(s) {
   if (!Array.isArray(s.nutrition)) s.nutrition = [];
   if (!Array.isArray(s.goals)) s.goals = [];
   if (!Array.isArray(s.reminders)) s.reminders = [];
+  if (!Array.isArray(s.scienceCustom)) s.scienceCustom = [];
   if (!s.settings) s.settings = {};
   if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
   s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
@@ -1066,8 +1068,11 @@ function viewLibrary() {
   const tab = state.ui.libTab || 'mine';
   const goal = state.ui.libGoal || 'all';
   const actions = $('#topbar-actions');
-  actions.innerHTML = tab === 'mine' ? `<button class="btn primary sm" id="add-lib">+ New workout</button>` : '';
-  if (tab === 'mine') $('#add-lib').addEventListener('click', () => openLibModal(null));
+  actions.innerHTML = tab === 'mine'
+    ? `<button class="btn primary sm" id="add-lib">+ New workout</button>`
+    : (state.role === 'coach' ? `<button class="btn primary sm" id="add-sci">+ Add workout</button>` : '');
+  if (tab === 'mine' && $('#add-lib')) $('#add-lib').addEventListener('click', () => openLibModal(null));
+  if (tab === 'science' && $('#add-sci')) $('#add-sci').addEventListener('click', () => openScienceModal(null));
 
   const v = $('#view');
   const tabs = `<div class="pill-tabs">
@@ -1099,9 +1104,11 @@ function viewLibrary() {
     $$('[data-sched]').forEach(b => b.addEventListener('click', () => scheduleFromLib(b.dataset.sched)));
   } else {
     const goals = ['all', ...Object.keys(SCIENCE_GOALS)];
-    const list = SCIENCE_CATALOG.filter(w => goal === 'all' || w.goal === goal);
+    const custom = state.scienceCustom.filter(w => goal === 'all' || w.goal === goal);
+    const builtin = SCIENCE_CATALOG.filter(w => goal === 'all' || w.goal === goal);
+    const list = [...custom, ...builtin];
     v.innerHTML = tabs + `
-      <p class="sub">Evidence-based workouts & fitness tests from the exercise-physiology literature. Full sources in the <b>References</b> tab.</p>
+      <p class="sub">Evidence-based workouts & fitness tests. Built-in ones cite the literature (see the <b>References</b> tab); coaches can add their own too.</p>
       <div class="pill-tabs" style="margin-top:8px">
         ${goals.map(g => `<button data-libgoal="${g}" class="${goal === g ? 'active' : ''}">${g === 'all' ? 'All' : SCIENCE_GOALS[g]}</button>`).join('')}
       </div>
@@ -1111,36 +1118,89 @@ function viewLibrary() {
           return `<div class="card">
             <div class="badge" style="border-left:3px solid ${sp.color}">${sp.icon} ${sp.label}</div>
             ${w.cat === 'test' ? '<span class="badge" style="color:var(--yellow)">🧪 Fitness test</span>' : focusBadge(w)}
+            ${w.custom ? '<span class="badge" style="color:var(--accent-2)">★ Team-added</span>' : ''}
             <h3 style="margin-top:8px">${esc(w.name)}</h3>
             <div class="sub">${w.duration || 0} min · ${w.load || 0} TSS${w.estimates ? ' · estimates ' + esc(w.estimates) : ''}${w.freq ? ' · ' + esc(w.freq) : ''}</div>
             ${(w.steps && w.steps.length) ? '<div style="margin-top:8px">' + workoutProfileSVG(w.steps) + '</div>' : ''}
             <p class="sub" style="margin-top:8px">${esc(w.desc)}</p>
-            <div style="margin-top:6px">${(w.refs || []).map(refChip).join(' ')}</div>
+            ${w.custom ? (w.refText ? `<p class="sub" style="margin-top:4px"><b style="color:var(--text)">Source:</b> ${esc(w.refText)}</p>` : '') : `<div style="margin-top:6px">${(w.refs || []).map(refChip).join(' ')}</div>`}
             <div class="btn-row" style="margin-top:10px">
               <button class="btn sm primary" data-scisched="${w.id}">Add to calendar</button>
               <button class="btn sm" data-scisave="${w.id}">Save to my templates</button>
+              ${(w.custom && state.role === 'coach') ? `<button class="btn sm" data-sciedit="${w.id}">Edit</button><button class="btn sm danger" data-scidel="${w.id}">Delete</button>` : ''}
             </div>
           </div>`;
         }).join('')}
       </div>`;
     $$('[data-libgoal]').forEach(b => b.addEventListener('click', () => { state.ui.libGoal = b.dataset.libgoal; viewLibrary(); }));
     $$('[data-scisched]').forEach(b => b.addEventListener('click', () => scheduleCatalog(b.dataset.scisched)));
+    $$('[data-sciedit]').forEach(b => b.addEventListener('click', () => openScienceModal(b.dataset.sciedit)));
+    $$('[data-scidel]').forEach(b => b.addEventListener('click', () => { state.scienceCustom = state.scienceCustom.filter(x => x.id !== b.dataset.scidel); save(); viewLibrary(); toast('Removed from library'); }));
     $$('[data-scisave]').forEach(b => b.addEventListener('click', () => {
-      const w = SCIENCE_CATALOG.find(x => x.id === b.dataset.scisave);
-      state.library.push({ id: uid(), sport: w.sport, name: w.name, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: [], focus: '', targetRpe: '' });
+      const w = findCatalog(b.dataset.scisave); if (!w) return;
+      state.library.push({ id: uid(), sport: w.sport, name: w.name, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: clone(w.strength || []), focus: w.focus || '', targetRpe: w.targetRpe || '' });
       save(); toast('Saved to your templates');
     }));
   }
   $$('[data-libtab]').forEach(b => b.addEventListener('click', () => { state.ui.libTab = b.dataset.libtab; viewLibrary(); }));
 }
+function findCatalog(id) { return state.scienceCustom.find(x => x.id === id) || SCIENCE_CATALOG.find(x => x.id === id); }
 function scheduleCatalog(id) {
-  const w = SCIENCE_CATALOG.find(x => x.id === id);
+  const w = findCatalog(id); if (!w) return;
   const body = `<label>Add "<b>${esc(w.name)}</b>" to ${esc(currentAthlete().name)} on:</label><input id="sch-date" type="date" value="${todayISO()}"/>`;
   openModal('Add to calendar', body, `<button class="btn primary" id="sch-go">Add</button>`);
   $('#sch-go').addEventListener('click', () => {
-    state.sessions.push({ id: uid(), athleteId: state.currentAthleteId, sport: w.sport, name: w.name, date: $('#sch-date').value, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: [], status: 'planned' });
+    state.sessions.push({ id: uid(), athleteId: state.currentAthleteId, sport: w.sport, name: w.name, date: $('#sch-date').value, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: clone(w.strength || []), focus: w.focus || '', targetRpe: w.targetRpe || '', status: 'planned' });
     save(); closeModal(); toast('Added to calendar'); go('calendar');
   });
+}
+function openScienceModal(id) {
+  const editing = id ? state.scienceCustom.find(w => w.id === id) : null;
+  const w = editing || { custom: true, cat: 'workout', sport: 'biking', goal: 'threshold', name: '', duration: 60, load: 60, desc: '', steps: [], strength: [], focus: '', targetRpe: '', refText: '' };
+  const a = currentAthlete();
+  const sportOpts = Object.entries(SPORTS).map(([k, sp]) => `<option value="${k}" ${w.sport === k ? 'selected' : ''}>${sp.icon} ${sp.label}</option>`).join('');
+  const goalOpts = Object.entries(SCIENCE_GOALS).map(([k, l]) => `<option value="${k}" ${w.goal === k ? 'selected' : ''}>${l}</option>`).join('');
+  const body = `
+    <div class="inline">
+      <div><label>Category</label><select id="sci-cat"><option value="workout" ${w.cat === 'workout' ? 'selected' : ''}>Workout</option><option value="test" ${w.cat === 'test' ? 'selected' : ''}>Fitness test</option></select></div>
+      <div><label>Goal / group</label><select id="sci-goal">${goalOpts}</select></div>
+    </div>
+    <label>Sport</label><select id="f-sport">${sportOpts}</select>
+    <label>Name</label><input id="sci-name" value="${esc(w.name)}" placeholder="e.g. My threshold builder"/>
+    <div class="inline">
+      <div><label>Duration (min)</label><input id="f-dur" type="number" value="${w.duration}"/></div>
+      <div><label>Load (TSS)</label><input id="f-load" type="number" value="${w.load}"/></div>
+    </div>
+    <div id="steps-block" style="margin-top:12px"></div>
+    <div id="focus-line" style="margin-top:8px"></div>
+    <div id="profile-line" style="margin-top:10px"></div>
+    <label>Description / rationale</label><textarea id="sci-desc" placeholder="What it does and how to execute it">${esc(w.desc)}</textarea>
+    <label>Source / reference (optional)</label><input id="sci-ref" value="${esc(w.refText || '')}" placeholder="e.g. Seiler 2010, or your own note"/>
+    <div id="strength-block"></div>`;
+  const foot = `${editing ? '<button class="btn danger" id="sci-del">Delete</button>' : ''}<button class="btn primary" id="sci-save">Save to library</button>`;
+  openModal(editing ? 'Edit library workout' : 'Add workout to Science library', body, foot);
+
+  const stepsState = clone(w.steps || []);
+  const strengthState = clone(w.strength || []);
+  const strengthMeta = { focus: w.focus || '', targetRpe: w.targetRpe || '' };
+  const syncTotals = () => {
+    if (stepsState.length) { $('#f-dur').value = stepsDuration(stepsState); $('#f-load').value = stepsLoad(a, stepsState); }
+    const fl = $('#focus-line');
+    if (fl) { const f = sessionFocus({ steps: stepsState, sport: $('#f-sport').value }); fl.innerHTML = f.label === '—' ? '' : `<span class="sub">Training focus: </span><span class="badge" style="border:1px solid ${f.color};color:${f.color}"><span class="dot" style="background:${f.color}"></span>${f.label}</span>`; }
+    const pl = $('#profile-line');
+    if (pl) pl.innerHTML = stepsState.length ? `<label>Workout profile</label>${workoutProfileSVG(stepsState)}<div style="margin-top:8px">${zoneDistHTML(stepsState)}</div>` : '';
+  };
+  mountStepBuilder('steps-block', stepsState, a, true, syncTotals);
+  renderStrengthEditor(strengthState, true, strengthMeta);
+  $('#f-sport').addEventListener('change', () => { renderStrengthEditor(strengthState, true, strengthMeta); syncTotals(); });
+  syncTotals();
+
+  $('#sci-save').addEventListener('click', () => {
+    const obj = { id: w.id || uid(), custom: true, cat: $('#sci-cat').value, goal: $('#sci-goal').value, sport: $('#f-sport').value, name: $('#sci-name').value.trim() || 'Untitled', duration: Number($('#f-dur').value) || 0, load: Number($('#f-load').value) || 0, desc: $('#sci-desc').value, refText: $('#sci-ref').value, steps: stepsState, strength: strengthState, focus: strengthMeta.focus, targetRpe: strengthMeta.targetRpe };
+    if (editing) Object.assign(editing, obj); else state.scienceCustom.push(obj);
+    save(); closeModal(); viewLibrary(); toast('Saved to Science library');
+  });
+  if ($('#sci-del')) $('#sci-del').addEventListener('click', () => { state.scienceCustom = state.scienceCustom.filter(x => x.id !== w.id); save(); closeModal(); viewLibrary(); toast('Removed'); });
 }
 function openLibModal(id) {
   const editing = id ? state.library.find(w => w.id === id) : null;
@@ -2204,6 +2264,7 @@ const Cloud = {
     if (d.library) state.library = d.library;
     if (d.questionnaires) state.questionnaires = d.questionnaires;
     if (d.reminders) state.reminders = d.reminders;
+    if (d.scienceCustom) state.scienceCustom = d.scienceCustom;
     if (!state.currentCoachId || !state.coaches.find(c => c.id === state.currentCoachId)) state.currentCoachId = (state.coaches[0] || {}).id;
   },
   reRender() { if (!document.querySelector('#modal-root .modal')) render(); },
@@ -2271,7 +2332,7 @@ const Cloud = {
     });
     this.pendingAthletes.clear();
     if (this.role === 'coach' && this.sharedDirty) {
-      this.db.collection('shared').doc('coach').set({ coaches: state.coaches, library: state.library, questionnaires: state.questionnaires, reminders: state.reminders, _updatedAt: Date.now() }).catch(() => {});
+      this.db.collection('shared').doc('coach').set({ coaches: state.coaches, library: state.library, questionnaires: state.questionnaires, reminders: state.reminders, scienceCustom: state.scienceCustom, _updatedAt: Date.now() }).catch(() => {});
       this.sharedDirty = false;
     }
   },
@@ -2295,7 +2356,7 @@ const Cloud = {
         doc._updatedAt = Date.now(); doc._updatedBy = 'migration';
         batch.set(this.db.collection('athletes').doc(aid), doc);
       });
-      batch.set(this.db.collection('shared').doc('coach'), { coaches: t.coaches || [], library: t.library || [], questionnaires: t.questionnaires || [], reminders: t.reminders || [], _updatedAt: Date.now() });
+      batch.set(this.db.collection('shared').doc('coach'), { coaches: t.coaches || [], library: t.library || [], questionnaires: t.questionnaires || [], reminders: t.reminders || [], scienceCustom: t.scienceCustom || [], _updatedAt: Date.now() });
       await batch.commit();
     } catch (e) { console.warn('migration failed', e); }
   },
