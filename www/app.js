@@ -247,7 +247,7 @@ function migrate(s) {
   // Coaches (2 coaches per athlete support)
   if (!Array.isArray(s.coaches) || !s.coaches.length) s.coaches = [{ id: uid(), name: 'Coach 1' }, { id: uid(), name: 'Coach 2' }];
   if (!s.currentCoachId || !s.coaches.find(c => c.id === s.currentCoachId)) s.currentCoachId = s.coaches[0].id;
-  s.athletes.forEach(a => { if (!Array.isArray(a.coachIds)) a.coachIds = [s.coaches[0].id]; });
+  s.athletes.forEach(a => { if (!Array.isArray(a.coachIds)) a.coachIds = [s.coaches[0].id]; if (!Array.isArray(a.coachUids)) a.coachUids = []; });
   return s;
 }
 function currentCoach() { return state.coaches.find(c => c.id === state.currentCoachId) || state.coaches[0]; }
@@ -279,6 +279,22 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function currentAthlete() { return state.athletes.find(a => a.id === state.currentAthleteId) || state.athletes[0]; }
 function athleteSessions(id) { return state.sessions.filter(s => s.athleteId === id); }
+
+// Coach roster: which athletes a coach sees. By default only athletes linked to this coach
+// (coachUids contains their uid); a "show all" toggle reveals everyone. Falls back to all when
+// nothing is linked yet, so a new coach never sees an empty app.
+function rosterAthletes() {
+  if (state.role !== 'coach') return state.athletes;
+  if (state.ui.rosterAll || !Cloud.myUid) return state.athletes;
+  const mine = state.athletes.filter(a => (a.coachUids || []).includes(Cloud.myUid));
+  return mine.length ? mine : state.athletes;
+}
+// list of real coach accounts (for the athlete's "connect to your coach" picker)
+async function fetchCoachUsers() {
+  if (!Cloud.enabled || !Cloud.db) return [];
+  try { const qs = await Cloud.db.collection('users').where('role', '==', 'coach').get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email, email: d.data().email })); }
+  catch (e) { return []; }
+}
 
 /* ------------------------------ Zones / load / compliance --------------- */
 const CYCLE_TYPES = { macro: 'Macrocycle', meso: 'Mesocycle', micro: 'Microcycle' };
@@ -402,6 +418,7 @@ function render() {
   const nav = navForRole();
   if (!nav.find(n => n.id === state.ui.view)) state.ui.view = 'dashboard';
   const view = state.ui.view;
+  if (state.role === 'coach') { const r = rosterAthletes(); if (r.length && !r.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = r[0].id; }
 
   const app = $('#app');
   app.innerHTML = `
@@ -426,7 +443,7 @@ function render() {
           ${state.role === 'coach' ? `<div class="who">
             Athlete
             <select data-athlete-select>
-              ${state.athletes.map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+              ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>
           </div>` : ''}
           ${state.role === 'coach' ? `<div class="who">
@@ -446,8 +463,8 @@ function render() {
         <div class="topbar">
           <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
             <h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0">${nav.find(n => n.id === view)?.label || ''}</h2>
-            ${(state.role === 'coach' && state.athletes.length) ? `<select class="topbar-athlete" data-athlete-top title="Switch athlete">
-              ${state.athletes.map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+            ${(state.role === 'coach' && rosterAthletes().length) ? `<select class="topbar-athlete" data-athlete-top title="Switch athlete">
+              ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>` : ''}
           </div>
           <div class="actions" id="topbar-actions"></div>
@@ -1380,8 +1397,16 @@ function viewAthletes() {
   });
 
   const a = currentAthlete();
+  const inRoster = a && Cloud.myUid && (a.coachUids || []).includes(Cloud.myUid);
   const v = $('#view');
   v.innerHTML = `
+    ${Cloud.user ? `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div><h3 style="margin:0">My roster</h3><div class="sub">${rosterAthletes().length} athlete(s) shown · athletes connect to you from their Settings → Your coach</div></div>
+        <label style="display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="roster-all" style="width:auto" ${state.ui.rosterAll ? 'checked' : ''}/> <span>Show all athletes</span></label>
+      </div>
+      ${(a && Cloud.myUid) ? `<div class="btn-row" style="margin-top:10px"><button class="btn ${inRoster ? 'danger' : 'primary'} sm" id="roster-toggle">${inRoster ? '− Remove ' + esc(a.name) + ' from my roster' : '+ Add ' + esc(a.name) + ' to my roster'}</button></div>` : ''}
+    </div>` : ''}
     <div class="card">
       <h3>Athlete profile</h3>
       <div class="inline"><div><label>Name</label><input id="a-name" value="${esc(a.name)}"/></div>
@@ -1413,6 +1438,14 @@ function viewAthletes() {
       <button data-zt="paceZones">Pace zones</button>
     </div>
     <div class="card" id="zone-card"></div>`;
+
+  if ($('#roster-all')) $('#roster-all').addEventListener('change', (e) => { state.ui.rosterAll = e.target.checked; render(); });
+  if ($('#roster-toggle')) $('#roster-toggle').addEventListener('click', () => {
+    a.coachUids = a.coachUids || [];
+    if (a.coachUids.includes(Cloud.myUid)) a.coachUids = a.coachUids.filter(u => u !== Cloud.myUid);
+    else a.coachUids.push(Cloud.myUid);
+    save(); render();
+  });
 
   $('#a-save').addEventListener('click', () => {
     a.name = $('#a-name').value; a.email = $('#a-email').value;
@@ -1933,6 +1966,34 @@ function viewMonitor() {
     <div class="list">${weekly.length ? weekly.map(w => `<div class="row"><div class="grow"><div class="title">Training ${w.training}/10 · Self ${w.self}/10</div><div class="meta">Week of ${fmtDate(w.week)}${w.note ? ' · ' + esc(w.note) : ''}</div></div></div>`).join('') : '<div class="empty">No weekly reflections.</div>'}</div>`;
 }
 
+/* Athlete → coach invitation: connect/disconnect the athlete to real coach accounts. */
+async function renderCoachInvite() {
+  const host = document.getElementById('coach-invite-body');
+  if (!host) return;
+  const a = currentAthlete(); if (!a) return;
+  const coaches = await fetchCoachUsers();
+  if (!document.getElementById('coach-invite-body')) return; // view changed while loading
+  const linked = a.coachUids || [];
+  const myLinked = coaches.filter(c => linked.includes(c.uid));
+  const available = coaches.filter(c => !linked.includes(c.uid));
+  host.innerHTML = `
+    ${myLinked.length ? `<div style="margin-bottom:10px"><b style="color:var(--text)">Connected:</b> ${myLinked.map(c => `<span class="badge" style="margin:2px 4px">✅ ${esc(c.name)} <button class="x" data-disc="${c.uid}" title="Disconnect" style="font-size:16px;margin-left:2px">&times;</button></span>`).join('')}</div>` : '<div class="sub" style="margin-bottom:10px">Not connected to a coach yet.</div>'}
+    ${available.length ? `<label>Connect with a coach</label>
+      <div class="inline"><select id="coach-pick">${available.map(c => `<option value="${c.uid}">${esc(c.name)} · ${esc(c.email)}</option>`).join('')}</select>
+      <button class="btn primary" id="coach-connect" style="flex:0 0 auto">Connect</button></div>` : (myLinked.length ? '' : '<div class="empty">No coaches have signed up yet.</div>')}`;
+  const conn = document.getElementById('coach-connect');
+  if (conn) conn.addEventListener('click', () => {
+    const uid = document.getElementById('coach-pick').value;
+    a.coachUids = a.coachUids || [];
+    if (!a.coachUids.includes(uid)) a.coachUids.push(uid);
+    save(); toast('Connected with your coach'); renderCoachInvite();
+  });
+  host.querySelectorAll('[data-disc]').forEach(b => b.addEventListener('click', () => {
+    a.coachUids = (a.coachUids || []).filter(u => u !== b.dataset.disc);
+    save(); toast('Disconnected'); renderCoachInvite();
+  }));
+}
+
 /* ------------------------------ Settings -------------------------------- */
 function viewSettings() {
   const v = $('#view');
@@ -1951,9 +2012,14 @@ function viewSettings() {
           <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">🏃 My training</button>
         </div>
         <div class="hint">Same account, both roles — coach your athletes and log your own training, just like Intervals.icu.</div>` : ''}
-      ${(state.role === 'coach' && state.athletes.length) ? `<label style="margin-top:10px">Viewing athlete</label>
-        <select id="acct-athlete">${state.athletes.map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}
+      ${(state.role === 'coach' && rosterAthletes().length) ? `<label style="margin-top:10px">Viewing athlete</label>
+        <select id="acct-athlete">${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}
       <div class="btn-row" style="margin-top:14px"><button class="btn danger" id="acct-logout">Log out</button></div>
+    </div>` : ''}
+    ${(state.role === 'athlete' && Cloud.user) ? `<div class="card" style="max-width:640px;margin-bottom:16px">
+      <h3>Your coach</h3>
+      <p class="sub">Connect with your coach so they can see your training and program for you. Pick your coach below.</p>
+      <div id="coach-invite-body" class="sub">Loading coaches…</div>
     </div>` : ''}
     <div class="card" style="max-width:640px">
       <h3>Intervals.icu connection — ${esc(ivAthlete ? ivAthlete.name : '')}</h3>
@@ -2015,6 +2081,7 @@ function viewSettings() {
   if ($('#acct-logout')) $('#acct-logout').addEventListener('click', () => Cloud.logout());
   $$('#acct-mode button').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
   if ($('#acct-athlete')) $('#acct-athlete').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
+  if ($('#coach-invite-body')) renderCoachInvite();
 
   $('#iv-save').addEventListener('click', () => {
     if (!ivAthlete) return;
@@ -2220,7 +2287,7 @@ const Cloud = {
   applyingRemote: false, ready: false, saveTimer: null,
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
-  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'ownerUid', 'intervals'],
+  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'coachUids', 'ownerUid', 'intervals'],
   ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses', 'wellness'],
 
   init() {
