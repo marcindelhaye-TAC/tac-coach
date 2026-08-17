@@ -2315,6 +2315,9 @@ const Cloud = {
       ['sleep', 'session', 'weekly'].forEach(kk => (ci[kk] || []).forEach(item => state.checkins[kk].push({ ...item, athleteId: id })));
     });
     migrate(state);
+    // remember which server-synced items we've loaded, so a local save never wipes items the
+    // sync server added behind our back (e.g. Intervals imports).
+    this.knownIds = { sessions: new Set(state.sessions.map(x => x.id)), wellness: new Set((state.wellness || []).map(x => x.id)) };
   },
   applyShared(d) {
     if (d.coaches) state.coaches = d.coaches;
@@ -2384,8 +2387,25 @@ const Cloud = {
   flush() {
     this.pendingAthletes.forEach(aid => {
       const a = state.athletes.find(x => x.id === aid);
-      if (!a) { if (this.role === 'coach') this.db.collection('athletes').doc(aid).delete().catch(() => {}); return; }
-      this.db.collection('athletes').doc(aid).set(this.athleteDoc(a, aid)).catch(e => toast('Sync error: ' + e.message));
+      const ref = this.db.collection('athletes').doc(aid);
+      if (!a) { if (this.role === 'coach') ref.delete().catch(() => {}); return; }
+      const base = this.athleteDoc(a, aid);
+      // merge-write in a transaction: keep any server-added sessions/wellness we never loaded
+      this.db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists) {
+          const rem = snap.data();
+          ['sessions', 'wellness'].forEach(k => {
+            base[k] = base[k] || [];
+            const localIds = new Set(base[k].map(x => x.id));
+            const known = (this.knownIds && this.knownIds[k]) || new Set();
+            (rem[k] || []).forEach(item => {
+              if (item && item.id && !localIds.has(item.id) && !known.has(item.id)) base[k].push(item);
+            });
+          });
+        }
+        tx.set(ref, base);
+      }).catch(e => toast('Sync error: ' + e.message));
     });
     this.pendingAthletes.clear();
     if (this.role === 'coach' && this.sharedDirty) {
