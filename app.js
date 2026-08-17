@@ -418,6 +418,10 @@ function render() {
             <button data-role="coach" class="${state.role === 'coach' ? 'active' : ''}">Coach</button>
             <button data-role="athlete" class="${state.role === 'athlete' ? 'active' : ''}">Athlete</button>
           </div>` : ''}
+          ${(Cloud.user && Cloud.accountRole === 'coach') ? `<div class="seg" style="margin-bottom:8px">
+            <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">Coaching</button>
+            <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">My training</button>
+          </div>` : ''}
           ${state.role === 'coach' ? `<div class="who">
             Athlete
             <select data-athlete-select>
@@ -439,7 +443,12 @@ function render() {
 
       <main class="main">
         <div class="topbar">
-          <h2>${nav.find(n => n.id === view)?.label || ''}</h2>
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
+            <h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0">${nav.find(n => n.id === view)?.label || ''}</h2>
+            ${(state.role === 'coach' && state.athletes.length) ? `<select class="topbar-athlete" data-athlete-top title="Switch athlete">
+              ${state.athletes.map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+            </select>` : ''}
+          </div>
           <div class="actions" id="topbar-actions"></div>
         </div>
         <div class="content" id="view"></div>
@@ -452,7 +461,9 @@ function render() {
 
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => go(b.dataset.nav)));
   $$('[data-role]').forEach(b => b.addEventListener('click', () => { state.role = b.dataset.role; save(); render(); }));
+  $$('[data-mode]').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
   if ($('[data-athlete-select]')) $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
+  if ($('[data-athlete-top]')) $('[data-athlete-top]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('[data-coach-select]')) $('[data-coach-select]').addEventListener('change', (e) => { state.currentCoachId = e.target.value; save(); render(); });
   if ($('#logout-btn')) $('#logout-btn').addEventListener('click', () => Cloud.logout());
 
@@ -1918,7 +1929,21 @@ function viewSettings() {
   const v = $('#view');
   const iv = state.settings.intervals;
   const nt = state.settings.notifications;
+  const dualCoach = Cloud.user && Cloud.accountRole === 'coach';
   v.innerHTML = `
+    ${Cloud.user ? `<div class="card" style="max-width:640px;margin-bottom:16px">
+      <h3>Account</h3>
+      <p class="sub">Signed in as <b style="color:var(--text)">${esc(Cloud.user.email)}</b>${dualCoach ? ' · coach account' : ' · athlete account'}.</p>
+      ${dualCoach ? `<label>Mode</label>
+        <div class="seg2" id="acct-mode">
+          <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">🧑‍🏫 Coaching</button>
+          <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">🏃 My training</button>
+        </div>
+        <div class="hint">Same account, both roles — coach your athletes and log your own training, just like Intervals.icu.</div>` : ''}
+      ${(state.role === 'coach' && state.athletes.length) ? `<label style="margin-top:10px">Viewing athlete</label>
+        <select id="acct-athlete">${state.athletes.map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}
+      <div class="btn-row" style="margin-top:14px"><button class="btn danger" id="acct-logout">Log out</button></div>
+    </div>` : ''}
     <div class="card" style="max-width:640px">
       <h3>Intervals.icu connection</h3>
       <p class="sub">Connect your Intervals.icu account so activities and training-load calculations stay in sync. Create an API key in Intervals.icu → Settings → Developer.</p>
@@ -1976,6 +2001,10 @@ function viewSettings() {
       <b>Android (Chrome):</b> menu ⋮ → “Install app”.<br/>
       <b>PC — Windows/Mac (Chrome/Edge):</b> tap the button above, or use the install icon in the address bar.</p>
     </div>`;
+
+  if ($('#acct-logout')) $('#acct-logout').addEventListener('click', () => Cloud.logout());
+  $$('#acct-mode button').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
+  if ($('#acct-athlete')) $('#acct-athlete').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
 
   $('#iv-save').addEventListener('click', () => { iv.athleteId = $('#iv-id').value.trim(); iv.apiKey = $('#iv-key').value.trim(); save(); toast('Connection saved'); });
   $('#iv-sync').addEventListener('click', () => {
@@ -2178,7 +2207,7 @@ function dueToday(freq, now) {
    Coaches can read/write all athlete docs; an athlete can read/write only their own (aid == their uid).
 */
 const Cloud = {
-  enabled: false, auth: null, db: null, user: null, role: null, myUid: null,
+  enabled: false, auth: null, db: null, user: null, role: null, accountRole: null, myUid: null,
   applyingRemote: false, ready: false, saveTimer: null,
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
@@ -2216,17 +2245,36 @@ const Cloud = {
     try { const s = await uref.get(); if (s.exists) role = s.data().role; } catch (e) {}
     if (!role && this.pendingSignup) role = this.pendingSignup.role;
     if (!role) role = 'coach';
-    this.role = role; state.role = role;
+    this.accountRole = role;                 // the account's base role (coaches may also train as athletes)
     try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', role, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
     this.pendingSignup = null;
 
+    // active mode: coaches can switch between coaching / their own training; athletes stay athletes
+    let mode = role;
+    if (role === 'coach' && (state.viewMode === 'coach' || state.viewMode === 'athlete')) mode = state.viewMode;
+    if (role !== 'coach') mode = 'athlete';
+    this.role = mode; state.role = mode; state.viewMode = mode;
+
     render(); // show shell immediately
 
-    if (role === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
+    if (mode === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
     else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
 
     checkReminders();
     if (!this._interval) { this._interval = setInterval(checkReminders, 5 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); }); }
+  },
+
+  // switch between 'coach' (see all athletes) and 'athlete' (my own training) — coaches only
+  setMode(mode) {
+    if (mode === this.role) return;
+    if (this.accountRole !== 'coach') { toast('Only coach accounts can switch mode'); return; }
+    this.teardown();
+    this.role = mode; state.role = mode; state.viewMode = mode;
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    render();
+    if (mode === 'coach') { this.migrateIfNeeded().then(() => this.subscribeCoach()); }
+    else { this.ensureAthleteDoc().then(() => this.subscribeAthlete()); }
+    toast(mode === 'coach' ? 'Coaching mode' : 'My-training mode');
   },
 
   // ---- build helpers ----

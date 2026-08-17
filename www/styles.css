@@ -201,12 +201,13 @@ textarea { min-height: 74px; resize: vertical; }
 }
 #modal-root .modal {
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-  width: 100%; max-width: 560px; max-height: 90vh; overflow: auto; box-shadow: var(--shadow);
+  width: 100%; max-width: 560px; max-height: 90vh; overflow: hidden; box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
 }
-#modal-root .modal .mhead { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+#modal-root .modal .mhead { flex: 0 0 auto; padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
 #modal-root .modal .mhead h3 { margin: 0; }
-#modal-root .modal .mbody { padding: 18px; }
-#modal-root .modal .mfoot { padding: 14px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+#modal-root .modal .mbody { flex: 1 1 auto; padding: 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#modal-root .modal .mfoot { flex: 0 0 auto; padding: 14px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .x { background: transparent; border: 0; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; }
 
 /* RPE / scale */
@@ -242,6 +243,26 @@ textarea { min-height: 74px; resize: vertical; }
   padding: 12px 18px; border-radius: 10px; box-shadow: var(--shadow); z-index: 200; font-size: 14px;
 }
 @media (max-width: 860px) { .toast { bottom: 84px; } }
+
+/* ---------- Topbar athlete quick-switch ---------- */
+.topbar .who-top { display: inline-flex; align-items: center; gap: 6px; }
+.topbar-athlete { max-width: 150px; padding: 7px 8px; font-size: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--text); }
+
+/* ---------- Bigger, always-reachable tap targets on touch/mobile ---------- */
+@media (max-width: 860px) {
+  .btn { min-height: 44px; }
+  .btn.sm { min-height: 38px; padding: 8px 12px; font-size: 13px; }
+  input, select, textarea { min-height: 44px; font-size: 16px; } /* 16px avoids iOS zoom */
+  .scale button { width: 46px; height: 46px; }
+  .mini { min-width: 42px; min-height: 38px; }
+  .x { padding: 6px 10px; }
+  #modal-root .modal { max-height: 88vh; }
+  #modal-root .overlay { align-items: flex-end; padding: 0; }               /* sheet-style: rises from bottom */
+  #modal-root .modal { border-radius: 16px 16px 0 0; max-width: 100%; }
+  #modal-root .modal .mfoot { position: sticky; bottom: 0; background: var(--panel); }
+  .pill-tabs button { min-height: 38px; }
+  .set-table input { min-height: 40px; }
+}
 
 /* ---------- Zone step builder ---------- */
 .zone-chips { display: flex; flex-wrap: wrap; gap: 6px; }
