@@ -2462,14 +2462,39 @@ const Cloud = {
         const snap = await tx.get(ref);
         if (snap.exists) {
           const rem = snap.data();
-          ['sessions', 'wellness'].forEach(k => {
-            base[k] = base[k] || [];
-            const localIds = new Set(base[k].map(x => x.id));
-            const known = (this.knownIds && this.knownIds[k]) || new Set();
-            (rem[k] || []).forEach(item => {
-              if (item && item.id && !localIds.has(item.id) && !known.has(item.id)) base[k].push(item);
-            });
+          // Sessions: keep the local copy, but never lose feedback/sync fields already set remotely,
+          // and keep any server-added session we never loaded.
+          base.sessions = base.sessions || [];
+          const remSess = {}; (rem.sessions || []).forEach(x => { if (x && x.id) remSess[x.id] = x; });
+          const localIds = new Set();
+          base.sessions = base.sessions.map(local => {
+            localIds.add(local.id);
+            const r = remSess[local.id]; if (!r) return local;
+            const m = { ...local };
+            if (m.rpe == null && r.rpe != null) m.rpe = r.rpe;
+            if (!m.feltNote && r.feltNote) m.feltNote = r.feltNote;
+            if ((!m.actual || !m.actual.length) && r.actual && r.actual.length) m.actual = r.actual;
+            if (!m.intervalsActivityId && r.intervalsActivityId) m.intervalsActivityId = r.intervalsActivityId;
+            if (!m.intervalsEventId && r.intervalsEventId) m.intervalsEventId = r.intervalsEventId;
+            if (r.status === 'done' && m.status !== 'done') m.status = 'done';
+            return m;
           });
+          const knownS = (this.knownIds && this.knownIds.sessions) || new Set();
+          (rem.sessions || []).forEach(item => { if (item && item.id && !localIds.has(item.id) && !knownS.has(item.id)) base.sessions.push(item); });
+          // Wellness: keep any server-added entry we never loaded.
+          base.wellness = base.wellness || [];
+          const localW = new Set(base.wellness.map(x => x.id));
+          const knownW = (this.knownIds && this.knownIds.wellness) || new Set();
+          (rem.wellness || []).forEach(item => { if (item && item.id && !localW.has(item.id) && !knownW.has(item.id)) base.wellness.push(item); });
+          // Check-ins are append-only logs (sleep / RPE feedback / weekly) — union by id so none are lost.
+          if (rem.checkins) {
+            base.checkins = base.checkins || { sleep: [], session: [], weekly: [] };
+            ['sleep', 'session', 'weekly'].forEach(kk => {
+              base.checkins[kk] = base.checkins[kk] || [];
+              const have = new Set(base.checkins[kk].map(x => x.id));
+              (rem.checkins[kk] || []).forEach(item => { if (item && item.id && !have.has(item.id)) base.checkins[kk].push(item); });
+            });
+          }
         }
         tx.set(ref, base);
       }).catch(e => toast('Sync error: ' + e.message));

@@ -81,9 +81,19 @@ async function syncAthlete(aid, data) {
   try { pull = await pullFromIntervals(aid, key, id); }
   catch (e) { console.error('pull failed', aid, e.message); }
 
+  // 3b. push TAC feedback (RPE) onto the matched Intervals activities
+  let rpe = 0;
+  for (const s of (data.sessions || [])) {
+    if (s.rpe != null && s.intervalsActivityId && String(s.intervalsActivityId).startsWith('iv-')) {
+      const actId = String(s.intervalsActivityId).slice(3);
+      try { await ivFetch(key, `/athlete/${id}/activities/${actId}`, { method: 'PUT', body: JSON.stringify({ icu_rpe: Number(s.rpe) }) }); rpe++; }
+      catch (e) { console.error('rpe push', actId, e.message); }
+    }
+  }
+
   // 4. stamp last sync (nested field update, won't clobber the rest)
   try { await db.collection('athletes').doc(aid).update({ 'intervals.lastSync': new Date().toISOString().replace('T', ' ').slice(0, 16) }); } catch (e) {}
-  return { athlete: data.name || aid, removed, created, matched: pull.matched, imported: pull.imported, plannedIn: pull.plannedIn, wellness: pull.wellness };
+  return { athlete: data.name || aid, removed, created, matched: pull.matched, imported: pull.imported, plannedIn: pull.plannedIn, wellness: pull.wellness, rpe };
 }
 
 // Intervals → TAC: completed activities, Intervals-native planned workouts, and daily wellness.
