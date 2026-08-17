@@ -2,7 +2,7 @@ name: Sync workouts to Intervals.icu
 
 on:
   schedule:
-    - cron: '0 5,11,17 * * *'   # ~07:00, 13:00, 19:00 Europe/Brussels — every morning + a couple more
+    - cron: '*/30 * * * *'        # every 30 minutes — near-constant two-way sync
   workflow_dispatch: {}          # manual "Run workflow" from the Actions tab
 
 jobs:

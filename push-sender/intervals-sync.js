@@ -59,8 +59,8 @@ async function syncAthlete(aid, data) {
       try { await ivFetch(key, `/athlete/${id}/events/${ev.id}`, { method: 'DELETE' }); removed++; } catch (e) {}
     }
   }
-  // 2. create current planned sessions in the window
-  const sessions = (data.sessions || []).filter(s => s.status !== 'done' && s.date >= oldest && s.date <= newest);
+  // 2. create current planned sessions in the window (skip ones that came FROM Intervals)
+  const sessions = (data.sessions || []).filter(s => s.status !== 'done' && !s.intervalsEventId && s.date >= oldest && s.date <= newest);
   let created = 0;
   for (const s of sessions) {
     const body = {
@@ -76,34 +76,42 @@ async function syncAthlete(aid, data) {
     try { await ivFetch(key, `/athlete/${id}/events`, { method: 'POST', body: JSON.stringify(body) }); created++; }
     catch (e) { console.error('create failed', s.name, e.message); }
   }
-  // 3. reverse: pull completed activities from Intervals back into TAC
-  let matched = 0, imported = 0;
-  try { const r = await pullActivities(aid, key, id); matched = r.matched; imported = r.imported; }
+  // 3. reverse: pull completed activities + Intervals-native planned workouts + wellness (HRV/RHR)
+  let pull = { matched: 0, imported: 0, plannedIn: 0, wellness: 0 };
+  try { pull = await pullFromIntervals(aid, key, id); }
   catch (e) { console.error('pull failed', aid, e.message); }
 
   // 4. stamp last sync (nested field update, won't clobber the rest)
   try { await db.collection('athletes').doc(aid).update({ 'intervals.lastSync': new Date().toISOString().replace('T', ' ').slice(0, 16) }); } catch (e) {}
-  return { athlete: data.name || aid, removed, created, matched, imported };
+  return { athlete: data.name || aid, removed, created, matched: pull.matched, imported: pull.imported, plannedIn: pull.plannedIn, wellness: pull.wellness };
 }
 
-// Pull completed Intervals activities → mark planned TAC sessions done / import new ones.
-async function pullActivities(aid, key, id) {
+// Intervals → TAC: completed activities, Intervals-native planned workouts, and daily wellness.
+async function pullFromIntervals(aid, key, id) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const start = new Date(today); start.setDate(start.getDate() - BACK_DAYS);
-  const acts = await ivFetch(key, `/athlete/${id}/activities?oldest=${ymd(start)}&newest=${ymd(today)}`);
-  if (!Array.isArray(acts) || !acts.length) return { matched: 0, imported: 0 };
+  const back = new Date(today); back.setDate(back.getDate() - BACK_DAYS);
+  const ahead = new Date(today); ahead.setDate(ahead.getDate() + WINDOW_DAYS);
+  const wStart = new Date(today); wStart.setDate(wStart.getDate() - 30);
+
+  let acts = [], events = [], wells = [];
+  try { acts = await ivFetch(key, `/athlete/${id}/activities?oldest=${ymd(back)}&newest=${ymd(today)}`) || []; } catch (e) { console.error('activities', e.message); }
+  try { events = await ivFetch(key, `/athlete/${id}/events?oldest=${ymd(today)}&newest=${ymd(ahead)}&category=WORKOUT`) || []; } catch (e) { console.error('events', e.message); }
+  try { wells = await ivFetch(key, `/athlete/${id}/wellness?oldest=${ymd(wStart)}&newest=${ymd(today)}`) || []; } catch (e) { console.error('wellness', e.message); }
+
   const ref = db.collection('athletes').doc(aid);
-  let matched = 0, imported = 0;
+  let matched = 0, imported = 0, plannedIn = 0, wellCount = 0;
   await db.runTransaction(async (tx) => {
     const doc = await tx.get(ref); if (!doc.exists) return;
     const data = doc.data();
     const sessions = data.sessions || [];
-    matched = 0; imported = 0;
+    const wellness = data.wellness || [];
+    matched = 0; imported = 0; plannedIn = 0; wellCount = 0;
+
+    // completed activities → mark planned done / import new
     for (const act of acts) {
       const actId = 'iv-' + act.id;
-      if (sessions.some(s => s.intervalsActivityId === actId)) continue;   // already imported
-      const date = String(act.start_date_local || '').slice(0, 10);
-      if (!date) continue;
+      if (sessions.some(s => s.intervalsActivityId === actId)) continue;
+      const date = String(act.start_date_local || '').slice(0, 10); if (!date) continue;
       const sport = REV_TYPE[act.type] || 'other';
       const load = Math.round(act.icu_training_load || 0);
       const dur = Math.round((act.moving_time || 0) / 60);
@@ -112,17 +120,40 @@ async function pullActivities(aid, key, id) {
         m.status = 'done'; m.intervalsActivityId = actId;
         if (load) m.load = load; if (dur) m.duration = dur;
         const zt = (m.steps && m.steps[0] && m.steps[0].zt) || 'power';
-        const actual = zoneTimesFor(act, zt);
-        if (actual.length) m.actual = actual;
+        const actual = zoneTimesFor(act, zt); if (actual.length) m.actual = actual;
         matched++;
       } else {
         sessions.push({ id: rid(), athleteId: aid, date, sport, name: act.name || 'Activity', duration: dur, load, desc: 'Imported from Intervals.icu', steps: [], strength: [], status: 'done', intervalsActivityId: actId });
         imported++;
       }
     }
-    tx.update(ref, { sessions });
+
+    // Intervals-native planned workouts (not the ones we pushed) → planned TAC sessions
+    for (const ev of events) {
+      if (ev.external_id && String(ev.external_id).startsWith('tac-')) continue;
+      const evId = 'ivev-' + ev.id;
+      if (sessions.some(s => s.intervalsEventId === evId)) continue;
+      const date = String(ev.start_date_local || '').slice(0, 10); if (!date) continue;
+      sessions.push({ id: rid(), athleteId: aid, date, sport: REV_TYPE[ev.type] || 'other', name: ev.name || 'Workout', duration: Math.round((ev.moving_time || 0) / 60), load: Math.round(ev.icu_training_load || 0), desc: (ev.description || '') + '\n(from Intervals.icu)', steps: [], strength: [], status: 'planned', intervalsEventId: evId });
+      plannedIn++;
+    }
+
+    // daily wellness: HRV + resting HR (upsert by date)
+    for (const w of wells) {
+      const date = String(w.id || w.date || '').slice(0, 10); if (!date) continue;
+      const hrv = w.hrv != null ? w.hrv : (w.hrvSDNN != null ? w.hrvSDNN : null);
+      const rhr = w.restingHR != null ? w.restingHR : (w.resting_hr != null ? w.resting_hr : null);
+      if (hrv == null && rhr == null) continue;
+      let rec = wellness.find(x => x.date === date);
+      if (!rec) { rec = { id: rid(), athleteId: aid, date }; wellness.push(rec); }
+      if (hrv != null) rec.hrv = Math.round(hrv * 10) / 10;
+      if (rhr != null) rec.restingHR = Math.round(rhr);
+      wellCount++;
+    }
+
+    tx.update(ref, { sessions, wellness });
   });
-  return { matched, imported };
+  return { matched, imported, plannedIn, wellness: wellCount };
 }
 
 async function run() {

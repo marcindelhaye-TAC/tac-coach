@@ -240,6 +240,7 @@ function migrate(s) {
   if (!Array.isArray(s.goals)) s.goals = [];
   if (!Array.isArray(s.reminders)) s.reminders = [];
   if (!Array.isArray(s.scienceCustom)) s.scienceCustom = [];
+  if (!Array.isArray(s.wellness)) s.wellness = [];
   if (!s.settings) s.settings = {};
   if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
   s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
@@ -1906,8 +1907,16 @@ function viewMonitor() {
   const sleep = state.checkins.sleep.filter(s => s.athleteId === a.id).sort((x, y) => y.date.localeCompare(x.date)).slice(0, 14);
   const weekly = state.checkins.weekly.filter(w => w.athleteId === a.id).sort((x, y) => y.week.localeCompare(x.week)).slice(0, 8);
   const rpe = state.checkins.session.filter(s => s.athleteId === a.id).sort((x, y) => y.date.localeCompare(x.date)).slice(0, 12);
+  const wellness = (state.wellness || []).filter(w => w.athleteId === a.id).sort((x, y) => x.date.localeCompare(y.date)).slice(-30);
+  const hrvArr = wellness.filter(w => w.hrv != null);
+  const rhrArr = wellness.filter(w => w.restingHR != null);
+  const lastHrv = hrvArr[hrvArr.length - 1], lastRhr = rhrArr[rhrArr.length - 1];
 
   v.innerHTML = `
+    ${(hrvArr.length || rhrArr.length) ? `<div class="grid cols-2" style="margin-bottom:14px">
+      <div class="card"><h3>HRV — last 30 days <span class="badge" style="color:var(--accent-2)">Intervals.icu</span></h3>${hrvArr.length ? sparkline(hrvArr.map(w => w.hrv)) + `<div class="sub" style="margin-top:8px">Latest ${lastHrv.hrv} ms (${fmtDate(lastHrv.date)}) · avg ${(hrvArr.reduce((n, w) => n + w.hrv, 0) / hrvArr.length).toFixed(0)} ms</div>` : '<div class="empty">No HRV data</div>'}</div>
+      <div class="card"><h3>Resting HR — last 30 days <span class="badge" style="color:var(--accent-2)">Intervals.icu</span></h3>${rhrArr.length ? sparkline(rhrArr.map(w => w.restingHR)) + `<div class="sub" style="margin-top:8px">Latest ${lastRhr.restingHR} bpm (${fmtDate(lastRhr.date)}) · avg ${(rhrArr.reduce((n, w) => n + w.restingHR, 0) / rhrArr.length).toFixed(0)} bpm</div>` : '<div class="empty">No resting-HR data</div>'}</div>
+    </div>` : ''}
     <div class="grid cols-3">
       <div class="card"><h3>Sleep (last 14)</h3>${sleep.length ? sparkline(sleep.slice().reverse().map(s => s.hours)) + `<div class="sub" style="margin-top:8px">Avg ${(sleep.reduce((n, s) => n + s.hours, 0) / sleep.length).toFixed(1)}h · quality ${(sleep.reduce((n, s) => n + s.quality, 0) / sleep.length).toFixed(1)}/10</div>` : '<div class="empty">No data</div>'}</div>
       <div class="card"><h3>RPE (recent)</h3>${rpe.length ? sparkline(rpe.slice().reverse().map(s => s.rpe)) + `<div class="sub" style="margin-top:8px">Avg RPE ${(rpe.reduce((n, s) => n + (s.rpe || 0), 0) / rpe.length).toFixed(1)}/10</div>` : '<div class="empty">No data</div>'}</div>
@@ -1948,7 +1957,7 @@ function viewSettings() {
     </div>` : ''}
     <div class="card" style="max-width:640px">
       <h3>Intervals.icu connection — ${esc(ivAthlete ? ivAthlete.name : '')}</h3>
-      <p class="sub">Two-way sync, automatic every morning (and a few times a day): planned trainings → Intervals calendar, and completed activities ← Intervals (marks sessions done with real load & zones). Create an API key in Intervals.icu → Settings → Developer, and find the Athlete ID there too (e.g. i12345).</p>
+      <p class="sub">Full two-way sync, automatically every ~30 min: planned workouts ⇄ Intervals calendar, completed activities ← Intervals (marks sessions done with real load & zones), plus daily <b>HRV</b> and <b>resting HR</b> ← Intervals (shown in Monitoring). Create an API key in Intervals.icu → Settings → Developer, and find the Athlete ID there too (e.g. i12345).</p>
       <label>Athlete ID</label><input id="iv-id" value="${esc(iv.athleteId || '')}" placeholder="i12345"/>
       <label>API key</label><input id="iv-key" type="password" value="${esc(iv.apiKey || '')}" placeholder="Paste your API key"/>
       <div class="hint">Stored securely in your team's private cloud so the sync server can use it. TAC ⇄ Intervals.icu.</div>
@@ -2212,7 +2221,7 @@ const Cloud = {
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
   PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'ownerUid', 'intervals'],
-  ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses'],
+  ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses', 'wellness'],
 
   init() {
     if (!window.FIREBASE_CONFIG || typeof firebase === 'undefined') return false;
