@@ -129,6 +129,97 @@ function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
 const TEST_TYPES = ['FTP test (20-min)', 'Ramp test', 'VO2max test', 'Lactate threshold', 'Critical power', 'Time trial', 'Cooper 12-min', '5-min power test', 'Sprint test', 'Swim CSS', 'Running field test', 'Body composition', 'Other'];
 
+/* ============================================================================
+   Science-backed catalog: standardised fitness tests + evidence-based workouts,
+   each linked to the peer-reviewed literature listed in SCIENCE_REFS.
+   ============================================================================ */
+const SCIENCE_REFS = {
+  cooper: { authors: 'Cooper KH', year: 1968, title: 'A means of assessing maximal oxygen intake: correlation between field and treadmill testing', journal: 'JAMA 203(3):201–204' },
+  coggan: { authors: 'Allen H, Coggan A, McGregor S', year: 2019, title: 'Training and Racing with a Power Meter (3rd ed.)', journal: 'VeloPress' },
+  seiler: { authors: 'Seiler S', year: 2010, title: 'What is best practice for training intensity and duration distribution in endurance athletes?', journal: 'Int J Sports Physiol Perform 5(3):276–291' },
+  stoggl: { authors: 'Stöggl T, Sperlich B', year: 2014, title: 'Polarized training has greater impact on key endurance variables than threshold, high-intensity, or high-volume training', journal: 'Front Physiol 5:33' },
+  helgerud: { authors: 'Helgerud J, et al.', year: 2007, title: 'Aerobic high-intensity intervals improve VO2max more than moderate training', journal: 'Med Sci Sports Exerc 39(4):665–671' },
+  tabata: { authors: 'Tabata I, et al.', year: 1996, title: 'Effects of moderate-intensity endurance and high-intensity intermittent training on anaerobic capacity and VO2max', journal: 'Med Sci Sports Exerc 28(10):1327–1330' },
+  gibala: { authors: 'Gibala MJ, et al.', year: 2006, title: 'Short-term sprint interval versus traditional endurance training: similar initial adaptations', journal: 'J Physiol 575(3):901–911' },
+  vanhatalo: { authors: 'Vanhatalo A, Doust JH, Burnley M', year: 2007, title: 'Determination of critical power using a 3-min all-out cycling test', journal: 'Med Sci Sports Exerc 39(3):548–555' },
+  billat: { authors: 'Billat LV', year: 2001, title: 'Interval training for performance: a scientific and empirical practice', journal: 'Sports Med 31(1):13–31' },
+  laursen: { authors: 'Laursen PB, Jenkins DG', year: 2002, title: 'The scientific basis for high-intensity interval training', journal: 'Sports Med 32(1):53–73' },
+  ronnestad: { authors: 'Rønnestad BR, et al.', year: 2020, title: 'Superior performance improvements in elite cyclists following short-interval vs effort-matched long-interval training', journal: 'Scand J Med Sci Sports 30(5):849–857' },
+  buchheit: { authors: 'Buchheit M, Laursen PB', year: 2013, title: 'High-intensity interval training, solutions to the programming puzzle (Parts I & II)', journal: 'Sports Med 43(5):313–338; 43(10):927–954' },
+  buchheit3015: { authors: 'Buchheit M', year: 2008, title: 'The 30-15 Intermittent Fitness Test: accuracy for individualizing interval training', journal: 'J Strength Cond Res 22(2):365–374' },
+  bangsbo: { authors: 'Bangsbo J, Iaia FM, Krustrup P', year: 2008, title: 'The Yo-Yo intermittent recovery test: a useful tool for evaluation of physical performance', journal: 'Sports Med 38(1):37–51' },
+  sanmillan: { authors: 'San-Millán I, Brooks GA', year: 2018, title: 'Assessment of metabolic flexibility by blood lactate and substrate oxidation across the exercise intensity spectrum', journal: 'Sports Med 48(2):467–479' }
+};
+
+// zone index helper: Z1=0 … Z7=6.  cat: 'test' | 'workout'.  goal groups the library.
+const SCIENCE_CATALOG = [
+  // ---- Fitness tests (estimate form; run a testing block every 6–8 weeks) ----
+  { id: 'sc_ftp20', cat: 'test', sport: 'biking', goal: 'test', name: 'FTP test — 20 min', duration: 55, load: 75,
+    estimates: 'FTP (functional threshold power)', freq: 'every 6–8 weeks',
+    desc: '15 min progressive warm-up incl. 3×1 min hard; 5 min easy; then 20 min ALL-OUT at the highest sustainable power; 10 min cool-down. FTP ≈ 95% of the 20-min average power.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 20 }, { zt: 'power', z: 0, min: 10 }], refs: ['coggan'] },
+  { id: 'sc_ramp', cat: 'test', sport: 'biking', goal: 'test', name: 'Ramp test to exhaustion', duration: 30, load: 45,
+    estimates: 'FTP / VO₂max power', freq: 'every 6–8 weeks',
+    desc: 'From an easy start, increase power by a fixed step (e.g. +20 W/min) until failure. FTP ≈ 75% of the best 1-min power. Simple, low-fatigue alternative to the 20-min test.',
+    steps: [{ zt: 'power', z: 1, min: 8 }, { zt: 'power', z: 3, min: 8 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 5, min: 2 }, { zt: 'power', z: 0, min: 7 }], refs: ['coggan', 'laursen'] },
+  { id: 'sc_3min', cat: 'test', sport: 'biking', goal: 'test', name: '3-min all-out (Critical Power)', duration: 30, load: 50,
+    estimates: 'Critical Power & W′ (anaerobic capacity)', freq: 'every 8 weeks',
+    desc: 'Thorough warm-up, then a single 3-min ALL-OUT effort starting maximally. End-power ≈ Critical Power; work above it ≈ W′. Validated field estimate of the power–duration relationship.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 3 }, { zt: 'power', z: 0, min: 12 }], refs: ['vanhatalo'] },
+  { id: 'sc_5k', cat: 'test', sport: 'running', goal: 'test', name: '5 km all-out run', duration: 40, load: 60,
+    estimates: 'Running performance, vVO₂max, threshold pace', freq: 'every 8 weeks',
+    desc: '15 min easy warm-up with 3–4 strides; 5 km time trial at maximal even pace on a flat course/track; easy cool-down. Track time + average HR to follow form over the season.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 20 }, { zt: 'hr', z: 0, min: 5 }], refs: ['billat'] },
+  { id: 'sc_cooper', cat: 'test', sport: 'running', goal: 'test', name: 'Cooper 12-min run', duration: 25, load: 40,
+    estimates: 'VO₂max (from distance covered)', freq: 'every 8 weeks',
+    desc: 'Cover the greatest possible distance in 12 minutes. VO₂max (ml/kg/min) ≈ (distance in metres − 504.9) / 44.73. Classic, well-validated field test.',
+    steps: [{ zt: 'hr', z: 1, min: 10 }, { zt: 'hr', z: 4, min: 12 }, { zt: 'hr', z: 0, min: 3 }], refs: ['cooper'] },
+  { id: 'sc_3015', cat: 'test', sport: 'running', goal: 'test', name: '30-15 Intermittent Fitness Test', duration: 30, load: 45,
+    estimates: 'VIFT — for intermittent-sport interval prescription', freq: 'every 6–8 weeks',
+    desc: '30 s runs / 15 s rest shuttle test with progressive speed to exhaustion. The final velocity (VIFT) individualises intermittent interval training. Best for team-sport athletes.',
+    steps: [], refs: ['buchheit3015'] },
+
+  // ---- Base / aerobic endurance ----
+  { id: 'sc_z2ride', cat: 'workout', sport: 'biking', goal: 'base', name: 'Zone 2 endurance ride', duration: 90, load: 60,
+    desc: 'Steady 60–90 min in Zone 2 (below the first lactate threshold), cadence 85–95. Develops mitochondrial density and fat oxidation — the aerobic foundation. Keep it truly easy.',
+    steps: [{ zt: 'power', z: 1, min: 90 }], refs: ['sanmillan', 'seiler'] },
+  { id: 'sc_longrun', cat: 'workout', sport: 'running', goal: 'base', name: 'Long aerobic run', duration: 80, load: 65,
+    desc: '60–90 min continuous easy running in Zone 2, conversational pace. Builds aerobic base and durability. Volume of low-intensity work is the largest driver of endurance adaptation.',
+    steps: [{ zt: 'hr', z: 1, min: 80 }], refs: ['seiler', 'stoggl'] },
+
+  // ---- Threshold / "maximal 1-hour effort" (FTP focus) ----
+  { id: 'sc_2x20', cat: 'workout', sport: 'biking', goal: 'threshold', name: 'Threshold 2×20 min', duration: 70, load: 85,
+    desc: 'Warm-up; 2×20 min at 95–105% FTP (Zone 4) with 5 min easy between; cool-down. Raises the power you can hold for ~1 hour — the classic FTP/threshold developer.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 3, min: 20 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 20 }, { zt: 'power', z: 1, min: 10 }], refs: ['coggan', 'seiler'] },
+  { id: 'sc_sweetspot', cat: 'workout', sport: 'biking', goal: 'threshold', name: 'Sweet-spot 3×12 min', duration: 65, load: 72,
+    desc: 'Warm-up; 3×12 min at 88–94% FTP (upper Zone 3) with 5 min recovery. High training stimulus for sustainable power at lower fatigue than full threshold — great for build phases.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 2, min: 12 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 2, min: 12 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 2, min: 12 }, { zt: 'power', z: 1, min: 7 }], refs: ['coggan'] },
+  { id: 'sc_overunder', cat: 'workout', sport: 'biking', goal: 'threshold', name: 'Over-unders 3×9 min', duration: 60, load: 78,
+    desc: 'Warm-up; 3×[alternate 2 min at 105% FTP "over" / 1 min at 90% "under", ×3] with 5 min easy between blocks. Trains lactate tolerance and clearance around threshold.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 3, min: 9 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 9 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 9 }, { zt: 'power', z: 1, min: 11 }], refs: ['coggan', 'seiler'] },
+
+  // ---- VO₂max ----
+  { id: 'sc_4x4', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'VO₂max 4×4 min', duration: 47, load: 75,
+    desc: 'Warm-up; 4×4 min at 90–95% HRmax (Zone 5) with 3 min active recovery; cool-down. The classic Helgerud protocol — one of the most effective ways to raise VO₂max.',
+    steps: [{ zt: 'hr', z: 1, min: 12 }, { zt: 'hr', z: 4, min: 4 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 4, min: 4 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 4, min: 4 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 4, min: 4 }, { zt: 'hr', z: 1, min: 10 }], refs: ['helgerud', 'laursen'] },
+  { id: 'sc_short3015', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'Short intervals 3×13×30/15', duration: 55, load: 80,
+    desc: 'Warm-up; 3 sets of 13×(30 s at ~110–120% FTP / 15 s easy) with 3 min between sets. Short intervals sustain more time near VO₂max at lower perceived effort than long intervals.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 10 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 10 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 10 }, { zt: 'power', z: 1, min: 4 }], refs: ['ronnestad', 'buchheit'] },
+  { id: 'sc_5x3', cat: 'workout', sport: 'running', goal: 'vo2max', name: 'vVO₂max 5×3 min', duration: 45, load: 72,
+    desc: 'Warm-up; 5×3 min at the velocity associated with VO₂max (~current 3 km race pace) with equal-duration jog recovery. Maximises time at VO₂max for aerobic power.',
+    steps: [{ zt: 'hr', z: 1, min: 12 }, { zt: 'hr', z: 4, min: 3 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 4, min: 3 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 4, min: 3 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 4, min: 3 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 4, min: 3 }, { zt: 'hr', z: 1, min: 6 }], refs: ['billat'] },
+
+  // ---- Anaerobic / sprint ----
+  { id: 'sc_tabata', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Tabata 8×20/10', duration: 24, load: 40,
+    desc: 'Warm-up; 8×(20 s all-out / 10 s rest) = 4 min total; cool-down. Improves both anaerobic capacity and VO₂max in very little time — but very demanding; use sparingly.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 6, min: 4 }, { zt: 'power', z: 0, min: 8 }], refs: ['tabata'] },
+  { id: 'sc_sit', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Sprint intervals 5×30 s all-out', duration: 35, load: 55,
+    desc: 'Warm-up; 5×30 s ALL-OUT (Wingate-style) with 4 min easy recovery; cool-down. Potent stimulus for aerobic and anaerobic adaptations with low total time.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 1, min: 4 }], refs: ['gibala'] }
+];
+const SCIENCE_GOALS = { test: 'Fitness tests', base: 'Base / endurance', threshold: 'Threshold (1-hour max)', vo2max: 'VO₂max', anaerobic: 'Anaerobic / sprint' };
+function refCite(key) { const r = SCIENCE_REFS[key]; return r ? `${r.authors} (${r.year}). ${r.title}. ${r.journal}.` : key; }
+
 let state = load();
 function load() {
   try {
@@ -292,6 +383,7 @@ const NAV = [
   { id: 'nutrition',      label: 'Nutrition',      icon: '🥗', roles: ['coach', 'athlete'] },
   { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete'] },
   { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete'] },
+  { id: 'references',     label: 'References',     icon: '📖', roles: ['coach', 'athlete'] },
   { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete'] },
   { id: 'athletes',       label: 'Athletes & Zones', icon: '⚙️', roles: ['coach'] },
   { id: 'monitor',        label: 'Monitoring',     icon: '❤️', roles: ['coach'] },
@@ -365,7 +457,7 @@ function render() {
   const views = {
     dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
     fitness: viewFitness, testing: viewTesting, nutrition: viewNutrition, goals: viewGoals,
-    questionnaires: viewQuestionnaires, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings
+    questionnaires: viewQuestionnaires, references: viewReferences, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings
   };
   (views[view] || viewDashboard)();
 }
@@ -966,33 +1058,89 @@ function openWeeklyModal() {
 }
 
 /* ------------------------------ Library --------------------------------- */
+function refChip(key) {
+  const r = SCIENCE_REFS[key]; if (!r) return '';
+  return `<span class="badge" title="${esc(refCite(key))}">${esc(r.authors.split(',')[0])} ${r.year}</span>`;
+}
 function viewLibrary() {
+  const tab = state.ui.libTab || 'mine';
+  const goal = state.ui.libGoal || 'all';
   const actions = $('#topbar-actions');
-  actions.innerHTML = `<button class="btn primary sm" id="add-lib">+ New workout</button>`;
-  $('#add-lib').addEventListener('click', () => openLibModal(null));
+  actions.innerHTML = tab === 'mine' ? `<button class="btn primary sm" id="add-lib">+ New workout</button>` : '';
+  if (tab === 'mine') $('#add-lib').addEventListener('click', () => openLibModal(null));
 
   const v = $('#view');
-  v.innerHTML = `
-    <p class="sub">Reusable workout templates. Add one to an athlete's calendar with one click.</p>
-    <div class="grid cols-2" style="margin-top:10px">
-      ${state.library.map(w => {
-        const sp = SPORTS[w.sport] || SPORTS.other;
-        return `<div class="card">
-          <div class="badge" style="border-left:3px solid ${sp.color}">${sp.icon} ${sp.label}</div>
-          <h3 style="margin-top:8px">${esc(w.name)}</h3>
-          <div class="sub">${w.duration || 0} min · ${w.load || 0} TSS</div>
-          <p class="sub" style="margin-top:8px">${esc(w.desc || '')}</p>
-          <div class="btn-row" style="margin-top:10px">
-            <button class="btn sm primary" data-sched="${w.id}">Add to calendar</button>
-            <button class="btn sm" data-edit="${w.id}">Edit</button>
-            <button class="btn sm danger" data-del="${w.id}">Delete</button>
-          </div>
-        </div>`;
-      }).join('') || '<div class="empty">No templates yet.</div>'}
-    </div>`;
-  $$('[data-edit]').forEach(b => b.addEventListener('click', () => openLibModal(b.dataset.edit)));
-  $$('[data-del]').forEach(b => b.addEventListener('click', () => { state.library = state.library.filter(w => w.id !== b.dataset.del); save(); viewLibrary(); }));
-  $$('[data-sched]').forEach(b => b.addEventListener('click', () => scheduleFromLib(b.dataset.sched)));
+  const tabs = `<div class="pill-tabs">
+    <button data-libtab="mine" class="${tab === 'mine' ? 'active' : ''}">My templates</button>
+    <button data-libtab="science" class="${tab === 'science' ? 'active' : ''}">🔬 Science library</button>
+  </div>`;
+
+  if (tab === 'mine') {
+    v.innerHTML = tabs + `
+      <p class="sub">Your reusable workout templates. Add one to an athlete's calendar with one click.</p>
+      <div class="grid cols-2" style="margin-top:10px">
+        ${state.library.map(w => {
+          const sp = SPORTS[w.sport] || SPORTS.other;
+          return `<div class="card">
+            <div class="badge" style="border-left:3px solid ${sp.color}">${sp.icon} ${sp.label}</div> ${focusBadge(w)}
+            <h3 style="margin-top:8px">${esc(w.name)}</h3>
+            <div class="sub">${w.duration || 0} min · ${w.load || 0} TSS</div>
+            <p class="sub" style="margin-top:8px">${esc(w.desc || '')}</p>
+            <div class="btn-row" style="margin-top:10px">
+              <button class="btn sm primary" data-sched="${w.id}">Add to calendar</button>
+              <button class="btn sm" data-edit="${w.id}">Edit</button>
+              <button class="btn sm danger" data-del="${w.id}">Delete</button>
+            </div>
+          </div>`;
+        }).join('') || '<div class="empty">No templates yet. Add one, or copy from the Science library.</div>'}
+      </div>`;
+    $$('[data-edit]').forEach(b => b.addEventListener('click', () => openLibModal(b.dataset.edit)));
+    $$('[data-del]').forEach(b => b.addEventListener('click', () => { state.library = state.library.filter(w => w.id !== b.dataset.del); save(); viewLibrary(); }));
+    $$('[data-sched]').forEach(b => b.addEventListener('click', () => scheduleFromLib(b.dataset.sched)));
+  } else {
+    const goals = ['all', ...Object.keys(SCIENCE_GOALS)];
+    const list = SCIENCE_CATALOG.filter(w => goal === 'all' || w.goal === goal);
+    v.innerHTML = tabs + `
+      <p class="sub">Evidence-based workouts & fitness tests from the exercise-physiology literature. Full sources in the <b>References</b> tab.</p>
+      <div class="pill-tabs" style="margin-top:8px">
+        ${goals.map(g => `<button data-libgoal="${g}" class="${goal === g ? 'active' : ''}">${g === 'all' ? 'All' : SCIENCE_GOALS[g]}</button>`).join('')}
+      </div>
+      <div class="grid cols-2" style="margin-top:6px">
+        ${list.map(w => {
+          const sp = SPORTS[w.sport] || SPORTS.other;
+          return `<div class="card">
+            <div class="badge" style="border-left:3px solid ${sp.color}">${sp.icon} ${sp.label}</div>
+            ${w.cat === 'test' ? '<span class="badge" style="color:var(--yellow)">🧪 Fitness test</span>' : focusBadge(w)}
+            <h3 style="margin-top:8px">${esc(w.name)}</h3>
+            <div class="sub">${w.duration || 0} min · ${w.load || 0} TSS${w.estimates ? ' · estimates ' + esc(w.estimates) : ''}${w.freq ? ' · ' + esc(w.freq) : ''}</div>
+            ${(w.steps && w.steps.length) ? '<div style="margin-top:8px">' + workoutProfileSVG(w.steps) + '</div>' : ''}
+            <p class="sub" style="margin-top:8px">${esc(w.desc)}</p>
+            <div style="margin-top:6px">${(w.refs || []).map(refChip).join(' ')}</div>
+            <div class="btn-row" style="margin-top:10px">
+              <button class="btn sm primary" data-scisched="${w.id}">Add to calendar</button>
+              <button class="btn sm" data-scisave="${w.id}">Save to my templates</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    $$('[data-libgoal]').forEach(b => b.addEventListener('click', () => { state.ui.libGoal = b.dataset.libgoal; viewLibrary(); }));
+    $$('[data-scisched]').forEach(b => b.addEventListener('click', () => scheduleCatalog(b.dataset.scisched)));
+    $$('[data-scisave]').forEach(b => b.addEventListener('click', () => {
+      const w = SCIENCE_CATALOG.find(x => x.id === b.dataset.scisave);
+      state.library.push({ id: uid(), sport: w.sport, name: w.name, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: [], focus: '', targetRpe: '' });
+      save(); toast('Saved to your templates');
+    }));
+  }
+  $$('[data-libtab]').forEach(b => b.addEventListener('click', () => { state.ui.libTab = b.dataset.libtab; viewLibrary(); }));
+}
+function scheduleCatalog(id) {
+  const w = SCIENCE_CATALOG.find(x => x.id === id);
+  const body = `<label>Add "<b>${esc(w.name)}</b>" to ${esc(currentAthlete().name)} on:</label><input id="sch-date" type="date" value="${todayISO()}"/>`;
+  openModal('Add to calendar', body, `<button class="btn primary" id="sch-go">Add</button>`);
+  $('#sch-go').addEventListener('click', () => {
+    state.sessions.push({ id: uid(), athleteId: state.currentAthleteId, sport: w.sport, name: w.name, date: $('#sch-date').value, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: [], status: 'planned' });
+    save(); closeModal(); toast('Added to calendar'); go('calendar');
+  });
 }
 function openLibModal(id) {
   const editing = id ? state.library.find(w => w.id === id) : null;
@@ -1294,6 +1442,7 @@ function viewTesting() {
   const v = $('#view');
   v.innerHTML = `
     <p class="sub">Testing moments and results for ${esc(a.name)}. Track FTP tests, VO₂max, lactate, time trials, field tests and more — with progress vs. previous tests.</p>
+    ${state.role === 'coach' ? `<div class="prompt" style="margin-bottom:14px"><span class="icon">🧪</span><div class="grow"><b>Standardised test protocols</b><div class="sub">Ready-made, science-based fitness tests (20-min FTP, 5 km all-out, 3-min all-out…). Run a testing block every 6–8 weeks to track form.</div></div><button class="btn primary sm" id="go-scitests">Open</button></div>` : ''}
 
     ${summary.length ? `<div class="grid cols-4" style="margin-top:12px">
       ${summary.map(t => `<div class="card stat"><span class="l">${esc(t.type)}</span><span class="v">${esc(t.primary.value)}<small style="font-size:14px;color:var(--muted)"> ${esc(t.primary.unit)}</small></span><span class="sub">${fmtDate(t.date)}</span></div>`).join('')}
@@ -1305,6 +1454,7 @@ function viewTesting() {
     </div>`;
 
   $$('[data-test-open]').forEach(b => b.addEventListener('click', () => openTestModal(b.dataset.testOpen)));
+  if ($('#go-scitests')) $('#go-scitests').addEventListener('click', () => { state.ui.libTab = 'science'; state.ui.libGoal = 'test'; go('library'); });
 }
 
 function testRow(t, all) {
@@ -1655,6 +1805,27 @@ function viewMessages() {
     save(); viewMessages(); toast('Note added');
   });
   $$('[data-note-del]').forEach(b => b.addEventListener('click', () => { state.dayNotes = state.dayNotes.filter(n => n.id !== b.dataset.noteDel); save(); viewMessages(); }));
+}
+
+/* ------------------------------ Scientific references ------------------- */
+function viewReferences() {
+  const v = $('#view');
+  const keys = Object.keys(SCIENCE_REFS);
+  v.innerHTML = `
+    <p class="sub">The peer-reviewed literature behind the <b>Science library</b> workouts and fitness tests (Workouts tab → Science library). Each item there links back to these sources.</p>
+    <div class="list" style="margin-top:10px">
+      ${keys.map((k, i) => {
+        const r = SCIENCE_REFS[k];
+        const used = SCIENCE_CATALOG.filter(w => (w.refs || []).includes(k)).map(w => w.name);
+        return `<div class="card">
+          <div style="font-weight:600">${i + 1}. ${esc(r.authors)} (${r.year}).</div>
+          <div style="margin-top:2px">${esc(r.title)}.</div>
+          <div class="sub" style="margin-top:2px"><i>${esc(r.journal)}</i></div>
+          ${used.length ? `<div class="sub" style="margin-top:8px">Used in: ${used.map(n => `<span class="badge">${esc(n)}</span>`).join(' ')}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>
+    <p class="sub" style="margin-top:14px">These protocols are general, evidence-based guidance — individualise them to each athlete's level and health status. This is educational information, not medical advice.</p>`;
 }
 
 /* ------------------------------ Monitoring ------------------------------ */
