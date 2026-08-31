@@ -974,7 +974,7 @@ function sessionRow(s) {
 // Intervals-style dashboard row: header + the workout graph underneath, whole row opens the session.
 function dashSessionRow(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
-  const g = workoutMiniSVG(s, 48);
+  const g = workoutMiniSVG(s, 18);
   return `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer" data-open-session="${s.id}">
     <div style="display:flex;align-items:center;gap:10px">
       <span class="dot" style="background:${sp.color}"></span>
@@ -1113,18 +1113,19 @@ function workoutMiniSVG(s, h) {
       }
     }
   }
-  // 2) planned → planned zone profile; done without streams → actual time-in-zone profile
-  const steps = (s && s.steps && s.steps.length) ? s.steps : ((s && s.actual && s.actual.length) ? s.actual : []);
-  const total = stepsDuration(steps);
+  // 2) otherwise a simple, clear time-in-zone bar: one coloured segment per zone,
+  //    width = share of time in that zone (from planned steps, else actual time-in-zone).
+  const src = (s && s.steps && s.steps.length) ? s.steps : ((s && s.actual && s.actual.length) ? s.actual : []);
+  const byZone = {}; let total = 0;
+  src.forEach(st => { const m = Number(st.min) || 0; byZone[st.z] = (byZone[st.z] || 0) + m; total += m; });
   if (total) {
-    let x = 0, bars = '';
-    steps.forEach(st => {
-      const w = (Number(st.min) || 0) / total * W;
-      const bh = Math.max(3, ((st.z + 1) / 7) * h);
-      bars += `<rect x="${x.toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${Math.max(0, w).toFixed(1)}" height="${bh.toFixed(1)}" fill="${zoneColor(st.z)}"/>`;
+    let x = 0, segs = '';
+    Object.keys(byZone).map(Number).sort((a, b) => a - b).forEach(z => {
+      const w = byZone[z] / total * W;
+      segs += `<rect x="${x.toFixed(1)}" y="0" width="${Math.max(0, w).toFixed(1)}" height="${h}" fill="${zoneColor(z)}"/>`;
       x += w;
     });
-    return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;background:var(--bg-2)">${bars}</svg>`;
+    return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;overflow:hidden">${segs}</svg>`;
   }
   return '';
 }
@@ -1210,7 +1211,7 @@ function sessionChip(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
   const f = sessionFocus(s);
   const cc = sessionComments(s.id).length;
-  const g = workoutMiniSVG(s, 24);
+  const g = workoutMiniSVG(s, 12);
   return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
     <div class="t">${sp.icon} ${esc(s.name)} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
     ${g ? `<div style="margin:3px 0 1px">${g}</div>` : ''}
