@@ -1018,8 +1018,8 @@ function dashSessionRow(s) {
   return `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer" data-open-session="${s.id}">
     <div style="display:flex;align-items:center;gap:10px">
       <span class="dot" style="background:${sp.color}"></span>
-      <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${focusBadge(s)}</div>
-        <div class="meta">${fmtDate(s.date)} · ${sp.label} · ${s.duration || 0} min · ${s.load || 0} TSS${s.rpe != null ? ' · RPE ' + s.rpe : ''}</div></div>
+      <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${focusBadge(s)} ${rpeBadge(s)}</div>
+        <div class="meta">${fmtDate(s.date)} · ${sp.label} · ${s.duration || 0} min · ${s.load || 0} TSS${s.feltNote ? ' · “' + esc(s.feltNote) + '”' : ''}</div></div>
       ${s.status === 'done' ? '<span class="badge"><span class="dot" style="background:var(--ok)"></span>Done</span>' : ''}
     </div>
     ${g ? `<div>${g}</div>` : ''}
@@ -1068,6 +1068,14 @@ function focusBadge(s) {
   const f = sessionFocus(s);
   if (f.label === '—') return '';
   return `<span class="badge" title="Training focus (from zones)" style="border:1px solid ${f.color};color:${f.color}"><span class="dot" style="background:${f.color}"></span>${f.label}</span>`;
+}
+// How hard the session felt (RPE 1–10) — green (easy) → yellow → red (max).
+function rpeColor(r) { return r >= 8 ? 'var(--bad)' : r >= 5 ? 'var(--yellow)' : 'var(--ok)'; }
+function rpeWord(r) { return r >= 9 ? 'maximal' : r >= 7 ? 'hard' : r >= 5 ? 'moderate' : r >= 3 ? 'easy' : 'very easy'; }
+function rpeBadge(s) {
+  if (!s || s.rpe == null) return '';
+  const c = rpeColor(s.rpe);
+  return `<span class="badge" title="How hard it felt (RPE 1–10)${s.feltNote ? ' — ' + esc(s.feltNote) : ''}" style="border:1px solid ${c};color:${c}">💪 RPE ${s.rpe}</span>`;
 }
 function weeklyLoadBySport(aid, weeks) {
   const out = [];
@@ -1301,7 +1309,7 @@ function sessionChip(s) {
   return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
     <div class="t">${sp.icon} ${esc(s.name)} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
     ${g ? `<div style="margin:3px 0 1px">${g}</div>` : ''}
-    <div class="m">${s.duration || 0}min · ${s.load || 0} TSS${f.label !== '—' ? ` · <span style="color:${f.color}">${f.label}</span>` : ''}</div>
+    <div class="m">${s.duration || 0}min · ${s.load || 0} TSS${s.rpe != null ? ` · <b style="color:${rpeColor(s.rpe)}">RPE ${s.rpe}</b>` : ''}${f.label !== '—' ? ` · <span style="color:${f.color}">${f.label}</span>` : ''}</div>
   </div>`;
 }
 // Task chip shown on the assignee's calendar (📋), coloured by status.
@@ -1404,6 +1412,7 @@ function openSessionModal(id, presetDate) {
 
   const body = `
     ${recommendationHTML(state.currentAthleteId, s.date)}
+    ${(editing && s.rpe != null) ? `<div class="row" style="border-left:3px solid ${rpeColor(s.rpe)};margin-bottom:10px"><div class="grow"><div class="title" style="color:${rpeColor(s.rpe)}">💪 RPE ${s.rpe}/10 — ${rpeWord(s.rpe)}</div>${s.feltNote ? `<div class="meta">“${esc(s.feltNote)}”</div>` : ''}</div>${canEdit || state.role === 'athlete' ? `<button class="btn sm" id="f-editrpe">Edit</button>` : ''}</div>` : ''}
     <label>Sport</label>
     <select id="f-sport" ${canEdit ? '' : 'disabled'}>${sportOpts}</select>
     <label>Session name</label>
@@ -1447,6 +1456,7 @@ function openSessionModal(id, presetDate) {
   syncTotals();
   renderStrengthEditor(strengthState, canEdit, strengthMeta);
   if (editing) { renderPostWorkout(s, (state.wellness || []).filter(w => w.athleteId === s.athleteId)); renderCommentsBlock('comments-block', s); }
+  if ($('#f-editrpe')) $('#f-editrpe').addEventListener('click', () => openRpeModal(s.id));
 
   $('#f-sport').addEventListener('change', () => { renderStrengthEditor(strengthState, canEdit, strengthMeta); syncTotals(); });
 
@@ -3028,15 +3038,16 @@ function panelSessionRow(s, aid) {
   const cc = sessionComments(s.id).length;
   return `<div class="row" style="cursor:pointer" data-panel-sess="${s.id}">
     <span class="dot" style="background:${sp.color}"></span>
-    <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${cc ? `💬${cc}` : ''} ${s.status === 'done' ? '<span class="badge" style="color:var(--ok)">✓</span>' : ''}</div>
-    <div class="meta">${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS${s.rpe != null ? ' · RPE ' + s.rpe : ''}</div></div>
+    <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${cc ? `💬${cc}` : ''} ${rpeBadge(s)} ${s.status === 'done' ? '<span class="badge" style="color:var(--ok)">✓</span>' : ''}</div>
+    <div class="meta">${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS${s.feltNote ? ' · “' + esc(s.feltNote) + '”' : ''}</div></div>
   </div>`;
 }
 function openReadonlySession(sid, aid, sessions, wellness) {
   const s = (sessions || []).find(x => x.id === sid) || state.sessions.find(x => x.id === sid); if (!s) return;
   const sp = SPORTS[s.sport] || SPORTS.other;
   const body = `
-    <div class="sub" style="margin-bottom:8px">${sp.icon} ${esc(s.name)} · ${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS${s.rpe != null ? ' · RPE ' + s.rpe : ''}</div>
+    <div class="sub" style="margin-bottom:8px">${sp.icon} ${esc(s.name)} · ${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS</div>
+    ${s.rpe != null ? `<div class="row" style="border-left:3px solid ${rpeColor(s.rpe)};margin-bottom:8px"><div class="grow"><div class="title" style="color:${rpeColor(s.rpe)}">💪 RPE ${s.rpe}/10 — ${rpeWord(s.rpe)}</div>${s.feltNote ? `<div class="meta">“${esc(s.feltNote)}”</div>` : ''}</div></div>` : ''}
     ${s.desc ? `<p class="sub">${esc(s.desc)}</p>` : ''}
     ${(s.steps && s.steps.length) ? `<label>Workout profile</label>${workoutProfileSVG(s.steps)}<div style="margin-top:8px">${zoneDistHTML(s.steps)}</div>` : ''}
     <div id="postwork-block"></div>
