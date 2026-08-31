@@ -1113,8 +1113,8 @@ function workoutMiniSVG(s, h) {
       }
     }
   }
-  // 2) planned (or done without streams) → stepped zone profile
-  const steps = (s && s.steps) || [];
+  // 2) planned → planned zone profile; done without streams → actual time-in-zone profile
+  const steps = (s && s.steps && s.steps.length) ? s.steps : ((s && s.actual && s.actual.length) ? s.actual : []);
   const total = stepsDuration(steps);
   if (total) {
     let x = 0, bars = '';

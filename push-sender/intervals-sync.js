@@ -54,7 +54,7 @@ async function attachStreams(aid, key) {
   const cut = new Date(); cut.setDate(cut.getDate() - BACK_DAYS); const cutoff = ymd(cut);
   const targets = sessions
     .filter(s => s.status === 'done' && s.intervalsActivityId && String(s.intervalsActivityId).startsWith('iv-') && !s.streams && !s.streamsChecked && (s.date || '') >= cutoff)
-    .sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 12);   // cap API calls per run
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 40);   // cap API calls per run
   if (!targets.length) return 0;
   let got = 0;
   const patch = {};
@@ -206,8 +206,9 @@ async function pullFromIntervals(aid, key, id) {
       const arpe = act.icu_rpe != null ? Number(act.icu_rpe) : null;
       const already = sessions.find(s => s.intervalsActivityId === actId);
       if (already) {
-        // already imported — still refresh RPE from Intervals if TAC doesn't have one yet
+        // already imported — refresh RPE, and backfill a zone profile if it has none yet
         if (already.rpe == null && arpe != null) { already.rpe = arpe; matched++; }
+        if (!already.actual || !already.actual.length) { let a2 = zoneTimesFor(act, 'power'); if (!a2.length) a2 = zoneTimesFor(act, 'hr'); if (a2.length) { already.actual = a2; matched++; } }
         continue;
       }
       const date = String(act.start_date_local || '').slice(0, 10); if (!date) continue;
@@ -225,6 +226,9 @@ async function pullFromIntervals(aid, key, id) {
       } else {
         const ns = { id: rid(), athleteId: aid, date, sport, name: act.name || 'Activity', duration: dur, load, desc: 'Imported from Intervals.icu', steps: [], strength: [], status: 'done', intervalsActivityId: actId };
         if (arpe != null) ns.rpe = arpe;
+        // give imported activities a zone profile (power first, else HR) so a graph can be drawn
+        let iact = zoneTimesFor(act, 'power'); if (!iact.length) iact = zoneTimesFor(act, 'hr');
+        if (iact.length) ns.actual = iact;
         sessions.push(ns);
         imported++;
       }
