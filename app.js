@@ -786,11 +786,12 @@ function render() {
             ${Cloud.accountRoles.map(r => `<button data-mode="${r}" class="${state.role === r ? 'active' : ''}">${modeLabel(r)}</button>`).join('')}
           </div>` : ''}
           ${((state.role === 'coach' || state.role === 'crew') && rosterAthletes().length) ? `<div class="who">
-            My athletes
+            My athletes (${rosterAthletes().length})
             <select data-athlete-select>
               ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>
           </div>` : ''}
+          ${state.role === 'coach' ? `<button class="btn sm" id="add-athlete-side" style="width:100%;margin-top:6px;justify-content:center">+ Add athlete</button>` : ''}
           ${Cloud.user ? `<div class="who" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:space-between">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🟢 ${esc(Cloud.user.email)}</span>
             <button class="btn sm ghost" id="logout-btn" style="flex:0 0 auto">Log out</button>
@@ -821,6 +822,7 @@ function render() {
   $$('[data-mode]').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
   if ($('[data-athlete-select]')) $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('[data-athlete-top]')) $('[data-athlete-top]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
+  if ($('#add-athlete-side')) $('#add-athlete-side').addEventListener('click', () => openAddAthleteModal());
   if ($('#logout-btn')) $('#logout-btn').addEventListener('click', () => Cloud.logout());
 
   const views = {
@@ -832,12 +834,46 @@ function render() {
   (views[view] || viewTodos)();
 }
 
+// Quick "add an athlete" for a coach — creates an athlete they coach (in their roster).
+function openAddAthleteModal(onDone) {
+  const body = `
+    <label>Athlete name</label>
+    <input id="na-name" placeholder="e.g. Jan Peeters"/>
+    <label>Email (optional)</label>
+    <input id="na-email" placeholder="athlete@email.com"/>
+    <div class="hint">Creates an athlete you coach and program for. If they also want their own login, they can sign up and connect to you from their app.</div>`;
+  openModal('Add athlete', body, `<button class="btn primary" id="na-go">+ Add athlete</button>`);
+  const submit = () => {
+    const name = ($('#na-name').value || '').trim() || 'New athlete';
+    const a = { id: uid(), name, email: ($('#na-email').value || '').trim(), sport: 'biking', ftp: 200, maxHr: 190, thresholdHr: 165, thresholdPace: 270, powerZones: clone(DEFAULT_POWER_ZONES), hrZones: clone(DEFAULT_HR_ZONES), paceZones: clone(DEFAULT_PACE_ZONES), coachIds: [], coachUids: Cloud.myUid ? [Cloud.myUid] : [], viewers: [] };
+    state.athletes.push(a); state.currentAthleteId = a.id; save(); closeModal(); toast('Athlete added');
+    if (onDone) onDone(); else render();
+  };
+  $('#na-go').addEventListener('click', submit);
+  $('#na-name').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+}
+
 /* ------------------------------ Dashboard ------------------------------- */
 function viewDashboard() {
   const v = $('#view');
   const a = currentAthlete();
   const me = state.role;
   const today = todayISO();
+
+  // coach/crew with no athletes yet → a clear call to add/connect one
+  if (!a) {
+    v.innerHTML = `<div class="card" style="max-width:560px">
+      <h3>${state.role === 'coach' ? 'Add your first athlete' : 'No athletes yet'}</h3>
+      <p class="sub">${state.role === 'coach' ? 'Create an athlete you coach, or connect to an existing athlete account.' : 'Ask an athlete to share their training with you from the Team tab.'}</p>
+      <div class="btn-row" style="margin-top:10px">
+        ${state.role === 'coach' ? `<button class="btn primary" id="dash-add-ath">+ Add athlete</button>` : ''}
+        <button class="btn" data-goto="team">Open Team</button>
+      </div>
+    </div>`;
+    if ($('#dash-add-ath')) $('#dash-add-ath').addEventListener('click', () => openAddAthleteModal());
+    $$('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
+    return;
+  }
 
   // things to fill in (RPE today / questionnaire / morning / weekly)
   const prompts = pendingPrompts(a);
@@ -916,6 +952,12 @@ function pendingPrompts(a) {
   const out = [];
   const today = todayISO();
 
+  // Athlete with no coach yet → connect one
+  if (state.role === 'athlete' && Cloud.user && (!a.coachUids || !a.coachUids.length)) out.push({ html: `
+    <div class="prompt" style="border-left-color:var(--accent-2)"><span class="icon">🧑‍🏫</span>
+      <div class="grow"><b>Connect with your coach</b><div class="sub">Add your coach so they can follow and program your training.</div></div>
+      <button class="btn primary sm" data-prompt="addcoach">Connect</button></div>` });
+
   // Morning sleep
   const hasSleep = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === today);
   if (!hasSleep) out.push({ html: `
@@ -955,6 +997,7 @@ function bindPromptButtons() {
     if (b.dataset.prompt === 'weekly') openWeeklyModal();
     if (b.dataset.prompt === 'quest') { state.role === 'athlete' && b.dataset.qid ? openQFill(b.dataset.qid) : go('questionnaires'); }
     if (b.dataset.prompt === 'messages') go('messages');
+    if (b.dataset.prompt === 'addcoach') go('team');
   }));
 }
 
@@ -2872,6 +2915,18 @@ async function drawTeam() {
   v.innerHTML = `
     <p class="sub">Everyone on the team. ${canSeeAll ? 'Open an athlete to see all their trainings, add comments, and send them a notification.' : 'Request access to an athlete — once they approve, you can see their full training (calendar, recovery, everything they see) from the tabs on the left.'}</p>
 
+    ${state.role === 'coach' ? `<div class="card" style="margin-bottom:16px;border-color:var(--accent)">
+      <h3>➕ Add an athlete</h3>
+      <p class="sub">Create an athlete you coach, or connect to an existing athlete account (tap “Request access” on their card below).</p>
+      <div class="btn-row"><button class="btn primary" id="team-add-ath">+ Add athlete</button></div>
+    </div>` : ''}
+
+    ${state.role === 'athlete' && Cloud.user ? `<div class="card" style="margin-bottom:16px;border-color:var(--accent)">
+      <h3>🧑‍🏫 Your coach</h3>
+      <p class="sub">Connect with your coach so they can follow your training and program for you.</p>
+      <div id="coach-invite-body" class="sub">Loading coaches…</div>
+    </div>` : ''}
+
     ${(state.role === 'staff' || state.role === 'coordinator' || state.role === 'crew') ? `<div class="card" style="margin-bottom:16px">
       <h3>My profile</h3>
       <div class="sub" style="margin-bottom:8px">${roleLabel(state.role)} · ${esc((Cloud.user && Cloud.user.email) || '')}</div>
@@ -2900,8 +2955,10 @@ async function drawTeam() {
       return personCard(p, true, canView, canRequest);
     }).join('') : '<div class="empty">No athletes yet.</div>'}</div>`;
 
-  // staff profile editor
+  // staff profile editor + quick add / connect
   if ($('#staff-profile')) renderStaffProfile();
+  if ($('#team-add-ath')) $('#team-add-ath').addEventListener('click', () => openAddAthleteModal(drawTeam));
+  if ($('#coach-invite-body')) renderCoachInvite();
 
   $$('[data-view-ath]').forEach(b => b.addEventListener('click', () => {
     const uid = b.dataset.viewAth;
