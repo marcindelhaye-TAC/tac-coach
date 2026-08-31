@@ -544,6 +544,16 @@ const ROLES = {
 function roleLabel(r) { return (ROLES[r] || {}).label || r; }
 function isTeamRole(r) { return r === 'coach' || r === 'staff' || r === 'coordinator' || r === 'crew'; }
 function canCoordinate(r) { return r === 'coach' || r === 'coordinator' || r === 'crew'; }
+// One account can hold several profiles (roles). These map legacy single-role accounts to a list,
+// give a legacy label, choose a default active profile, and label the switcher buttons.
+function rolesFromLegacy(role) {
+  if (role === 'both') return ['coach', 'athlete'];
+  if (role === 'staff' || role === 'coordinator') return ['crew'];
+  return [role || 'coach'];
+}
+function accountRoleLabel(roles) { return (roles.includes('coach') && roles.includes('athlete')) ? 'both' : (roles[0] || 'coach'); }
+function primaryMode(roles) { return roles.includes('coach') ? 'coach' : roles.includes('athlete') ? 'athlete' : (roles[0] || 'coach'); }
+function modeLabel(r) { return r === 'coach' ? 'Coaching' : r === 'athlete' ? 'My training' : r === 'crew' ? 'Crew' : roleLabel(r); }
 const TODO_STATUS = {
   todo:   { label: 'To do',        color: '#8d99ae', icon: '⬜' },
   doing:  { label: 'In progress',  color: '#4cc9f0', icon: '🔵' },
@@ -651,19 +661,19 @@ function closeModal() { $('#modal-root').innerHTML = ''; }
 
 /* ------------------------------ Nav / Router ---------------------------- */
 const NAV = [
-  { id: 'dashboard',      label: 'Dashboard',      icon: '📊', roles: ['coach', 'athlete'] },
-  { id: 'calendar',       label: 'Calendar',       icon: '📅', roles: ['coach', 'athlete'] },
+  { id: 'dashboard',      label: 'Dashboard',      icon: '📊', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'calendar',       label: 'Calendar',       icon: '📅', roles: ['coach', 'athlete', 'crew'] },
   { id: 'todos',          label: 'To-do',          icon: '✅', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
   { id: 'sharedcal',      label: 'Shared Calendar', icon: '🗓️', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
-  { id: 'planning',       label: 'Planning',       icon: '📆', roles: ['coach', 'athlete'] },
+  { id: 'planning',       label: 'Planning',       icon: '📆', roles: ['coach', 'athlete', 'crew'] },
   { id: 'library',        label: 'Workouts',       icon: '📚', roles: ['coach'] },
-  { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete'] },
-  { id: 'recovery',       label: 'Recovery',       icon: '🔋', roles: ['coach', 'athlete'] },
-  { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete'] },
-  { id: 'nutrition',      label: 'Nutrition',      icon: '🥗', roles: ['coach', 'athlete'] },
-  { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete'] },
-  { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete'] },
-  { id: 'references',     label: 'References',     icon: '📖', roles: ['coach', 'athlete'] },
+  { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'recovery',       label: 'Recovery',       icon: '🔋', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'nutrition',      label: 'Nutrition',      icon: '🥗', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'references',     label: 'References',     icon: '📖', roles: ['coach', 'athlete', 'crew'] },
   { id: 'team',           label: 'Team',           icon: '👥', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
   { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
   { id: 'athletes',       label: 'Athletes & Zones', icon: '⚙️', roles: ['coach'] },
@@ -678,9 +688,12 @@ function go(view) { state.ui.view = view; save(); render(); window.scrollTo(0, 0
    ============================================================================ */
 function render() {
   const nav = navForRole();
+  // crew with no approved athletes yet → keep them on the non-athlete tabs (Team to request access)
+  const ATH_VIEWS = ['dashboard', 'calendar', 'planning', 'fitness', 'recovery', 'testing', 'nutrition', 'goals', 'questionnaires', 'references', 'monitor', 'library', 'athletes'];
+  if (state.role === 'crew' && !(state.athletes || []).length && ATH_VIEWS.includes(state.ui.view)) state.ui.view = 'team';
   if (!nav.find(n => n.id === state.ui.view)) state.ui.view = (nav[0] && nav[0].id) || 'dashboard';
   const view = state.ui.view;
-  if (state.role === 'coach') { const r = rosterAthletes(); if (r.length && !r.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = r[0].id; }
+  if (state.role === 'coach' || state.role === 'crew') { const r = rosterAthletes(); if (r.length && !r.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = r[0].id; }
 
   const app = $('#app');
   app.innerHTML = `
@@ -698,11 +711,10 @@ function render() {
             <button data-role="coach" class="${state.role === 'coach' ? 'active' : ''}">Coach</button>
             <button data-role="athlete" class="${state.role === 'athlete' ? 'active' : ''}">Athlete</button>
           </div>` : ''}
-          ${(Cloud.user && Cloud.accountRole === 'both') ? `<div class="seg" style="margin-bottom:8px">
-            <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">Coaching</button>
-            <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">My training</button>
+          ${(Cloud.user && Cloud.accountRoles && Cloud.accountRoles.length > 1) ? `<div class="seg" style="margin-bottom:8px;flex-wrap:wrap;gap:3px">
+            ${Cloud.accountRoles.map(r => `<button data-mode="${r}" class="${state.role === r ? 'active' : ''}">${modeLabel(r)}</button>`).join('')}
           </div>` : ''}
-          ${state.role === 'coach' ? `<div class="who">
+          ${((state.role === 'coach' || state.role === 'crew') && rosterAthletes().length) ? `<div class="who">
             My athletes
             <select data-athlete-select>
               ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
@@ -719,7 +731,7 @@ function render() {
         <div class="topbar">
           <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
             <h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0">${nav.find(n => n.id === view)?.label || ''}</h2>
-            ${(state.role === 'coach' && rosterAthletes().length) ? `<select class="topbar-athlete" data-athlete-top title="Switch athlete">
+            ${((state.role === 'coach' || state.role === 'crew') && rosterAthletes().length) ? `<select class="topbar-athlete" data-athlete-top title="Switch athlete">
               ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>` : ''}
           </div>
@@ -1104,7 +1116,7 @@ function bindCalendarDnD() {
     cell.addEventListener('dragleave', () => cell.classList.remove('drop-hover'));
     cell.addEventListener('drop', (e) => {
       e.preventDefault(); cell.classList.remove('drop-hover');
-      if (!dragId) return;
+      if (!dragId || state.role === 'crew') return;   // crew is read-only
       const s = state.sessions.find(x => x.id === dragId);
       if (s) { s.date = cell.dataset.day; save(); drawCalendar(); toast('Session moved to ' + fmtDate(s.date)); }
     });
@@ -2680,16 +2692,14 @@ async function drawTeam() {
   const people = teamPeople();
   const team = people.filter(p => isTeamRole(p.role));
   const athletes = people.filter(p => p.role === 'athlete');
-  const iAmTeam = isTeamRole(state.role);
-  const myAthlete = state.athletes.find(a => a.id === me);
-  const myViewers = (myAthlete && myAthlete.viewers) || [];
+  const canSeeAll = state.role === 'coach';   // only coaches see every athlete automatically
 
   // incoming access requests (people who want to see MY training)
   let incoming = [];
   try { incoming = await Cloud.myShareRequests(); } catch (e) {}
 
   v.innerHTML = `
-    <p class="sub">Everyone on the team. ${iAmTeam ? 'Open an athlete to see all their trainings, add comments, and send them a notification.' : 'You can ask to follow another athlete’s training — they approve the request.'}</p>
+    <p class="sub">Everyone on the team. ${canSeeAll ? 'Open an athlete to see all their trainings, add comments, and send them a notification.' : 'Request access to an athlete — once they approve, you can see their full training (calendar, recovery, everything they see) from the tabs on the left.'}</p>
 
     ${(state.role === 'staff' || state.role === 'coordinator' || state.role === 'crew') ? `<div class="card" style="margin-bottom:16px">
       <h3>My profile</h3>
@@ -2710,14 +2720,18 @@ async function drawTeam() {
 
     <div class="section-title" style="margin-top:18px">Athletes</div>
     <div class="grid cols-3">${athletes.length ? athletes.map(p => {
-      const canView = iAmTeam || p.uid === me || myViewers.includes(p.uid) || ((state.athletes.find(a => a.id === p.uid) || {}).viewers || []).includes(me);
+      const canView = canSeeAll || p.uid === me || state.athletes.some(a => a.id === p.uid); // loaded = approved
       return personCard(p, true, canView);
     }).join('') : '<div class="empty">No athletes yet.</div>'}</div>`;
 
   // staff profile editor
   if ($('#staff-profile')) renderStaffProfile();
 
-  $$('[data-view-ath]').forEach(b => b.addEventListener('click', () => openAthletePanel(b.dataset.viewAth)));
+  $$('[data-view-ath]').forEach(b => b.addEventListener('click', () => {
+    const uid = b.dataset.viewAth;
+    if (state.role === 'coach' || state.role === 'crew') { state.currentAthleteId = uid; go('dashboard'); }  // full read-only view via the tabs
+    else openAthletePanel(uid);   // athlete-to-athlete quick view
+  }));
   $$('[data-req-ath]').forEach(b => b.addEventListener('click', async () => { await Cloud.requestAccess(b.dataset.reqAth); toast('Request sent'); }));
   $$('[data-del-person]').forEach(b => b.addEventListener('click', async () => {
     if (!confirm('Remove ' + (b.dataset.delName || 'this person') + ' from the team? This deletes their profile and training data. This cannot be undone.')) return;
@@ -2894,18 +2908,23 @@ function viewSettings() {
   if (ivAthlete && !ivAthlete.intervals) ivAthlete.intervals = { athleteId: '', apiKey: '', lastSync: null };
   const iv = (ivAthlete && ivAthlete.intervals) || { athleteId: '', apiKey: '', lastSync: null };
   const nt = state.settings.notifications;
-  const dualCoach = Cloud.user && Cloud.accountRole === 'both';
+  const acctRoles = Cloud.accountRoles || (Cloud.accountRole ? rolesFromLegacy(Cloud.accountRole) : [state.role]);
+  const addableRoles = ['coach', 'athlete', 'crew'].filter(r => !acctRoles.includes(r));
   v.innerHTML = `
     ${Cloud.user ? `<div class="card" style="max-width:640px;margin-bottom:16px">
       <h3>Account</h3>
-      <p class="sub">Signed in as <b style="color:var(--text)">${esc(Cloud.user.email)}</b> · ${esc(roleLabel(Cloud.accountRole || state.role))} account.</p>
-      ${dualCoach ? `<label>Mode</label>
-        <div class="seg2" id="acct-mode">
-          <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">🧑‍🏫 Coaching</button>
-          <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">🏃 My training</button>
+      <p class="sub">Signed in as <b style="color:var(--text)">${esc(Cloud.user.email)}</b>.</p>
+      <label>Your profiles</label>
+      <div style="margin:2px 0 8px">${acctRoles.map(r => `<span class="badge" style="margin:2px 4px 2px 0">${(ROLES[r] || {}).icon || ''} ${esc(modeLabel(r))}</span>`).join('')}</div>
+      ${acctRoles.length > 1 ? `<label>Active profile</label>
+        <div class="seg2" id="acct-mode" style="flex-wrap:wrap">
+          ${acctRoles.map(r => `<button data-mode="${r}" class="${state.role === r ? 'active' : ''}">${(ROLES[r] || {}).icon || ''} ${esc(modeLabel(r))}</button>`).join('')}
         </div>
-        <div class="hint">Same account, both roles — coach your athletes and log your own training, just like Intervals.icu.</div>` : ''}
-      ${(state.role === 'coach' && rosterAthletes().length) ? `<label style="margin-top:10px">Viewing athlete</label>
+        <div class="hint">One account, several profiles — switch anytime.</div>` : ''}
+      ${addableRoles.length ? `<label style="margin-top:12px">Add another profile</label>
+        <div class="btn-row">${addableRoles.map(r => `<button class="btn sm" data-addrole="${r}">+ ${esc(modeLabel(r))}</button>`).join('')}</div>
+        <div class="hint">e.g. also become crew/coordinator, or start logging your own training.</div>` : ''}
+      ${((state.role === 'coach' || state.role === 'crew') && rosterAthletes().length) ? `<label style="margin-top:12px">Viewing athlete</label>
         <select id="acct-athlete">${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}
       <div class="btn-row" style="margin-top:14px"><button class="btn danger" id="acct-logout">Log out</button></div>
     </div>` : ''}
@@ -2973,6 +2992,7 @@ function viewSettings() {
 
   if ($('#acct-logout')) $('#acct-logout').addEventListener('click', () => Cloud.logout());
   $$('#acct-mode button').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
+  $$('[data-addrole]').forEach(b => b.addEventListener('click', () => Cloud.addRole(b.dataset.addrole)));
   if ($('#acct-athlete')) $('#acct-athlete').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('#coach-invite-body')) renderCoachInvite();
 
@@ -3176,7 +3196,7 @@ function dueToday(freq, now) {
    Coaches can read/write all athlete docs; an athlete can read/write only their own (aid == their uid).
 */
 const Cloud = {
-  enabled: false, auth: null, db: null, user: null, role: null, accountRole: null, myUid: null,
+  enabled: false, auth: null, db: null, user: null, role: null, accountRole: null, accountRoles: null, myUid: null,
   applyingRemote: false, ready: false, saveTimer: null,
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
@@ -3208,48 +3228,50 @@ const Cloud = {
   async onLogin() {
     this.myUid = this.user.uid;
     this.ready = false;
-    // determine role from users/{uid}, falling back to a pending signup choice
+    // an account can hold several profiles (roles); read the list (or derive from the legacy role)
     const uref = this.db.collection('users').doc(this.myUid);
-    let role = null;
-    try { const s = await uref.get(); if (s.exists) role = s.data().role; } catch (e) {}
-    if (!role && this.pendingSignup) role = this.pendingSignup.role;
-    if (!role) role = 'coach';
-    // Legacy staff/coordinator accounts now behave as "crew". The owner is always coach+athlete.
-    if (role === 'staff' || role === 'coordinator') role = 'crew';
-    if (this.user.email === OWNER_EMAIL && role === 'coach') role = 'both';
-    this.accountRole = role;                 // coach | athlete | both | crew
-    try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', role, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
+    let roles = null;
+    try { const s = await uref.get(); if (s.exists) { const d = s.data(); roles = (Array.isArray(d.roles) && d.roles.length) ? d.roles.slice() : (d.role ? rolesFromLegacy(d.role) : null); } } catch (e) {}
+    if (!roles && this.pendingSignup) roles = rolesFromLegacy(this.pendingSignup.role);
+    if (!roles) roles = ['coach'];
+    if (this.user.email === OWNER_EMAIL) roles = Array.from(new Set([...roles, 'coach', 'athlete'])); // owner is always coach+athlete
+    this.accountRoles = roles;
+    this.accountRole = accountRoleLabel(roles);           // legacy label for older checks
+    try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', roles, role: this.accountRole, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
     this.pendingSignup = null;
 
-    // active mode: 'both' accounts switch between coaching / their own training; everyone else has one role.
-    let mode;
-    if (role === 'both') mode = (state.viewMode === 'athlete') ? 'athlete' : 'coach';
-    else if (role === 'athlete') mode = 'athlete';
-    else if (role === 'crew') mode = 'crew';
-    else mode = 'coach';
-    this.role = mode; state.role = mode; state.viewMode = mode;
-
-    render(); // show shell immediately
-
-    if (mode === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
-    else if (mode === 'crew') { this.subscribeCoach(); }
-    else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
+    const mode = (state.viewMode && roles.includes(state.viewMode)) ? state.viewMode : primaryMode(roles);
+    await this.switchTo(mode);
 
     checkReminders();
     if (!this._interval) { this._interval = setInterval(checkReminders, 5 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); }); }
   },
 
-  // switch between 'coach' (see all athletes) and 'athlete' (my own training) — coach+athlete accounts
-  setMode(mode) {
-    if (mode === this.role) return;
-    if (this.accountRole !== 'both') { toast('This account has a single role'); return; }
+  // switch the ACTIVE profile: coach (all athletes) / athlete (own) / crew (approved athletes only)
+  async switchTo(mode) {
     this.teardown();
     this.role = mode; state.role = mode; state.viewMode = mode;
     localStorage.setItem(LS_KEY, JSON.stringify(state));
     render();
-    if (mode === 'coach') { this.migrateIfNeeded().then(() => this.subscribeCoach()); }
-    else { this.ensureAthleteDoc().then(() => this.subscribeAthlete()); }
-    toast(mode === 'coach' ? 'Coaching mode' : 'My-training mode');
+    if (mode === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
+    else if (mode === 'crew') { this.subscribeCrew(); }
+    else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
+  },
+  setMode(mode) {
+    if (mode === this.role) return;
+    if (!this.accountRoles || !this.accountRoles.includes(mode)) { toast('That profile isn’t on this account'); return; }
+    this.switchTo(mode);
+    toast(mode === 'coach' ? 'Coaching mode' : mode === 'crew' ? 'Crew mode' : 'My-training mode');
+  },
+  // add another profile (role) to this account — e.g. a coach also becoming crew/coordinator
+  async addRole(r) {
+    if (!this.enabled || !this.user) return;
+    this.accountRoles = Array.from(new Set([...(this.accountRoles || []), r]));
+    this.accountRole = accountRoleLabel(this.accountRoles);
+    try { await this.db.collection('users').doc(this.myUid).set({ roles: this.accountRoles, role: this.accountRole }, { merge: true }); }
+    catch (e) { toast('Error: ' + (e.code || e.message)); return; }
+    if (r === 'athlete') { try { await this.ensureAthleteDoc(); } catch (e) {} }
+    toast('Added ' + modeLabel(r) + ' profile'); render();
   },
 
   // ---- build helpers ----
@@ -3317,6 +3339,25 @@ const Cloud = {
       localStorage.setItem(LS_KEY, JSON.stringify(state));
       this.reRender();
     }, err => toast('Sync error: ' + err.message));
+    const u2 = this.db.collection('shared').doc('coach').onSnapshot(s => {
+      if (s.metadata.hasPendingWrites || !s.exists) return;
+      this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
+    }, () => {});
+    this.unsub = [u1, u2, ...this.subExtras()];
+  },
+
+  // ---- crew (medewerker): sees ONLY athletes who approved them (viewers array-contains my uid) ----
+  subscribeCrew() {
+    const q = this.db.collection('athletes').where('viewers', 'array-contains', this.myUid);
+    const u1 = q.onSnapshot(qs => {
+      if (qs.metadata.hasPendingWrites) return;
+      this.applyingRemote = true;
+      this.loadFromDocs(qs.docs.map(d => ({ id: d.id, data: d.data() })));
+      if (!state.athletes.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = (state.athletes[0] || {}).id;
+      this.applyingRemote = false; this.ready = true;
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      this.reRender();
+    }, err => { this.ready = true; this.reRender(); });
     const u2 = this.db.collection('shared').doc('coach').onSnapshot(s => {
       if (s.metadata.hasPendingWrites || !s.exists) return;
       this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();

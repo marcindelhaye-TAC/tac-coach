@@ -23,10 +23,11 @@ service cloud.firestore {
       allow delete: if isCoach();
     }
 
-    // Per-athlete data: team roles read ALL; an athlete reads/writes their own doc;
-    // another athlete may READ it only if the owner listed them in `viewers` (opt-in sharing).
+    // Per-athlete data: a COACH reads/writes ALL athletes; an athlete reads/writes their own doc.
+    // Everyone else (crew/medewerker, or another athlete) may READ a doc only if the owner listed
+    // them in `viewers` — i.e. after the athlete approved their access request (opt-in sharing).
     match /athletes/{aid} {
-      allow read: if isTeam()
+      allow read: if isCoach()
         || (request.auth != null && request.auth.uid == aid)
         || (request.auth != null && request.auth.uid in resource.data.get('viewers', []));
       allow write: if isCoach() || (request.auth != null && request.auth.uid == aid);
