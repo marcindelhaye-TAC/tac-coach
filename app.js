@@ -1094,28 +1094,35 @@ function workoutProfileSVG(steps) {
 // Compact Intervals-style graph for a session, for calendar chips & dashboard rows.
 // Completed sessions show the ACTUAL power/HR curve (from Intervals streams); planned sessions
 // show the stepped zone profile. Returns '' when there's nothing structured to draw.
+// Derive time-in-zone from a completed session's raw stream (power, else HR) using the athlete's
+// zones — so a clean zone bar can be drawn even when the server hasn't stored `actual` yet.
+function streamZoneDist(s) {
+  const st = s && s.streams; if (!st) return [];
+  const a = state.athletes.find(x => x.id === s.athleteId) || currentAthlete(); if (!a) return [];
+  let series, zones, ref, zt;
+  if (st.watts && st.watts.some(v => v != null)) { series = st.watts; zones = a.powerZones || DEFAULT_POWER_ZONES; ref = a.ftp; zt = 'power'; }
+  else if (st.hr && st.hr.some(v => v != null)) { series = st.hr; zones = a.hrZones || DEFAULT_HR_ZONES; ref = a.thresholdHr; zt = 'hr'; }
+  else return [];
+  if (!ref) return [];
+  const per = (Number(s.duration) || series.length) / (series.length || 1); // minutes per sample
+  const counts = {};
+  series.forEach(v => {
+    if (v == null || isNaN(v)) return;
+    const pct = v / ref * 100;
+    let zi = zones.findIndex(z => pct >= z.min && pct <= z.max);
+    if (zi < 0) zi = pct < zones[0].min ? 0 : zones.length - 1;
+    counts[zi] = (counts[zi] || 0) + per;
+  });
+  return Object.keys(counts).map(z => ({ zt, z: Number(z), min: Math.round(counts[z]) }));
+}
 function workoutMiniSVG(s, h) {
   h = h || 28;
   const W = 300;
-  // 1) completed with real data → actual power (or HR) line
-  if (s && s.status === 'done' && s.streams) {
-    const st = s.streams;
-    const usePower = st.watts && st.watts.some(v => v != null);
-    const series = usePower ? st.watts : (st.hr && st.hr.some(v => v != null) ? st.hr : null);
-    if (series) {
-      const vals = series.filter(v => v != null && !isNaN(v));
-      if (vals.length > 1) {
-        const mn = Math.min(...vals), mx = Math.max(...vals), n = series.length;
-        const x = i => (i / (n - 1 || 1)) * W, y = v => h - ((v - mn) / ((mx - mn) || 1)) * (h - 2) - 1;
-        let d = '', pen = false;
-        series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
-        return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;background:var(--bg-2)"><path d="${d.trim()}" fill="none" stroke="${usePower ? '#3b30e6' : '#e50914'}" stroke-width="1.4"/></svg>`;
-      }
-    }
-  }
-  // 2) otherwise a simple, clear time-in-zone bar: one coloured segment per zone,
-  //    width = share of time in that zone (from planned steps, else actual time-in-zone).
-  const src = (s && s.steps && s.steps.length) ? s.steps : ((s && s.actual && s.actual.length) ? s.actual : []);
+  // A simple, clear time-in-zone bar: one coloured segment per zone, width = share of time
+  // (planned steps → actual time-in-zone → derived from the raw stream). The detailed power/HR
+  // curve lives in the session detail view — the calendar/dashboard stay clean and consistent.
+  const src = (s && s.steps && s.steps.length) ? s.steps
+    : ((s && s.actual && s.actual.length) ? s.actual : streamZoneDist(s));
   const byZone = {}; let total = 0;
   src.forEach(st => { const m = Number(st.min) || 0; byZone[st.z] = (byZone[st.z] || 0) + m; total += m; });
   if (total) {
