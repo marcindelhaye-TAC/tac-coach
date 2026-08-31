@@ -71,6 +71,25 @@ async function attachStreams(aid, key) {
   });
   return got;
 }
+// If a workout was completed TODAY and still has no RPE, push the athlete once for feedback.
+// De-duped with a deterministic pushQueue doc id (rpe_<sessionId>) so it's asked at most once.
+async function askTodaysRpe(aid) {
+  const today = ymd(new Date());
+  const ref = db.collection('athletes').doc(aid);
+  let doc; try { doc = await ref.get(); } catch (e) { return 0; }
+  if (!doc.exists) return 0;
+  const sessions = (doc.data().sessions || []).filter(s => s.status === 'done' && s.date === today && s.rpe == null);
+  let asked = 0;
+  for (const s of sessions) {
+    const qref = db.collection('pushQueue').doc('rpe_' + s.id);
+    try {
+      if ((await qref.get()).exists) continue;                 // already asked for this session
+      await qref.set({ title: 'How was your training? 💪', body: (s.name ? s.name + ' — ' : '') + 'Tap to add your RPE and how you felt.', target: aid, createdAt: Date.now(), sent: false, kind: 'rpe', sessionId: s.id, by: 'auto' });
+      asked++;
+    } catch (e) {}
+  }
+  return asked;
+}
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) { console.error('Missing FIREBASE_SERVICE_ACCOUNT'); process.exit(1); }
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
@@ -140,6 +159,11 @@ async function syncAthlete(aid, data) {
   try { streams = await attachStreams(aid, key); }
   catch (e) { console.error('streams failed', aid, e.message); }
 
+  // 3c. push the athlete for RPE if a workout was completed TODAY (once per session)
+  let rpeAsk = 0;
+  try { rpeAsk = await askTodaysRpe(aid); }
+  catch (e) { console.error('rpeAsk failed', aid, e.message); }
+
   // 3b. push TAC feedback (RPE) onto the matched Intervals activities
   let rpe = 0;
   for (const s of (data.sessions || [])) {
@@ -152,7 +176,7 @@ async function syncAthlete(aid, data) {
 
   // 4. stamp last sync (nested field update, won't clobber the rest)
   try { await db.collection('athletes').doc(aid).update({ 'intervals.lastSync': new Date().toISOString().replace('T', ' ').slice(0, 16) }); } catch (e) {}
-  return { athlete: data.name || aid, removed, created, matched: pull.matched, imported: pull.imported, plannedIn: pull.plannedIn, wellness: pull.wellness, rpe, streams };
+  return { athlete: data.name || aid, removed, created, matched: pull.matched, imported: pull.imported, plannedIn: pull.plannedIn, wellness: pull.wellness, rpe, streams, rpeAsk };
 }
 
 // Intervals → TAC: completed activities, Intervals-native planned workouts, and daily wellness.

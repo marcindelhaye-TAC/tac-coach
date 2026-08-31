@@ -1,4 +1,4 @@
-const CACHE = 'tac-coach-v26';
+const CACHE = 'tac-coach-v27';
 const ASSETS = [
   './',
   './index.html',

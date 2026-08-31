@@ -589,11 +589,11 @@ function pendingPrompts(a) {
       <div class="grow"><b>Morning check-in</b><div class="sub">How did you sleep last night?</div></div>
       <button class="btn primary sm" data-prompt="sleep">Answer</button></div>` });
 
-  // Post-session RPE (done but no rpe)
-  const pending = athleteSessions(a.id).filter(s => s.status === 'done' && (s.rpe == null));
+  // Post-session RPE — only for a session done TODAY (no nagging about past sessions)
+  const pending = athleteSessions(a.id).filter(s => s.status === 'done' && s.rpe == null && s.date === today);
   if (pending.length) out.push({ html: `
     <div class="prompt"><span class="icon">✅</span>
-      <div class="grow"><b>Session feedback</b><div class="sub">${pending.length} completed session(s) need an RPE & how you felt.</div></div>
+      <div class="grow"><b>Today's session</b><div class="sub">How was your training today? Add your RPE & how you felt.</div></div>
       <button class="btn primary sm" data-prompt="rpe" data-sid="${pending[0].id}">Answer</button></div>` });
 
   // Weekly reflection (on/after Sunday, once per week)
@@ -2687,10 +2687,10 @@ function checkReminders() {
     const hasSleep = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === todayISO());
     if (!hasSleep) { notify('Good morning 🌙', 'How did you sleep? Tap to log your morning check-in.'); markFired('morning'); }
   }
-  // Post-session: completed sessions still missing RPE
+  // Post-session: a session completed TODAY still missing RPE (never nags about past days)
   if (nt.postSession && !alreadyFired('post')) {
-    const pending = athleteSessions(a.id).some(s => s.status === 'done' && s.rpe == null);
-    if (pending) { notify('Session done ✅', 'Add your RPE and how you felt after training.'); markFired('post'); }
+    const pending = athleteSessions(a.id).some(s => s.status === 'done' && s.rpe == null && s.date === todayISO());
+    if (pending) { notify('How was your training? 💪', 'Add your RPE and how you felt after today\'s session.'); markFired('post'); }
   }
   // Sunday evening: weekly reflection
   if (nt.sundayEve && !alreadyFired('sunday') && now.getDay() === 0 && hhmm >= (nt.eveningTime || '20:00')) {
