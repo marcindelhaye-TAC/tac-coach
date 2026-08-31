@@ -151,7 +151,10 @@ const SCIENCE_REFS = {
   buchheit: { authors: 'Buchheit M, Laursen PB', year: 2013, title: 'High-intensity interval training, solutions to the programming puzzle (Parts I & II)', journal: 'Sports Med 43(5):313–338; 43(10):927–954' },
   buchheit3015: { authors: 'Buchheit M', year: 2008, title: 'The 30-15 Intermittent Fitness Test: accuracy for individualizing interval training', journal: 'J Strength Cond Res 22(2):365–374' },
   bangsbo: { authors: 'Bangsbo J, Iaia FM, Krustrup P', year: 2008, title: 'The Yo-Yo intermittent recovery test: a useful tool for evaluation of physical performance', journal: 'Sports Med 38(1):37–51' },
-  sanmillan: { authors: 'San-Millán I, Brooks GA', year: 2018, title: 'Assessment of metabolic flexibility by blood lactate and substrate oxidation across the exercise intensity spectrum', journal: 'Sports Med 48(2):467–479' }
+  sanmillan: { authors: 'San-Millán I, Brooks GA', year: 2018, title: 'Assessment of metabolic flexibility by blood lactate and substrate oxidation across the exercise intensity spectrum', journal: 'Sports Med 48(2):467–479' },
+  costill: { authors: 'Costill DL, et al.', year: 1991, title: 'Adaptations to swimming training: influence of training volume', journal: 'Med Sci Sports Exerc 23(3):371–377' },
+  faude: { authors: 'Faude O, Kindermann W, Meyer T', year: 2009, title: 'Lactate threshold concepts: how valid are they?', journal: 'Sports Med 39(6):469–490' },
+  plews: { authors: 'Plews DJ, et al.', year: 2013, title: 'Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring', journal: 'Sports Med 43(9):773–781' }
 };
 
 // zone index helper: Z1=0 … Z7=6.  cat: 'test' | 'workout'.  goal groups the library.
@@ -218,10 +221,70 @@ const SCIENCE_CATALOG = [
     steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 6, min: 4 }, { zt: 'power', z: 0, min: 8 }], refs: ['tabata'] },
   { id: 'sc_sit', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Sprint intervals 5×30 s all-out', duration: 35, load: 55,
     desc: 'Warm-up; 5×30 s ALL-OUT (Wingate-style) with 4 min easy recovery; cool-down. Potent stimulus for aerobic and anaerobic adaptations with low total time.',
-    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 1, min: 4 }], refs: ['gibala'] }
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 1, min: 4 }], refs: ['gibala'] },
+
+  // ---- Swimming across the goals ----
+  { id: 'sc_swimz2', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Aerobic swim — long steady', duration: 45, load: 40,
+    desc: 'Continuous 1200–2000 m at an easy, smooth pace (~CSS + 8–12 s/100 m), relaxed bilateral breathing. Builds swimming-specific aerobic base and stroke efficiency. Keep it comfortable.',
+    steps: [], refs: ['costill', 'seiler'] },
+  { id: 'sc_swimcss', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'CSS intervals 8×100', duration: 50, load: 62,
+    desc: 'Warm-up 300–400 m; 8×100 m at Critical Swim Speed (threshold) pace on 10–15 s rest; easy cool-down. Develops the pace you can hold for ~30 min — the swim threshold.',
+    steps: [], refs: ['costill', 'faude'] },
+  { id: 'sc_swimvo2', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'VO₂ swim 10×50 fast', duration: 45, load: 68,
+    desc: 'Warm-up; 10×50 m fast (well above CSS, ~1500 m race effort) on 25–30 s rest, or 6×100 hard. Maximises time near VO₂max for aerobic power in the water.',
+    steps: [], refs: ['laursen', 'costill'] },
+  { id: 'sc_swimsprint', cat: 'workout', sport: 'swimming', goal: 'anaerobic', name: 'Sprint swim 8×25 all-out', duration: 35, load: 45,
+    desc: 'Warm-up; 8×25 m ALL-OUT with full recovery (~60–75 s). Develops anaerobic power, stroke rate and speed. Very demanding — use sparingly.',
+    steps: [], refs: ['gibala'] },
+
+  // ---- Extra running coverage ----
+  { id: 'sc_runtempo', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Tempo run 2×15 min', duration: 60, load: 78,
+    desc: 'Warm-up; 2×15 min at threshold — comfortably hard, roughly current 1-hour race pace — with 3 min easy jog between; cool-down. Raises lactate-threshold pace.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 1, min: 12 }], refs: ['seiler', 'billat'] },
+  { id: 'sc_runhill', cat: 'workout', sport: 'running', goal: 'anaerobic', name: 'Hill sprints 8×15 s', duration: 35, load: 48,
+    desc: 'Warm-up; 8×15 s maximal uphill sprints with full walk-down recovery; cool-down. Builds neuromuscular power, running economy and strength with low injury risk.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 4 }, { zt: 'hr', z: 1, min: 16 }], refs: ['gibala', 'laursen'] },
+  { id: 'sc_swimbase_run', cat: 'workout', sport: 'running', goal: 'base', name: 'Easy aerobic run + strides', duration: 50, load: 45,
+    desc: '40–50 min easy Zone 2 running (conversational), finishing with 4–6×15 s relaxed strides. Aerobic base plus light neuromuscular touch without fatigue.',
+    steps: [{ zt: 'hr', z: 1, min: 45 }, { zt: 'hr', z: 3, min: 1 }, { zt: 'hr', z: 1, min: 4 }], refs: ['seiler', 'stoggl'] }
 ];
 const SCIENCE_GOALS = { test: 'Fitness tests', base: 'Base / endurance', threshold: 'Threshold (1-hour max)', vo2max: 'VO₂max', anaerobic: 'Anaerobic / sprint' };
 function refCite(key) { const r = SCIENCE_REFS[key]; return r ? `${r.authors} (${r.year}). ${r.title}. ${r.journal}.` : key; }
+
+// Macrocycle training goals → which catalog goal-groups make up its matching workout library.
+const MACRO_GOALS = {
+  base:      'Aerobic base (Z1/Z2)',
+  threshold: 'Threshold / FTP',
+  vo2max:    'VO₂max',
+  anaerobic: 'Anaerobic / sprint',
+  race:      'Race prep / peak',
+  general:   'General fitness'
+};
+function macroGoalCatalogGoals(goal) {
+  if (goal === 'race') return ['threshold', 'vo2max', 'base'];
+  if (goal === 'general') return ['base', 'threshold', 'vo2max'];
+  if (['base', 'threshold', 'vo2max', 'anaerobic'].includes(goal)) return [goal];
+  return ['base', 'threshold', 'vo2max', 'anaerobic'];
+}
+// Best-guess goal for a cycle that predates the goal field (reads zones/focus text).
+function inferMacroGoal(c) {
+  if (c && c.goal) return c.goal;
+  const t = (((c && c.zones) || []).join(' ') + ' ' + ((c && c.focus) || '')).toLowerCase();
+  if (/z6|z7|sprint|anaerob|neuromusc/.test(t)) return 'anaerobic';
+  if (/vo2|vo₂|z5/.test(t)) return 'vo2max';
+  if (/threshold|drempel|ftp|tempo|z4/.test(t)) return 'threshold';
+  if (/z1|z2|base|basis|aeroob|aerobic|endurance|uithouding/.test(t)) return 'base';
+  if (/race|wedstrijd|peak|taper/.test(t)) return 'race';
+  return 'base';
+}
+// Workouts (built-in + team-added) that match a cycle's goal, grouped by sport.
+function macroLibraryFor(c) {
+  const goals = macroGoalCatalogGoals(inferMacroGoal(c));
+  const items = [...(state.scienceCustom || []), ...SCIENCE_CATALOG].filter(w => w.cat !== 'test' && goals.includes(w.goal));
+  const bySport = {};
+  items.forEach(w => { (bySport[w.sport] = bySport[w.sport] || []).push(w); });
+  return bySport;
+}
 
 let state = load();
 function load() {
@@ -431,6 +494,7 @@ const NAV = [
   { id: 'planning',       label: 'Planning',       icon: '📆', roles: ['coach', 'athlete'] },
   { id: 'library',        label: 'Workouts',       icon: '📚', roles: ['coach'] },
   { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete'] },
+  { id: 'recovery',       label: 'Recovery',       icon: '🔋', roles: ['coach', 'athlete'] },
   { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete'] },
   { id: 'nutrition',      label: 'Nutrition',      icon: '🥗', roles: ['coach', 'athlete'] },
   { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete'] },
@@ -523,7 +587,7 @@ function render() {
     dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
     fitness: viewFitness, testing: viewTesting, nutrition: viewNutrition, goals: viewGoals,
     questionnaires: viewQuestionnaires, references: viewReferences, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings,
-    todos: viewTodos, sharedcal: viewSharedCal, team: viewTeam
+    todos: viewTodos, sharedcal: viewSharedCal, team: viewTeam, recovery: viewRecovery
   };
   (views[view] || viewTodos)();
 }
@@ -1225,9 +1289,9 @@ function viewLibrary() {
   $$('[data-libtab]').forEach(b => b.addEventListener('click', () => { state.ui.libTab = b.dataset.libtab; viewLibrary(); }));
 }
 function findCatalog(id) { return state.scienceCustom.find(x => x.id === id) || SCIENCE_CATALOG.find(x => x.id === id); }
-function scheduleCatalog(id) {
+function scheduleCatalog(id, presetDate) {
   const w = findCatalog(id); if (!w) return;
-  const body = `<label>Add "<b>${esc(w.name)}</b>" to ${esc(currentAthlete().name)} on:</label><input id="sch-date" type="date" value="${todayISO()}"/>`;
+  const body = `<label>Add "<b>${esc(w.name)}</b>" to ${esc(currentAthlete().name)} on:</label><input id="sch-date" type="date" value="${presetDate || todayISO()}"/>`;
   openModal('Add to calendar', body, `<button class="btn primary" id="sch-go">Add</button>`);
   $('#sch-go').addEventListener('click', () => {
     state.sessions.push({ id: uid(), athleteId: state.currentAthleteId, sport: w.sport, name: w.name, date: $('#sch-date').value, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: clone(w.strength || []), focus: w.focus || '', targetRpe: w.targetRpe || '', status: 'planned' });
@@ -1727,13 +1791,43 @@ function viewPlanning() {
     `).join('')}`;
 
   $$('[data-cycle-edit]').forEach(b => b.addEventListener('click', () => openCycleModal(b.dataset.cycleEdit)));
+  $$('[data-cycle-lib]').forEach(b => b.addEventListener('click', () => openMacroLibrary(b.dataset.cycleLib)));
+}
+// A whole science-based workout library matched to a cycle's training goal (bike / run / swim).
+function openMacroLibrary(cycleId) {
+  const c = state.cycles.find(x => x.id === cycleId); if (!c) return;
+  const goal = inferMacroGoal(c);
+  const bySport = macroLibraryFor(c);
+  const canEdit = state.role === 'coach';
+  const preset = (todayISO() >= c.start && todayISO() <= c.end) ? todayISO() : c.start;
+  const order = Object.keys(SPORTS).filter(sp => bySport[sp]);
+  const body = `
+    <div class="sub" style="margin-bottom:12px">Evidence-based workouts that build toward <b style="color:var(--text)">${esc(MACRO_GOALS[goal] || goal)}</b> — the goal of “${esc(c.name)}”. ${canEdit ? 'Add any to ' + esc(currentAthlete().name) + '’s calendar (defaults to a date inside this block).' : ''} Citations link to the <b>References</b> tab.</div>
+    ${order.length ? order.map(sp => `
+      <div class="section-title">${SPORTS[sp].icon} ${SPORTS[sp].label}</div>
+      <div class="list">
+        ${bySport[sp].map(w => `<div class="row">
+          <div class="grow">
+            <div class="title">${esc(w.name)} ${focusBadge(w)}</div>
+            <div class="meta">${w.duration || 0} min · ${w.load || 0} TSS · ${esc((w.desc || '').slice(0, 96))}${(w.desc || '').length > 96 ? '…' : ''}</div>
+            <div style="margin-top:3px">${(w.refs || []).map(refChip).join(' ')}${w.custom ? '<span class="badge" style="color:var(--accent-2)">★ Team-added</span>' : ''}</div>
+          </div>
+          ${canEdit ? `<button class="btn sm primary" data-maclib="${w.id}">Add</button>` : ''}
+        </div>`).join('')}
+      </div>`).join('') : '<div class="empty">No matching workouts for this goal yet.</div>'}`;
+  openModal('Workout library — ' + (MACRO_GOALS[goal] || goal), body, '');
+  $$('[data-maclib]').forEach(b => b.addEventListener('click', () => { closeModal(); scheduleCatalog(b.dataset.maclib, preset); }));
 }
 function cycleBar(c, canEdit) {
   const sp = SPORTS[c.sport] || SPORTS.other;
   const zones = (c.zones || []).map(z => `<span class="zbadge">${esc(z)}</span>`).join('');
+  const goal = inferMacroGoal(c);
   return `<div class="cycle-bar ${c.type}">
-    <div class="ttl"><span>${esc(c.name)}</span>${canEdit ? `<button class="btn sm" data-cycle-edit="${c.id}">Edit</button>` : ''}</div>
-    <div class="rng">${fmtDate(c.start)} → ${fmtDate(c.end)} · ${sp.icon} ${sp.label}</div>
+    <div class="ttl"><span>${esc(c.name)}</span><span class="btn-row" style="gap:6px">
+      <button class="btn sm" data-cycle-lib="${c.id}" title="Science-based workouts for this goal">📚 Library</button>
+      ${canEdit ? `<button class="btn sm" data-cycle-edit="${c.id}">Edit</button>` : ''}
+    </span></div>
+    <div class="rng">${fmtDate(c.start)} → ${fmtDate(c.end)} · ${sp.icon} ${sp.label} · <span class="badge" style="color:var(--accent)">🎯 ${esc(MACRO_GOALS[goal] || goal)}</span></div>
     <div class="foc">${esc(c.focus || '')} ${zones}</div>
   </div>`;
 }
@@ -1748,13 +1842,15 @@ function openCycleModal(id) {
       <div><label>Sport focus</label><select id="c-sport">${sportOpts}</select></div>
     </div>
     <label>Name</label><input id="c-name" value="${esc(c.name)}" placeholder="e.g. March — Base"/>
+    <label>Training goal <span class="sub">(picks the matching 📚 workout library — bike / run / swim)</span></label>
+    <select id="c-goal">${Object.entries(MACRO_GOALS).map(([k, l]) => `<option value="${k}" ${inferMacroGoal(c) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <div class="inline">
       <div><label>Start</label><input id="c-start" type="date" value="${c.start}"/></div>
       <div><label>End</label><input id="c-end" type="date" value="${c.end}"/></div>
     </div>
     <label>Target zones (comma separated, e.g. Z1, Z2)</label>
     <input id="c-zones" value="${esc((c.zones || []).join(', '))}" placeholder="Z1, Z2"/>
-    <label>Goal / focus for this block</label>
+    <label>Notes / focus for this block</label>
     <textarea id="c-focus" placeholder="e.g. Aerobic base — Z1/Z2 running volume">${esc(c.focus || '')}</textarea>`;
   const foot = `${editing ? '<button class="btn danger" id="c-del">Delete</button>' : ''}<button class="btn primary" id="c-save">Save</button>`;
   openModal(editing ? 'Edit cycle' : 'New cycle', body, foot);
@@ -1762,6 +1858,7 @@ function openCycleModal(id) {
     const obj = {
       id: c.id || uid(), athleteId: state.currentAthleteId, type: $('#c-type').value,
       name: $('#c-name').value.trim() || CYCLE_TYPES[$('#c-type').value], sport: $('#c-sport').value,
+      goal: $('#c-goal').value,
       start: $('#c-start').value, end: $('#c-end').value,
       zones: $('#c-zones').value.split(',').map(z => z.trim()).filter(Boolean), focus: $('#c-focus').value
     };
@@ -2015,6 +2112,147 @@ function viewMonitor() {
 
     <div class="section-title">Weekly reflections</div>
     <div class="list">${weekly.length ? weekly.map(w => `<div class="row"><div class="grow"><div class="title">Training ${w.training}/10 · Self ${w.self}/10</div><div class="meta">Week of ${fmtDate(w.week)}${w.note ? ' · ' + esc(w.note) : ''}</div></div></div>`).join('') : '<div class="empty">No weekly reflections.</div>'}</div>`;
+}
+
+/* ============================================================================
+   RECOVERY / TRAINING READINESS  (HRV + resting HR + subjective feel + day notes)
+   A Whoop-style daily readiness score. Higher = more ready to train hard.
+   ============================================================================ */
+function readinessBand(s) {
+  return s >= 67 ? { key: 'green', label: 'Ready to train', color: '#35c98b' }
+    : s >= 34 ? { key: 'yellow', label: 'Moderate — train smart', color: '#f5c518' }
+    : { key: 'red', label: 'Prioritise recovery', color: '#e50914' };
+}
+// Scan a day's notes for lifestyle factors that move readiness (bilingual EN/NL keywords).
+function readinessNotesPenalty(text) {
+  const t = (text || '').toLowerCase();
+  const rules = [
+    { re: /(alcohol|beer|bier|wine|wijn|drinks?|drank|dronk|pint|cava|cocktail|hangover|kater|pils)/, pen: 15, label: '🍺 alcohol' },
+    { re: /(sick|ill\b|ziek|fever|koorts|flu|griep|\bcold\b|verkouden|infection|infectie)/, pen: 25, label: '🤒 illness' },
+    { re: /(stress|stressed|gestrest|gestresseerd|anxious|angst|burn-?out|overwhelmed|druk)/, pen: 10, label: '😰 stress' },
+    { re: /(travel|reizen|jetlag|flight|vlucht|airport|luchthaven)/, pen: 8, label: '✈️ travel' },
+    { re: /(bad sleep|poor sleep|slecht geslapen|insomnia|niet geslapen|weinig geslapen|woke up|wakker)/, pen: 10, label: '🌙 poor sleep' },
+    { re: /(late|laat|party|feest|uit geweest|out late|nachtje)/, pen: 6, label: '🕛 late night' }
+  ];
+  let pen = 0; const hits = [];
+  rules.forEach(r => { if (r.re.test(t)) { pen += r.pen; hits.push(r.label); } });
+  return { penalty: Math.min(35, pen), hits };
+}
+// Build a daily readiness score for the last `daysBack` days.
+function computeReadiness(aid, daysBack = 30) {
+  const wellness = (state.wellness || []).filter(w => w.athleteId === aid);
+  const byW = {}; wellness.forEach(w => byW[w.date] = w);
+  const bySleep = {}; state.checkins.sleep.filter(s => s.athleteId === aid).forEach(s => bySleep[s.date] = s);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const mean = a => a.length ? a.reduce((n, v) => n + v, 0) / a.length : null;
+  const sd = (a, m) => a.length > 1 ? Math.sqrt(a.reduce((n, v) => n + (v - m) * (v - m), 0) / (a.length - 1)) : 0;
+  const hVals = wellness.filter(w => w.hrv != null).map(w => w.hrv);
+  const rVals = wellness.filter(w => w.restingHR != null).map(w => w.restingHR);
+  const hMean = mean(hVals), hSd = sd(hVals, hMean || 0);
+  const rMean = mean(rVals), rSd = sd(rVals, rMean || 0);
+
+  const out = [];
+  for (let i = daysBack - 1; i >= 0; i--) {
+    const d = toISO(addDays(new Date(), -i));
+    const w = byW[d], s = bySleep[d];
+    const notes = state.dayNotes.filter(n => n.athleteId === aid && n.date === d);
+    const np = readinessNotesPenalty(notes.map(n => n.text).join(' '));
+    const parts = {}; const comps = [];
+    if (w && w.hrv != null && hSd > 0) { const z = (w.hrv - hMean) / hSd; const sc = clamp(50 + 20 * z, 0, 100); parts.hrv = { value: w.hrv, base: Math.round(hMean), score: Math.round(sc), z }; comps.push({ score: sc, weight: 0.40 }); }
+    if (w && w.restingHR != null && rSd > 0) { const z = (w.restingHR - rMean) / rSd; const sc = clamp(50 - 20 * z, 0, 100); parts.rhr = { value: w.restingHR, base: Math.round(rMean), score: Math.round(sc), z }; comps.push({ score: sc, weight: 0.25 }); }
+    if (s) { const feel = Number(s.feel) || 0, qual = Number(s.quality) || 0, hrs = Number(s.hours) || 0; const hoursScore = clamp((hrs - 4) / 4 * 100, 0, 100); const subj = 0.5 * feel * 10 + 0.3 * qual * 10 + 0.2 * hoursScore; parts.subj = { feel, quality: qual, hours: hrs, score: Math.round(subj) }; comps.push({ score: subj, weight: 0.35 }); }
+    if (!comps.length && !notes.length) continue;
+    let score;
+    if (comps.length) { const wsum = comps.reduce((n, c) => n + c.weight, 0); score = comps.reduce((n, c) => n + c.score * c.weight, 0) / wsum; }
+    else score = 65; // notes-only day → mildly-positive default, then penalised
+    score = clamp(score - np.penalty, 0, 100);
+    parts.notes = { penalty: np.penalty, hits: np.hits, list: notes.map(n => n.text) };
+    out.push({ date: d, score: Math.round(score), band: readinessBand(clamp(score, 0, 100)), parts, conf: parts.hrv ? 'high' : (comps.length ? 'medium' : 'low'), scored: comps.length > 0 });
+  }
+  return { days: out, hMean, rMean, hasHrv: hVals.length > 0, hasRhr: rVals.length > 0 };
+}
+function readinessArrow(good) { return good ? '<span style="color:var(--ok)">▲</span>' : '<span style="color:var(--bad)">▼</span>'; }
+
+function viewRecovery() {
+  const a = currentAthlete();
+  const r = computeReadiness(a.id, 30);
+  const v = $('#view');
+  const today = todayISO();
+  const todayEntry = r.days.find(d => d.date === today);
+  const latest = todayEntry || r.days[r.days.length - 1];
+  const hasSleepToday = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === today);
+
+  const intro = `<p class="sub">A daily <b style="color:var(--text)">Training Readiness</b> score (0–100) for ${esc(a.name)}, built from <b>HRV</b> and <b>resting HR</b> (from Intervals.icu), your <b>morning feeling &amp; sleep</b>, and that day's <b>notes</b> (e.g. alcohol, illness, stress lower it). Same green/yellow/red logic as a Whoop recovery score.</p>`;
+
+  if (!latest) {
+    v.innerHTML = intro + `
+      <div class="card" style="margin-top:12px">
+        <h3>No readiness data yet</h3>
+        <p class="sub">Readiness needs at least one of: HRV/resting-HR from Intervals.icu (Settings → connect), or a morning check-in.</p>
+        ${!hasSleepToday ? `<div class="btn-row" style="margin-top:8px"><button class="btn primary" id="rec-checkin">Log this morning</button></div>` : ''}
+      </div>`;
+    if ($('#rec-checkin')) $('#rec-checkin').addEventListener('click', () => openSleepModal());
+    return;
+  }
+
+  const b = latest.band;
+  const p = latest.parts;
+  const isToday = latest.date === today;
+  const ringDeg = latest.score;
+  const compRows = [];
+  if (p.hrv) compRows.push(`<div class="row"><div class="grow"><div class="title">💓 HRV ${readinessArrow(p.hrv.z >= 0)} ${p.hrv.value} ms</div><div class="meta">baseline ${p.hrv.base} ms · ${p.hrv.z >= 0 ? 'above' : 'below'} your normal · sub-score ${p.hrv.score}/100</div></div></div>`);
+  if (p.rhr) compRows.push(`<div class="row"><div class="grow"><div class="title">❤️ Resting HR ${readinessArrow(p.rhr.z <= 0)} ${p.rhr.value} bpm</div><div class="meta">baseline ${p.rhr.base} bpm · ${p.rhr.z <= 0 ? 'at/below' : 'elevated vs'} your normal · sub-score ${p.rhr.score}/100</div></div></div>`);
+  if (p.subj) compRows.push(`<div class="row"><div class="grow"><div class="title">😌 Feeling &amp; sleep · ${p.subj.score}/100</div><div class="meta">felt ${p.subj.feel}/10 · sleep quality ${p.subj.quality}/10 · ${p.subj.hours}h</div></div></div>`);
+  else compRows.push(`<div class="row"><div class="grow"><div class="title">😌 Feeling &amp; sleep</div><div class="meta">No morning check-in ${isToday ? 'today yet' : 'that day'}.</div></div>${isToday ? '<button class="btn sm primary" id="rec-checkin">Log now</button>' : ''}</div>`);
+  if (p.notes && (p.notes.penalty || p.notes.list.length)) compRows.push(`<div class="row" style="border-left:3px solid ${p.notes.penalty ? 'var(--bad)' : 'var(--line)'}"><div class="grow"><div class="title">📌 Day notes ${p.notes.penalty ? `<span style="color:var(--bad)">−${p.notes.penalty}</span>` : ''}</div><div class="meta">${p.notes.list.length ? esc(p.notes.list.join(' · ')) : 'none'}${p.notes.hits.length ? ' · ' + p.notes.hits.join(', ') : ''}</div></div></div>`);
+
+  // 30-day trend bars
+  const trend = r.days.slice(-30);
+  const bars = trend.map(d => `<span title="${fmtDate(d.date)}: ${d.score} (${d.band.label})" style="flex:1;min-width:4px;height:${Math.max(4, d.score)}%;background:${d.band.color};border-radius:3px 3px 0 0;opacity:${d.scored ? 1 : 0.5}"></span>`).join('');
+
+  v.innerHTML = intro + `
+    <div class="grid cols-2" style="margin:12px 0;align-items:stretch">
+      <div class="card" style="display:flex;align-items:center;gap:18px">
+        <div class="ring-wrap"><div class="ring" style="--p:${ringDeg};background:conic-gradient(${b.color} calc(${ringDeg}*1%), var(--line) 0)"><b>${latest.score}</b></div></div>
+        <div>
+          <div style="font-size:20px;font-weight:800;color:${b.color}">${b.label}</div>
+          <div class="sub">${isToday ? 'Today' : fmtDate(latest.date)} · readiness ${latest.score}/100</div>
+          <div class="sub" style="margin-top:6px">${b.key === 'green' ? 'Body is ready — a key/hard session is well-placed today.' : b.key === 'yellow' ? 'Train, but hold something back — aerobic or technique work over max efforts.' : 'Recovery day, easy Z1–Z2 or rest. Pushing hard now adds fatigue, not fitness.'}</div>
+          <div class="sub" style="margin-top:6px;opacity:.8">Confidence: ${latest.conf}${latest.conf !== 'high' ? ' — connect Intervals.icu (HRV) for a sharper score' : ''}.</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:6px">Whoop-style bands</h3>
+        <div class="list">
+          <div class="row" style="border-left:3px solid #35c98b"><div class="grow"><div class="title" style="color:#35c98b">Green · 67–100</div><div class="meta">Recovered — ready to push</div></div></div>
+          <div class="row" style="border-left:3px solid #f5c518"><div class="grow"><div class="title" style="color:#f5c518">Yellow · 34–66</div><div class="meta">Moderate — train smart</div></div></div>
+          <div class="row" style="border-left:3px solid #e50914"><div class="grow"><div class="title" style="color:#e50914">Red · 0–33</div><div class="meta">Strained — prioritise recovery</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>What drives ${isToday ? "today's" : 'this'} score</h3>
+      <div class="list">${compRows.join('')}</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>Readiness — last 30 days</h3>
+      <div class="spark" style="height:120px;align-items:flex-end">${bars || '<span class="sub">No data</span>'}</div>
+      <div class="legend" style="margin-top:8px">
+        <span><i style="background:#35c98b"></i>Ready</span>
+        <span><i style="background:#f5c518"></i>Moderate</span>
+        <span><i style="background:#e50914"></i>Recovery</span>
+        <span class="sub">faded bars = feeling/notes only (no HRV that day)</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>How it's calculated</h3>
+      <p class="sub">Readiness weights <b>HRV ~40%</b> (vs your rolling baseline — higher is better), <b>resting HR ~25%</b> (lower is better), and <b>morning feeling + sleep ~35%</b>, then subtracts a penalty for day-note factors (alcohol −15, illness −25, stress −10, poor sleep −10, travel −8, late night −6). Missing inputs are re-weighted across what's available. HRV/RHR baselines follow the approach validated for endurance monitoring ${refChip('plews')}.</p>
+    </div>`;
+
+  if ($('#rec-checkin')) $('#rec-checkin').addEventListener('click', () => openSleepModal());
 }
 
 /* Athlete → coach invitation: connect/disconnect the athlete to real coach accounts. */
