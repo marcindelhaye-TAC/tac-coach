@@ -155,7 +155,11 @@ const SCIENCE_REFS = {
   costill: { authors: 'Costill DL, et al.', year: 1991, title: 'Adaptations to swimming training: influence of training volume', journal: 'Med Sci Sports Exerc 23(3):371–377' },
   faude: { authors: 'Faude O, Kindermann W, Meyer T', year: 2009, title: 'Lactate threshold concepts: how valid are they?', journal: 'Sports Med 39(6):469–490' },
   plews: { authors: 'Plews DJ, et al.', year: 2013, title: 'Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring', journal: 'Sports Med 43(9):773–781' },
-  daniels: { authors: 'Daniels J', year: 2013, title: "Daniels' Running Formula (3rd ed.)", journal: 'Human Kinetics' }
+  daniels: { authors: 'Daniels J', year: 2013, title: "Daniels' Running Formula (3rd ed.)", journal: 'Human Kinetics' },
+  maglischo: { authors: 'Maglischo EW', year: 2003, title: 'Swimming Fastest', journal: 'Human Kinetics' },
+  olbrecht: { authors: 'Olbrecht J', year: 2000, title: 'The Science of Winning: Planning, Periodizing and Optimizing Swim Training', journal: 'Swimshop/Luton' },
+  pyne: { authors: 'Pyne DB, Lee H, Swanwick KM', year: 2001, title: 'Monitoring the lactate threshold in world-ranked swimmers', journal: 'Med Sci Sports Exerc 33(2):291–297' },
+  toussaint: { authors: 'Toussaint HM, Hollander AP', year: 1994, title: 'Energetics of competitive swimming: implications for training programmes', journal: 'Sports Med 18(6):384–405' }
 };
 
 // zone index helper: Z1=0 … Z7=6.  cat: 'test' | 'workout'.  goal groups the library.
@@ -315,7 +319,93 @@ const SCIENCE_CATALOG = [
   // ---- ANAEROBIC (run) ----
   { id: 'sc_rn_200s', cat: 'workout', sport: 'running', goal: 'anaerobic', name: '8×200 m fast', duration: 40, load: 52,
     desc: 'Warm-up; 8×200 m fast (mile-to-1500 effort) with full walk/jog recovery; cool-down. Develops anaerobic power, speed and running economy. Prioritise good form over max speed.',
-    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 8 }, { zt: 'hr', z: 1, min: 15 }], refs: ['gibala', 'laursen'] }
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 8 }, { zt: 'hr', z: 1, min: 15 }], refs: ['gibala', 'laursen'] },
+
+  /* ===== Library expansion to ≥20 per sport (cycling 20 · running 20 · swimming 20) ===== */
+  // ---- CYCLING (+5) ----
+  { id: 'sc_bk_recovery', cat: 'workout', sport: 'biking', goal: 'base', name: 'Recovery spin 45 min', duration: 45, load: 25,
+    desc: '45 min very easy Zone 1, high cadence, flat. Flushes the legs and speeds recovery between hard days without adding training stress. Should feel almost effortless.',
+    steps: [{ zt: 'power', z: 0, min: 45 }], refs: ['seiler'] },
+  { id: 'sc_bk_thrpyr', cat: 'workout', sport: 'biking', goal: 'threshold', name: 'Threshold pyramid 5-10-15-10-5', duration: 80, load: 90,
+    desc: 'Warm-up; 5–10–15–10–5 min at 95–100% FTP with 5 min easy between; cool-down. A varied threshold session that accumulates ~45 min at FTP — strong stimulus for the 1-hour power.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 3, min: 5 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 10 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 10 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 5 }, { zt: 'power', z: 1, min: 3 }], refs: ['coggan', 'seiler'] },
+  { id: 'sc_bk_3x3', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'VO₂max 3×3 min @ 118% FTP', duration: 45, load: 78,
+    desc: 'Warm-up; 3×3 min at ~115–120% FTP (Zone 5) with 3 min easy recovery; cool-down. Short, sharp VO₂max intervals — excellent for raising maximal aerobic power on limited time.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 3 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 3 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 3 }, { zt: 'power', z: 1, min: 12 }], refs: ['laursen', 'buchheit'] },
+  { id: 'sc_bk_3030', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'VO₂ 2×10×30/30 s', duration: 50, load: 78,
+    desc: 'Warm-up; 2 sets of 10×(30 s hard ~110–120% FTP / 30 s easy) with 5 min between sets. Classic 30/30 on–offs sustain a large fraction of the session near VO₂max at moderate RPE.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 10 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 4, min: 10 }, { zt: 'power', z: 1, min: 10 }], refs: ['ronnestad', 'buchheit'] },
+  { id: 'sc_bk_stomp', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Standing-start stomps 8×15 s', duration: 40, load: 50,
+    desc: 'Warm-up; 8×15 s max efforts from a near-standstill in a big gear, ~5 min easy between; cool-down. Builds peak power, torque and neuromuscular recruitment. Keep the core braced.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 2 }, { zt: 'power', z: 1, min: 23 }], refs: ['gibala', 'ronnestad'] },
+
+  // ---- RUNNING (+5) ----
+  { id: 'sc_rn_fartlek', cat: 'workout', sport: 'running', goal: 'base', name: 'Aerobic fartlek 45 min', duration: 45, load: 50,
+    desc: '45 min easy Zone 2 with 8×1 min gently floated surges (upper Zone 3) spread through the run, easy jog between. Adds variety and light stimulus while staying largely aerobic.',
+    steps: [{ zt: 'hr', z: 1, min: 20 }, { zt: 'hr', z: 2, min: 8 }, { zt: 'hr', z: 1, min: 17 }], refs: ['seiler', 'daniels'] },
+  { id: 'sc_rn_2x15', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Threshold 2×15 min', duration: 60, load: 80,
+    desc: 'Warm-up; 2×15 min at threshold with 3 min jog between; cool-down. A larger continuous threshold dose than 2×12 for athletes with a solid base — even, controlled effort.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 1, min: 12 }], refs: ['daniels', 'seiler'] },
+  { id: 'sc_rn_vvo2', cat: 'workout', sport: 'running', goal: 'vo2max', name: 'vVO₂max 6×3 min', duration: 50, load: 78,
+    desc: 'Warm-up; 6×3 min at the velocity at VO₂max (~3 km race pace) with 2 min jog recovery; cool-down. Maximises time at VO₂max — one of the most effective sessions for aerobic power.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 18 }, { zt: 'hr', z: 1, min: 12 }], refs: ['billat', 'laursen'] },
+  { id: 'sc_rn_3030', cat: 'workout', sport: 'running', goal: 'vo2max', name: 'VO₂ 20×30/30 s', duration: 45, load: 70,
+    desc: 'Warm-up; 20×(30 s at vVO₂max / 30 s easy jog); cool-down. Billat’s 30/30 intervals let you spend a long total time near VO₂max at a controlled effort. Keep the fast reps even.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 20 }, { zt: 'hr', z: 1, min: 10 }], refs: ['billat', 'buchheit'] },
+  { id: 'sc_rn_flying', cat: 'workout', sport: 'running', goal: 'anaerobic', name: 'Flying sprints 6×80 m', duration: 35, load: 42,
+    desc: 'Warm-up; 6×80 m with a rolling build to near-max speed over the middle 40 m, full walk-back recovery; cool-down. Develops top-end speed, coordination and economy at low injury risk.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 5, min: 4 }, { zt: 'hr', z: 1, min: 16 }], refs: ['gibala', 'laursen'] },
+
+  // ---- SWIMMING (+15) ----
+  // base / technique
+  { id: 'sc_sw_endur2k', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Aerobic endurance 2000 m', duration: 50, load: 55,
+    desc: '2000 m continuous freestyle at a smooth aerobic pace, negative-split (second half slightly faster). Builds swimming-specific aerobic capacity and pacing discipline.',
+    steps: [], refs: ['maglischo', 'costill'] },
+  { id: 'sc_sw_pull', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Pull set 8×200', duration: 55, load: 55,
+    desc: '300 warm-up; 8×200 m with pull-buoy (and light paddles) at a steady aerobic effort on 20 s rest; 200 easy. Develops upper-body aerobic endurance and a strong, long stroke.',
+    steps: [], refs: ['maglischo'] },
+  { id: 'sc_sw_recovery', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Recovery swim 1000 m', duration: 30, load: 22,
+    desc: '1000 m very easy, mixing strokes and 4×50 drills. Promotes recovery, mobility and technique between hard sessions without meaningful load.',
+    steps: [], refs: ['maglischo'] },
+  { id: 'sc_sw_drills', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Technique 12×50 drills', duration: 40, load: 32,
+    desc: '300 warm-up; 12×50 m stroke drills (catch-up, single-arm, fingertip-drag, sculling, fist) on 15 s rest; 300 easy swim focusing on the feel you built. Improves efficiency and economy.',
+    steps: [], refs: ['toussaint', 'maglischo'] },
+  { id: 'sc_sw_kick', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Kick set 10×50', duration: 35, load: 35,
+    desc: '10×50 m kick with board (moderate, steady) on 20 s rest, interspersed with 100 easy swim. Builds leg endurance, ankle mobility and body position.',
+    steps: [], refs: ['maglischo'] },
+  // threshold (CSS)
+  { id: 'sc_sw_css5x200', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'CSS 5×200', duration: 55, load: 68,
+    desc: 'Warm-up 400; 5×200 m at Critical Swim Speed (threshold) on 20 s rest; 200 easy. The core threshold session for swimmers — raises the pace you can hold for ~30 min.',
+    steps: [], refs: ['pyne', 'faude'] },
+  { id: 'sc_sw_brokencss', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'Broken threshold 3×300', duration: 55, load: 70,
+    desc: 'Warm-up; 3×300 m at CSS with 30 s rest; easy cool-down. Longer threshold reps that build sustained lactate-clearance capacity for open-water and distance events.',
+    steps: [], refs: ['pyne'] },
+  { id: 'sc_sw_pyramid', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'Threshold pyramid 100-200-300-200-100', duration: 55, load: 68,
+    desc: 'Warm-up; 100-200-300-200-100 m at CSS with 15–20 s rest; cool-down. A varied threshold ladder that keeps focus while accumulating quality distance at race-relevant pace.',
+    steps: [], refs: ['olbrecht'] },
+  { id: 'sc_sw_20x50', cat: 'workout', sport: 'swimming', goal: 'threshold', name: '20×50 @ CSS on tight rest', duration: 45, load: 66,
+    desc: 'Warm-up; 20×50 m at CSS on short rest (~5–10 s), holding an even pace throughout; cool-down. Race-pace threshold work that trains rhythm and pace-holding under fatigue.',
+    steps: [], refs: ['pyne', 'olbrecht'] },
+  // VO2max
+  { id: 'sc_sw_10x100', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'VO₂ 10×100 @ 1500 pace', duration: 50, load: 74,
+    desc: 'Warm-up; 10×100 m at ~1500 m race pace (faster than CSS) on 15–20 s rest; cool-down. Sustains a high fraction of VO₂max — a key aerobic-power set for middle-distance swimmers.',
+    steps: [], refs: ['olbrecht', 'laursen'] },
+  { id: 'sc_sw_broken400', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'Broken 400s (4×[4×100])', duration: 55, load: 76,
+    desc: 'Warm-up; 4 rounds of 4×100 m descending 1→4 (last fastest) on 15 s rest, 45 s between rounds; cool-down. Progressive high-intensity aerobic set targeting VO₂max and pace control.',
+    steps: [], refs: ['maglischo'] },
+  { id: 'sc_sw_50sfast', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: '16×50 fast on 1:00', duration: 40, load: 68,
+    desc: 'Warm-up; 16×50 m fast (above CSS) leaving on 1:00 so faster swims earn more rest; cool-down. High-aerobic-power set that builds speed endurance and VO₂max.',
+    steps: [], refs: ['maglischo', 'laursen'] },
+  { id: 'sc_sw_hypoxic', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'Breath-control 8×75', duration: 40, load: 58,
+    desc: 'Warm-up; 8×75 m at strong aerobic effort breathing every 5 / 7 / 9 strokes (by 25) on 20 s rest; cool-down. Controlled hypoventilation that challenges CO₂ tolerance and stroke rhythm. Stop if lightheaded.',
+    steps: [], refs: ['toussaint'] },
+  // anaerobic / sprint
+  { id: 'sc_sw_25s', cat: 'workout', sport: 'swimming', goal: 'anaerobic', name: 'Sprint 12×25 all-out', duration: 35, load: 45,
+    desc: 'Warm-up; 12×25 m ALL-OUT with full recovery (~45–60 s); generous cool-down. Develops maximal swimming speed, stroke power and turnover. Quality over quantity — rest fully.',
+    steps: [], refs: ['maglischo', 'gibala'] },
+  { id: 'sc_sw_lactate', cat: 'workout', sport: 'swimming', goal: 'anaerobic', name: 'Lactate production 6×50 max', duration: 40, load: 55,
+    desc: 'Warm-up; 6×50 m at maximal effort with 2–3 min rest to allow near-full recovery; long easy cool-down. Trains anaerobic capacity and lactate tolerance — use sparingly, 1×/week max.',
+    steps: [], refs: ['olbrecht'] }
 ];
 const SCIENCE_GOALS = { test: 'Fitness tests', base: 'Base / endurance', threshold: 'Threshold (1-hour max)', vo2max: 'VO₂max', anaerobic: 'Anaerobic / sprint' };
 function refCite(key) { const r = SCIENCE_REFS[key]; return r ? `${r.authors} (${r.year}). ${r.title}. ${r.journal}.` : key; }
@@ -332,11 +422,9 @@ const MACRO_GOALS = {
 // Each macro goal draws a broad library — its primary group plus adjacent intensities,
 // since every block still rests on aerobic base + neighbouring stimuli (≥20 workouts each).
 function macroGoalCatalogGoals(goal) {
-  if (goal === 'base') return ['base', 'threshold'];
-  if (goal === 'threshold') return ['base', 'threshold', 'vo2max'];
-  if (goal === 'vo2max') return ['base', 'threshold', 'vo2max', 'anaerobic'];
-  if (goal === 'anaerobic') return ['base', 'threshold', 'vo2max', 'anaerobic'];
-  return ['base', 'threshold', 'vo2max', 'anaerobic']; // race / general → everything
+  // Even an aerobic-base block keeps some VO₂max work (polarized training), so base includes it too.
+  if (goal === 'base') return ['base', 'threshold', 'vo2max'];
+  return ['base', 'threshold', 'vo2max', 'anaerobic']; // every other block → the whole spread
 }
 // Best-guess goal for a cycle that predates the goal field (reads zones/focus text).
 function inferMacroGoal(c) {
