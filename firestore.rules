@@ -10,9 +10,10 @@ service cloud.firestore {
     function role() {
       return hasUser() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : '';
     }
-    function isCoach() { return role() == 'coach'; }
-    // "team" = anyone supporting athletes: coach, staff (medewerker) or coordinator.
-    function isTeam() { return role() == 'coach' || role() == 'staff' || role() == 'coordinator'; }
+    // A coach (incl. a coach+athlete "both" account) can program & manage.
+    function isCoach() { return role() == 'coach' || role() == 'both'; }
+    // "team" = anyone supporting athletes: coach, both, crew (or legacy staff/coordinator).
+    function isTeam() { return isCoach() || role() == 'crew' || role() == 'staff' || role() == 'coordinator'; }
 
     // Everyone signed in can read the roster of names/profiles; you write only your own.
     // A coach may delete a profile (removing an old/test member from the team hub).
