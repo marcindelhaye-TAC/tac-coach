@@ -974,7 +974,7 @@ function sessionRow(s) {
 // Intervals-style dashboard row: header + the workout graph underneath, whole row opens the session.
 function dashSessionRow(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
-  const g = workoutMiniSVG(s, 18);
+  const g = workoutMiniSVG(s, 46);
   return `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer" data-open-session="${s.id}">
     <div style="display:flex;align-items:center;gap:10px">
       <span class="dot" style="background:${sp.color}"></span>
@@ -1115,24 +1115,63 @@ function streamZoneDist(s) {
   });
   return Object.keys(counts).map(z => ({ zt, z: Number(z), min: Math.round(counts[z]) }));
 }
+function smoothSeries(arr, win) {
+  if (!win || win <= 0) return arr;
+  return arr.map((_, i) => { let s = 0, c = 0; for (let j = Math.max(0, i - win); j <= Math.min(arr.length - 1, i + win); j++) { const v = arr[j]; if (v != null && !isNaN(v)) { s += v; c++; } } return c ? s / c : null; });
+}
+function miniSVG(inner, h) {
+  return `<svg viewBox="0 0 300 ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;background:var(--bg-2)">${inner}</svg>`;
+}
+// Intervals-style workout graph. Completed sessions show the FILLED power/HR curve over time,
+// coloured by zone (peaks & valleys visible); planned sessions show the workout profile
+// (width = time, height = intensity, colour = zone).
 function workoutMiniSVG(s, h) {
   h = h || 28;
   const W = 300;
-  // A simple, clear time-in-zone bar: one coloured segment per zone, width = share of time
-  // (planned steps → actual time-in-zone → derived from the raw stream). The detailed power/HR
-  // curve lives in the session detail view — the calendar/dashboard stay clean and consistent.
-  const src = (s && s.steps && s.steps.length) ? s.steps
-    : ((s && s.actual && s.actual.length) ? s.actual : streamZoneDist(s));
-  const byZone = {}; let total = 0;
-  src.forEach(st => { const m = Number(st.min) || 0; byZone[st.z] = (byZone[st.z] || 0) + m; total += m; });
-  if (total) {
-    let x = 0, segs = '';
-    Object.keys(byZone).map(Number).sort((a, b) => a - b).forEach(z => {
-      const w = byZone[z] / total * W;
-      segs += `<rect x="${x.toFixed(1)}" y="0" width="${Math.max(0, w).toFixed(1)}" height="${h}" fill="${zoneColor(z)}"/>`;
-      x += w;
-    });
-    return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;overflow:hidden">${segs}</svg>`;
+  // A) completed with real data → filled area over time, height = intensity, colour = zone
+  if (s && s.status === 'done' && s.streams) {
+    const a = state.athletes.find(x => x.id === s.athleteId) || currentAthlete();
+    const st = s.streams;
+    let series = null, zones = null, ref = null;
+    if (st.watts && st.watts.some(v => v != null)) { series = st.watts; zones = (a && a.powerZones) || DEFAULT_POWER_ZONES; ref = a && a.ftp; }
+    else if (st.hr && st.hr.some(v => v != null)) { series = st.hr; zones = (a && a.hrZones) || DEFAULT_HR_ZONES; ref = a && a.thresholdHr; }
+    if (series) {
+      const sm = smoothSeries(series, 2);
+      const vals = sm.filter(v => v != null && !isNaN(v));
+      if (vals.length > 1) {
+        const mx = Math.max(...vals) || 1, n = sm.length, bw = W / n;
+        let bars = '';
+        sm.forEach((v, i) => {
+          if (v == null || isNaN(v)) return;
+          const bh = Math.max(1, (v / mx) * (h - 1));
+          let zi = 0;
+          if (ref) { const pct = v / ref * 100; zi = zones.findIndex(z => pct >= z.min && pct <= z.max); if (zi < 0) zi = pct < zones[0].min ? 0 : zones.length - 1; }
+          bars += `<rect x="${(i * bw).toFixed(2)}" y="${(h - bh).toFixed(2)}" width="${(bw + 0.6).toFixed(2)}" height="${bh.toFixed(2)}" fill="${zoneColor(zi)}"/>`;
+        });
+        return miniSVG(bars, h);
+      }
+    }
+  }
+  // B) planned with a zone structure → workout-profile bars (width = time, height = intensity)
+  const steps = (s && s.steps && s.steps.length) ? s.steps : null;
+  if (steps) {
+    const total = stepsDuration(steps);
+    if (total) {
+      let x = 0, bars = '';
+      steps.forEach(st => { const w = (Number(st.min) || 0) / total * W; const bh = Math.max(2, ((st.z + 1) / 7) * (h - 1)); bars += `<rect x="${x.toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${Math.max(0, w).toFixed(1)}" height="${bh.toFixed(1)}" fill="${zoneColor(st.z)}"/>`; x += w; });
+      return miniSVG(bars, h);
+    }
+  }
+  // C) completed without a stream → profile from time-in-zone (height = intensity, grouped by zone)
+  const dist = (s && s.actual && s.actual.length) ? s.actual : streamZoneDist(s);
+  if (dist.length) {
+    const byZone = {}; let total = 0;
+    dist.forEach(st => { const m = Number(st.min) || 0; byZone[st.z] = (byZone[st.z] || 0) + m; total += m; });
+    if (total) {
+      let x = 0, bars = '';
+      Object.keys(byZone).map(Number).sort((a, b) => a - b).forEach(z => { const w = byZone[z] / total * W; const bh = Math.max(2, ((z + 1) / 7) * (h - 1)); bars += `<rect x="${x.toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${Math.max(0, w).toFixed(1)}" height="${bh.toFixed(1)}" fill="${zoneColor(z)}"/>`; x += w; });
+      return miniSVG(bars, h);
+    }
   }
   return '';
 }
@@ -1218,7 +1257,7 @@ function sessionChip(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
   const f = sessionFocus(s);
   const cc = sessionComments(s.id).length;
-  const g = workoutMiniSVG(s, 12);
+  const g = workoutMiniSVG(s, 28);
   return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
     <div class="t">${sp.icon} ${esc(s.name)} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
     ${g ? `<div style="margin:3px 0 1px">${g}</div>` : ''}
