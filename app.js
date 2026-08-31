@@ -407,6 +407,77 @@ const SCIENCE_CATALOG = [
     desc: 'Warm-up; 6×50 m at maximal effort with 2–3 min rest to allow near-full recovery; long easy cool-down. Trains anaerobic capacity and lactate tolerance — use sparingly, 1×/week max.',
     steps: [], refs: ['olbrecht'] }
 ];
+
+/* Top up the library so EVERY sport has ≥ TARGET_PER_GOAL templates in EACH goal group.
+   The 60 hand-written workouts above stay the "featured" set; these fill the rest with
+   evidence-based variations (rep/duration progressions) so coaches have a deep menu. */
+const TARGET_PER_GOAL = 15;
+(function buildGeneratedCatalog() {
+  const sports = ['biking', 'running', 'swimming'];
+  const goals = ['base', 'threshold', 'vo2max', 'anaerobic'];
+  const zt = { biking: 'power', running: 'hr', swimming: null };
+  const zi = { base: 1, threshold: 3, vo2max: 4, anaerobic: 5 };
+  const word = { biking: 'ride', running: 'run', swimming: 'swim' };
+  const baseDurs = { biking: [60, 75, 90, 105, 120, 135, 150, 165, 180, 210], running: [40, 50, 60, 70, 80, 90, 100, 110, 120, 135], swimming: [30, 35, 40, 45, 50, 55, 60, 65, 70, 75] };
+  const goalBlurb = {
+    base: 'Aerobic Zone 2 work — builds the endurance base; keep it controlled and conversational.',
+    threshold: 'Threshold work near your 1-hour power/pace — raises the output you can sustain.',
+    vo2max: 'VO₂max intervals — maximise time at high aerobic power; hard but evenly paced.',
+    anaerobic: 'Anaerobic / sprint work — short maximal efforts with full recovery; use sparingly.'
+  };
+  const refBy = (sport, goal) => ({
+    base: ['seiler', 'sanmillan'],
+    threshold: sport === 'swimming' ? ['pyne', 'faude'] : (sport === 'running' ? ['daniels', 'seiler'] : ['coggan', 'seiler']),
+    vo2max: sport === 'swimming' ? ['olbrecht', 'laursen'] : (sport === 'running' ? ['billat', 'laursen'] : ['laursen', 'buchheit']),
+    anaerobic: sport === 'swimming' ? ['maglischo', 'gibala'] : ['gibala', 'laursen']
+  }[goal]);
+  const specs = (sport, goal) => {
+    const w = word[sport];
+    if (goal === 'base') {
+      const arr = baseDurs[sport].map(d => ['Zone 2 endurance ' + w + ' — ' + d + ' min', d, Math.round(d * 0.6)]);
+      arr.push(['Recovery ' + w + ' (very easy)', sport === 'swimming' ? 25 : 35, 20]);
+      arr.push(['Steady aerobic ' + w + ' — fat-max', sport === 'swimming' ? 55 : 100, 60]);
+      arr.push(['Aerobic ' + w + ' + technique/cadence', sport === 'swimming' ? 45 : 75, 52]);
+      arr.push(['Progression ' + w + ' (easy → tempo)', sport === 'swimming' ? 50 : 70, 60]);
+      return arr;
+    }
+    if (goal === 'threshold') {
+      const combos = [[2, 12], [2, 15], [2, 20], [3, 8], [3, 10], [3, 12], [3, 15], [4, 8], [4, 10], [5, 6], [5, 8], [1, 25]];
+      const arr = combos.map(([r, l]) => ['Threshold ' + w + ' ' + r + '×' + l + ' min', 20 + r * l + (r - 1) * 3, Math.round(r * l * 1.5) + 25]);
+      arr.push(['Sweet-spot ' + w + ' 3×12 min', 65, 72]);
+      arr.push(['Over-unders ' + w + ' 4×8 min', 62, 80]);
+      arr.push(['Threshold pyramid ' + w, 75, 86]);
+      return arr;
+    }
+    if (goal === 'vo2max') {
+      const combos = [[4, 4], [5, 4], [6, 3], [8, 3], [5, 5], [6, 4], [10, 2], [3, 3]];
+      const arr = combos.map(([r, l]) => ['VO₂max ' + w + ' ' + r + '×' + l + ' min', 25 + r * l + (r - 1) * 3, Math.round(r * l * 2) + 25]);
+      arr.push(['VO₂ ' + w + ' 30/30 ×2 sets', 48, 74]);
+      arr.push(['VO₂ ' + w + ' 30/30 ×3 sets', 52, 78]);
+      arr.push(['VO₂ ' + w + ' 40/20 ×3 sets', 55, 80]);
+      arr.push(['VO₂ ' + w + ' 15/15 ×2 sets', 45, 70]);
+      return arr;
+    }
+    const combos = [[5, 30], [8, 20], [10, 30], [6, 45], [4, 60], [8, 15], [12, 15], [6, 90], [10, 20]];
+    const arr = combos.map(([r, s]) => ['Sprints ' + w + ' ' + r + '×' + s + ' s all-out', 30 + Math.ceil(r * s / 60) + 8, 40 + r]);
+    arr.push(['Tabata ' + w + ' 8×20/10 s', 24, 40]);
+    arr.push(['Speed-endurance ' + w + ' 4×2 min', 40, 60]);
+    arr.push(['Neuromuscular ' + w + ' 8×15 s max', 38, 48]);
+    return arr;
+  };
+  sports.forEach(sport => goals.forEach(goal => {
+    const have = SCIENCE_CATALOG.filter(x => x.cat !== 'test' && x.sport === sport && x.goal === goal).length;
+    const need = Math.max(0, TARGET_PER_GOAL - have);
+    specs(sport, goal).slice(0, need).forEach((sp, i) => {
+      const [name, dur, load] = sp;
+      const steps = zt[sport]
+        ? (goal === 'base' ? [{ zt: zt[sport], z: 1, min: dur }]
+          : [{ zt: zt[sport], z: 0, min: 12 }, { zt: zt[sport], z: zi[goal], min: Math.max(6, Math.round(dur * 0.45)) }, { zt: zt[sport], z: 0, min: 10 }])
+        : [];
+      SCIENCE_CATALOG.push({ id: 'gen_' + sport + '_' + goal + '_' + i, cat: 'workout', sport, goal, name, duration: dur, load, desc: name + '. ' + goalBlurb[goal], steps, refs: refBy(sport, goal), generated: true });
+    });
+  }));
+})();
 const SCIENCE_GOALS = { test: 'Fitness tests', base: 'Base / endurance', threshold: 'Threshold (1-hour max)', vo2max: 'VO₂max', anaerobic: 'Anaerobic / sprint' };
 function refCite(key) { const r = SCIENCE_REFS[key]; return r ? `${r.authors} (${r.year}). ${r.title}. ${r.journal}.` : key; }
 
@@ -2283,7 +2354,7 @@ function viewReferences() {
     <div class="list" style="margin-top:10px">
       ${keys.map((k, i) => {
         const r = SCIENCE_REFS[k];
-        const used = SCIENCE_CATALOG.filter(w => (w.refs || []).includes(k)).map(w => w.name);
+        const used = SCIENCE_CATALOG.filter(w => !w.generated && (w.refs || []).includes(k)).map(w => w.name);
         return `<div class="card">
           <div style="font-weight:600">${i + 1}. ${esc(r.authors)} (${r.year}).</div>
           <div style="margin-top:2px">${esc(r.title)}.</div>
