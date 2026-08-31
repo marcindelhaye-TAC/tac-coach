@@ -31,11 +31,19 @@ async function collectTokens() {
   snap.forEach(d => { const x = d.data(); byUid[d.id] = { tokens: x.tokens || [], role: x.role }; });
   return byUid;
 }
+// target can be: 'all' (athletes), 'team' (coach+staff+coordinator), 'coaches', 'staff',
+// or a specific user uid (any role) — enabling notifications in every direction.
 function targetsFor(byUid, target) {
   const out = [];
   for (const [uid, v] of Object.entries(byUid)) {
-    if (v.role !== 'athlete') continue;
-    if (target && target !== 'all' && uid !== target) continue;
+    const role = v.role || 'athlete';
+    let match;
+    if (!target || target === 'all') match = role === 'athlete';
+    else if (target === 'team') match = role === 'coach' || role === 'staff' || role === 'coordinator';
+    else if (target === 'coaches') match = role === 'coach';
+    else if (target === 'staff') match = role === 'staff';
+    else match = uid === target;               // specific person
+    if (!match) continue;
     (v.tokens || []).forEach(t => out.push({ token: t, uid }));
   }
   return out;

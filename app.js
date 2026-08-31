@@ -122,7 +122,9 @@ function seed() {
       { id: uid(), kind: 'sleep', title: 'Good morning 🌙', body: 'How did you sleep? Log your morning check-in.', time: '07:00', freq: 'daily', target: 'all', active: true },
       { id: uid(), kind: 'weekly', title: 'Weekly reflection 📆', body: 'How did this week feel? Fill in your weekly check-in.', time: '20:00', freq: 'sun', target: 'all', active: true }
     ],
-    scienceCustom: []
+    scienceCustom: [],
+    todos: [],        /* coordinator to-do tasks (shared collection) */
+    comments: []      /* comments on workouts (shared collection) */
   };
 }
 
@@ -241,13 +243,15 @@ function migrate(s) {
   if (!Array.isArray(s.reminders)) s.reminders = [];
   if (!Array.isArray(s.scienceCustom)) s.scienceCustom = [];
   if (!Array.isArray(s.wellness)) s.wellness = [];
+  if (!Array.isArray(s.todos)) s.todos = [];
+  if (!Array.isArray(s.comments)) s.comments = [];
   if (!s.settings) s.settings = {};
   if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
   s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
   // Coaches (2 coaches per athlete support)
   if (!Array.isArray(s.coaches) || !s.coaches.length) s.coaches = [{ id: uid(), name: 'Coach 1' }, { id: uid(), name: 'Coach 2' }];
   if (!s.currentCoachId || !s.coaches.find(c => c.id === s.currentCoachId)) s.currentCoachId = s.coaches[0].id;
-  s.athletes.forEach(a => { if (!Array.isArray(a.coachIds)) a.coachIds = [s.coaches[0].id]; if (!Array.isArray(a.coachUids)) a.coachUids = []; });
+  s.athletes.forEach(a => { if (!Array.isArray(a.coachIds)) a.coachIds = [s.coaches[0].id]; if (!Array.isArray(a.coachUids)) a.coachUids = []; if (!Array.isArray(a.viewers)) a.viewers = []; });
   return s;
 }
 function currentCoach() { return state.coaches.find(c => c.id === state.currentCoachId) || state.coaches[0]; }
@@ -295,6 +299,33 @@ async function fetchCoachUsers() {
   try { const qs = await Cloud.db.collection('users').where('role', '==', 'coach').get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email, email: d.data().email })); }
   catch (e) { return []; }
 }
+// everyone with an account (team hub + to-do assignee picker)
+async function fetchAllUsers() {
+  if (!Cloud.enabled || !Cloud.db) return [];
+  try { const qs = await Cloud.db.collection('users').get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || (d.data().email || '').split('@')[0], email: d.data().email || '', role: d.data().role || 'athlete', title: d.data().title || '', bio: d.data().bio || '' })); }
+  catch (e) { return []; }
+}
+
+// Roles: coach (programs), athlete (trains), staff/medewerker (supports the team),
+// coordinator (plans tasks & deadlines). "Team" roles can see everyone's training.
+const ROLES = {
+  coach:       { label: 'Coach',       icon: '🧑‍🏫', sub: 'Programs & follows athletes' },
+  athlete:     { label: 'Athlete',     icon: '🏃',   sub: 'Follows my own plan' },
+  staff:       { label: 'Staff',       icon: '🤝',   sub: 'Supports the team (medewerker)' },
+  coordinator: { label: 'Coordinator', icon: '📋',   sub: 'Plans tasks & deadlines' }
+};
+function roleLabel(r) { return (ROLES[r] || {}).label || r; }
+function isTeamRole(r) { return r === 'coach' || r === 'staff' || r === 'coordinator'; }
+function canCoordinate(r) { return r === 'coach' || r === 'coordinator'; }
+const TODO_STATUS = {
+  todo:   { label: 'To do',        color: '#8d99ae', icon: '⬜' },
+  doing:  { label: 'In progress',  color: '#4cc9f0', icon: '🔵' },
+  atrisk: { label: 'Deadline at risk', color: '#f5c518', icon: '⚠️' },
+  done:   { label: 'Done',         color: '#35c98b', icon: '✅' }
+};
+// the signed-in person's own uid + display name (for authoring todos/comments)
+function myUid() { return Cloud.myUid || null; }
+function myName() { return (Cloud.user && (Cloud.user.displayName || (Cloud.user.email || '').split('@')[0])) || 'Me'; }
 
 /* ------------------------------ Zones / load / compliance --------------- */
 const CYCLE_TYPES = { macro: 'Macrocycle', meso: 'Mesocycle', micro: 'Microcycle' };
@@ -395,7 +426,9 @@ function closeModal() { $('#modal-root').innerHTML = ''; }
 const NAV = [
   { id: 'dashboard',      label: 'Dashboard',      icon: '📊', roles: ['coach', 'athlete'] },
   { id: 'calendar',       label: 'Calendar',       icon: '📅', roles: ['coach', 'athlete'] },
-  { id: 'planning',       label: 'Planning',       icon: '🗓️', roles: ['coach', 'athlete'] },
+  { id: 'todos',          label: 'To-do',          icon: '✅', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
+  { id: 'sharedcal',      label: 'Shared Calendar', icon: '🗓️', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
+  { id: 'planning',       label: 'Planning',       icon: '📆', roles: ['coach', 'athlete'] },
   { id: 'library',        label: 'Workouts',       icon: '📚', roles: ['coach'] },
   { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete'] },
   { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete'] },
@@ -403,10 +436,11 @@ const NAV = [
   { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete'] },
   { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete'] },
   { id: 'references',     label: 'References',     icon: '📖', roles: ['coach', 'athlete'] },
-  { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete'] },
+  { id: 'team',           label: 'Team',           icon: '👥', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
+  { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
   { id: 'athletes',       label: 'Athletes & Zones', icon: '⚙️', roles: ['coach'] },
   { id: 'monitor',        label: 'Monitoring',     icon: '❤️', roles: ['coach'] },
-  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete'] }
+  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete', 'staff', 'coordinator'] }
 ];
 function navForRole() { return NAV.filter(n => n.roles.includes(state.role)); }
 function go(view) { state.ui.view = view; save(); render(); window.scrollTo(0, 0); }
@@ -416,7 +450,7 @@ function go(view) { state.ui.view = view; save(); render(); window.scrollTo(0, 0
    ============================================================================ */
 function render() {
   const nav = navForRole();
-  if (!nav.find(n => n.id === state.ui.view)) state.ui.view = 'dashboard';
+  if (!nav.find(n => n.id === state.ui.view)) state.ui.view = (nav[0] && nav[0].id) || 'dashboard';
   const view = state.ui.view;
   if (state.role === 'coach') { const r = rosterAthletes(); if (r.length && !r.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = r[0].id; }
 
@@ -488,9 +522,10 @@ function render() {
   const views = {
     dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
     fitness: viewFitness, testing: viewTesting, nutrition: viewNutrition, goals: viewGoals,
-    questionnaires: viewQuestionnaires, references: viewReferences, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings
+    questionnaires: viewQuestionnaires, references: viewReferences, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings,
+    todos: viewTodos, sharedcal: viewSharedCal, team: viewTeam
   };
-  (views[view] || viewDashboard)();
+  (views[view] || viewTodos)();
 }
 
 /* ------------------------------ Dashboard ------------------------------- */
@@ -742,10 +777,12 @@ function drawCalendar() {
     const daySessions = athleteSessions(a.id).filter(s => s.date === iso);
     const dayLoad = daySessions.reduce((n, s) => n + (Number(s.load) || 0), 0);
     const dayNotes = state.dayNotes.filter(n => n.athleteId === a.id && n.date === iso);
+    const dayTodos = (state.todos || []).filter(t => t.assigneeUid === a.id && t.due === iso);
     cells += `
       <div class="cal-cell ${inMonth ? '' : 'dim'} ${isToday ? 'today' : ''}" data-day="${iso}">
         <div class="d"><span>${d.getDate()} ${dayNotes.length ? '<span class="note-dot" title="' + esc(dayNotes.map(n => n.text).join(' · ')) + '"></span>' : ''}</span>${dayLoad ? `<span class="load">${dayLoad} TSS</span>` : ''}</div>
         ${daySessions.map(s => sessionChip(s)).join('')}
+        ${dayTodos.map(t => todoChip(t)).join('')}
         ${dayNotes.map(n => `<div class="day-note" title="${esc(n.text)}">📌 ${esc(n.text.slice(0, 24))}${n.text.length > 24 ? '…' : ''}</div>`).join('')}
       </div>`;
   }
@@ -778,11 +815,21 @@ function shiftMonth(n) {
 function sessionChip(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
   const f = sessionFocus(s);
+  const cc = sessionComments(s.id).length;
   return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
-    <div class="t">${sp.icon} ${esc(s.name)} ${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
+    <div class="t">${sp.icon} ${esc(s.name)} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
     <div class="m">${s.duration || 0}min · ${s.load || 0} TSS${f.label !== '—' ? ` · <span style="color:${f.color}">${f.label}</span>` : ''}</div>
   </div>`;
 }
+// Task chip shown on the assignee's calendar (📋), coloured by status.
+function todoChip(t) {
+  const st = TODO_STATUS[t.status] || TODO_STATUS.todo;
+  return `<div class="sess todo-chip" data-todo="${t.id}" style="border-left-color:${st.color};cursor:pointer">
+    <div class="t">📋 ${esc(t.title)} <span class="check">${st.icon}</span></div>
+    <div class="m" style="color:${st.color}">${st.label}${t.createdByName ? ' · ' + esc(t.createdByName) : ''}</div>
+  </div>`;
+}
+function sessionComments(sid) { return (state.comments || []).filter(c => c.sessionId === sid); }
 
 let dragId = null;
 function bindCalendarDnD() {
@@ -791,6 +838,7 @@ function bindCalendarDnD() {
     el.addEventListener('dragend', () => { el.style.opacity = '1'; dragId = null; });
     el.addEventListener('click', (e) => { e.stopPropagation(); openSessionModal(el.dataset.sess); });
   });
+  $$('.todo-chip').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openTodoModal(el.dataset.todo); }));
   $$('.cal-cell').forEach(cell => {
     cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('drop-hover'); });
     cell.addEventListener('dragleave', () => cell.classList.remove('drop-hover'));
@@ -888,6 +936,8 @@ function openSessionModal(id, presetDate) {
     <label>Notes / extra instructions</label>
     <textarea id="f-desc" ${canEdit ? '' : 'disabled'} placeholder="e.g. keep cadence high, fuel every 30min">${esc(s.desc)}</textarea>
     <div id="strength-block"></div>
+    <div id="postwork-block"></div>
+    ${editing ? '<div id="comments-block"></div>' : ''}
   `;
   const foot = `
     ${editing && canEdit ? '<button class="btn danger" id="f-del">Delete</button>' : ''}
@@ -913,6 +963,7 @@ function openSessionModal(id, presetDate) {
   mountStepBuilder('steps-block', stepsState, a, canEdit, syncTotals);
   syncTotals();
   renderStrengthEditor(strengthState, canEdit, strengthMeta);
+  if (editing) { renderPostWorkout(s, (state.wellness || []).filter(w => w.athleteId === s.athleteId)); renderCommentsBlock('comments-block', s); }
 
   $('#f-sport').addEventListener('change', () => { renderStrengthEditor(strengthState, canEdit, strengthMeta); syncTotals(); });
 
@@ -1994,6 +2045,398 @@ async function renderCoachInvite() {
   }));
 }
 
+/* ============================================================================
+   TO-DO LISTS (coordinator) + SHARED CALENDAR + TEAM HUB
+   ============================================================================ */
+let USER_CACHE = [];               // cached {uid,name,email,role,title,bio}
+function cacheUsers(list) { if (Array.isArray(list) && list.length) USER_CACHE = list; return list; }
+function userName(uid) {
+  const u = USER_CACHE.find(x => x.uid === uid); if (u) return u.name;
+  const a = state.athletes.find(x => x.id === uid); if (a) return a.name;
+  return uid === myUid() ? myName() : 'Someone';
+}
+// everyone who can be assigned a task / appears in the team hub (users + local athletes, de-duped)
+function teamPeople() {
+  const map = {};
+  USER_CACHE.forEach(u => { map[u.uid] = { uid: u.uid, name: u.name, email: u.email, role: u.role, title: u.title, bio: u.bio }; });
+  state.athletes.forEach(a => { if (!map[a.id]) map[a.id] = { uid: a.id, name: a.name, email: a.email || '', role: 'athlete', title: '', bio: '' }; });
+  return Object.values(map).sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+}
+function fmtTs(ts) { if (!ts) return ''; const d = new Date(ts); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toTimeString().slice(0, 5); }
+
+/* ------------------------------ To-do view ------------------------------ */
+function viewTodos() {
+  const v = $('#view');
+  const actions = $('#topbar-actions');
+  const canCreate = isTeamRole(state.role);          // coach / coordinator / staff can assign tasks
+  actions.innerHTML = canCreate ? `<button class="btn primary sm" id="add-todo">+ New task</button>` : '';
+  // warm the user cache for names / assignee picker
+  fetchAllUsers().then(list => { if (cacheUsers(list) && state.ui.view === 'todos') drawTodos(); });
+
+  const me = myUid();
+  function drawTodos() {
+    const all = (state.todos || []).slice().sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99') || (b.ts || 0) - (a.ts || 0));
+    const mine = all.filter(t => t.assigneeUid === me);
+    const board = all;
+    const openCount = all.filter(t => t.status !== 'done').length;
+
+    v.innerHTML = `
+      <p class="sub">${canCreate ? 'Create tasks with a deadline and assign them to anyone on the team. Each task also appears on that person’s calendar and on the <b>Shared Calendar</b>.' : 'Your tasks from the coordinator. Update your status so everyone can follow along.'}</p>
+
+      <div class="section-title">My tasks ${mine.length ? `· ${mine.filter(t => t.status !== 'done').length} open` : ''}</div>
+      <div class="list">
+        ${mine.length ? mine.map(t => todoRow(t, true)).join('') : '<div class="empty">No tasks assigned to you 🎉</div>'}
+      </div>
+
+      ${canCreate ? `
+      <div class="section-title" style="margin-top:22px">All tasks · ${openCount} open</div>
+      <div class="list">
+        ${board.length ? board.map(t => todoRow(t, t.assigneeUid === me)).join('') : '<div class="empty">No tasks yet. Tap “+ New task”.</div>'}
+      </div>` : ''}`;
+
+    bindTodoRows();
+  }
+  function bindTodoRows() {
+    $$('[data-todo-open]').forEach(b => b.addEventListener('click', () => openTodoModal(b.dataset.todoOpen)));
+    $$('[data-todo-status]').forEach(sel => sel.addEventListener('change', () => setTodoStatus(sel.dataset.todoStatus, sel.value)));
+    $$('[data-todo-del]').forEach(b => b.addEventListener('click', () => { if (confirm('Delete this task?')) { Cloud.deleteTodo(b.dataset.todoDel); state.todos = (state.todos || []).filter(t => t.id !== b.dataset.todoDel); drawTodos(); } }));
+  }
+  drawTodos();
+  if (canCreate && $('#add-todo')) $('#add-todo').addEventListener('click', () => openTodoModal(null, drawTodos));
+  viewTodos._redraw = drawTodos;
+}
+function todoRow(t, canStatus) {
+  const st = TODO_STATUS[t.status] || TODO_STATUS.todo;
+  const canEdit = isTeamRole(state.role) || t.createdByUid === myUid();
+  const overdue = t.status !== 'done' && t.due && t.due < todayISO();
+  const statusSel = canStatus
+    ? `<select data-todo-status="${t.id}" style="width:auto;padding:6px 8px;font-size:12px">${Object.entries(TODO_STATUS).map(([k, s]) => `<option value="${k}" ${t.status === k ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}</select>`
+    : `<span class="badge" style="color:${st.color};border:1px solid ${st.color}">${st.icon} ${st.label}</span>`;
+  return `<div class="row" style="border-left:3px solid ${st.color}">
+    <div class="grow">
+      <div class="title" style="${t.status === 'done' ? 'text-decoration:line-through;opacity:.7' : ''}">📋 ${esc(t.title)}</div>
+      <div class="meta">${t.assigneeUid === myUid() ? 'You' : esc(t.assigneeName || userName(t.assigneeUid))}${t.due ? ` · <span style="color:${overdue ? 'var(--bad)' : 'var(--muted)'}">${overdue ? '⚠️ ' : '🎯 '}${fmtDate(t.due)}</span>` : ' · no deadline'}${t.createdByName ? ' · by ' + esc(t.createdByName) : ''}${t.desc ? ' · ' + esc(t.desc.slice(0, 60)) + (t.desc.length > 60 ? '…' : '') : ''}</div>
+    </div>
+    ${statusSel}
+    ${canEdit ? `<button class="btn sm" data-todo-open="${t.id}">Edit</button><button class="btn sm danger" data-todo-del="${t.id}">×</button>` : ''}
+  </div>`;
+}
+function setTodoStatus(id, status) {
+  const t = (state.todos || []).find(x => x.id === id); if (!t) return;
+  t.status = status; t.ts = t.ts || Date.now();
+  Cloud.saveTodo(t);
+  if (viewTodos._redraw) viewTodos._redraw();
+  toast('Status: ' + (TODO_STATUS[status] || {}).label);
+}
+function openTodoModal(id, onDone) {
+  const editing = id ? (state.todos || []).find(t => t.id === id) : null;
+  const canEdit = !editing || isTeamRole(state.role) || editing.createdByUid === myUid();
+  const t = editing || { id: uid(), title: '', desc: '', assigneeUid: myUid(), assigneeName: myName(), due: todayISO(), status: 'todo' };
+  const dis = canEdit ? '' : 'disabled';
+  const people = teamPeople();
+  const opts = people.map(p => `<option value="${p.uid}" ${t.assigneeUid === p.uid ? 'selected' : ''}>${esc(p.name)}${p.role && p.role !== 'athlete' ? ' · ' + roleLabel(p.role) : ''}</option>`).join('')
+    || `<option value="${t.assigneeUid}">${esc(t.assigneeName || 'Me')}</option>`;
+  const body = `
+    <label>Task</label>
+    <input id="td-title" value="${esc(t.title)}" ${dis} placeholder="e.g. Book the sports hall for Saturday"/>
+    <label>Details (optional)</label>
+    <textarea id="td-desc" ${dis} placeholder="Any extra info…">${esc(t.desc || '')}</textarea>
+    <div class="inline">
+      <div><label>Assign to</label><select id="td-who" ${isTeamRole(state.role) ? '' : 'disabled'}>${opts}</select></div>
+      <div><label>Deadline</label><input id="td-due" type="date" value="${t.due || ''}" ${dis}/></div>
+    </div>
+    <label>Status</label>
+    <select id="td-status">${Object.entries(TODO_STATUS).map(([k, s]) => `<option value="${k}" ${t.status === k ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}</select>`;
+  const foot = `${editing && canEdit ? '<button class="btn danger" id="td-del">Delete</button>' : ''}${canEdit ? '<button class="btn primary" id="td-save">Save task</button>' : ''}`;
+  openModal(editing ? 'Task' : 'New task', body, foot);
+
+  if ($('#td-save')) $('#td-save').addEventListener('click', () => {
+    const whoSel = $('#td-who');
+    const assigneeUid = whoSel ? whoSel.value : t.assigneeUid;
+    const person = people.find(p => p.uid === assigneeUid);
+    const obj = {
+      id: t.id, title: $('#td-title').value.trim() || 'Task', desc: $('#td-desc').value.trim(),
+      assigneeUid, assigneeName: person ? person.name : (t.assigneeName || userName(assigneeUid)),
+      due: $('#td-due').value, status: $('#td-status').value,
+      createdByUid: t.createdByUid || myUid(), createdByName: t.createdByName || myName(),
+      createdByRole: t.createdByRole || state.role, ts: t.ts || Date.now()
+    };
+    if (editing) Object.assign(editing, obj); else (state.todos = state.todos || []).push(obj);
+    Cloud.saveTodo(obj);
+    save(); closeModal();
+    if (onDone) onDone(); else render();
+    toast('Task saved');
+  });
+  if ($('#td-del')) $('#td-del').addEventListener('click', () => {
+    Cloud.deleteTodo(t.id); state.todos = (state.todos || []).filter(x => x.id !== t.id);
+    save(); closeModal(); if (onDone) onDone(); else render(); toast('Task deleted');
+  });
+}
+
+/* ------------------------------ Shared Calendar ------------------------- */
+/* All to-do deadlines from the whole team on one calendar. No trainings here. */
+function viewSharedCal() {
+  const actions = $('#topbar-actions');
+  actions.innerHTML = isTeamRole(state.role) ? `<button class="btn primary sm" id="add-todo-sc">+ New task</button>` : '';
+  fetchAllUsers().then(list => { if (cacheUsers(list) && state.ui.view === 'sharedcal') drawSharedCal(); });
+  if (state.ui.scMonth == null) { const t = new Date(); state.ui.scMonth = t.getMonth(); state.ui.scYear = t.getFullYear(); }
+  drawSharedCal();
+  if ($('#add-todo-sc')) $('#add-todo-sc').addEventListener('click', () => openTodoModal(null, drawSharedCal));
+}
+function drawSharedCal() {
+  const v = $('#view');
+  const m = state.ui.scMonth, y = state.ui.scYear;
+  const first = new Date(y, m, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const gridStart = addDays(first, -startOffset);
+  const todos = (state.todos || []);
+
+  let cells = '';
+  for (let i = 0; i < 42; i++) {
+    const d = addDays(gridStart, i);
+    const iso = toISO(d);
+    const inMonth = d.getMonth() === m;
+    const isToday = iso === todayISO();
+    const day = todos.filter(t => t.due === iso).sort((a, b) => (a.assigneeName || '').localeCompare(b.assigneeName || ''));
+    cells += `
+      <div class="cal-cell ${inMonth ? '' : 'dim'} ${isToday ? 'today' : ''}">
+        <div class="d"><span>${d.getDate()}</span></div>
+        ${day.map(t => { const st = TODO_STATUS[t.status] || TODO_STATUS.todo; return `<div class="sess todo-chip" data-todo="${t.id}" style="border-left-color:${st.color};cursor:pointer"><div class="t">📋 ${esc(t.title)} <span class="check">${st.icon}</span></div><div class="m" style="color:${st.color}">${esc(t.assigneeName || userName(t.assigneeUid))}</div></div>`; }).join('')}
+      </div>`;
+  }
+
+  v.innerHTML = `
+    <p class="sub">Shared deadlines for the whole team — every to-do task on one calendar. Trainings are not shown here.</p>
+    <div class="cal-head">
+      <div class="btn-row">
+        <button class="btn sm" id="sc-prev">‹</button>
+        <button class="btn sm" id="sc-today">Today</button>
+        <button class="btn sm" id="sc-next">›</button>
+      </div>
+      <h3 style="margin:0">${MONTHS[m]} ${y}</h3>
+      <div class="btn-row">${Object.entries(TODO_STATUS).map(([k, s]) => `<span class="badge" style="color:${s.color}">${s.icon} ${s.label}</span>`).join('')}</div>
+    </div>
+    <div class="cal-grid">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>`;
+
+  $('#sc-prev').addEventListener('click', () => { let mm = state.ui.scMonth - 1, yy = state.ui.scYear; if (mm < 0) { mm = 11; yy--; } state.ui.scMonth = mm; state.ui.scYear = yy; drawSharedCal(); });
+  $('#sc-next').addEventListener('click', () => { let mm = state.ui.scMonth + 1, yy = state.ui.scYear; if (mm > 11) { mm = 0; yy++; } state.ui.scMonth = mm; state.ui.scYear = yy; drawSharedCal(); });
+  $('#sc-today').addEventListener('click', () => { const t = new Date(); state.ui.scMonth = t.getMonth(); state.ui.scYear = t.getFullYear(); drawSharedCal(); });
+  $$('.todo-chip').forEach(el => el.addEventListener('click', () => openTodoModal(el.dataset.todo, drawSharedCal)));
+}
+
+/* ------------------------------ Team hub -------------------------------- */
+function viewTeam() {
+  const v = $('#view');
+  const actions = $('#topbar-actions');
+  actions.innerHTML = '';
+  v.innerHTML = `<p class="sub">Loading team…</p>`;
+  fetchAllUsers().then(list => { cacheUsers(list); if (state.ui.view === 'team') drawTeam(); });
+  drawTeam();
+}
+async function drawTeam() {
+  const v = $('#view'); if (!v) return;
+  const me = myUid();
+  const people = teamPeople();
+  const team = people.filter(p => isTeamRole(p.role));
+  const athletes = people.filter(p => p.role === 'athlete');
+  const iAmTeam = isTeamRole(state.role);
+  const myAthlete = state.athletes.find(a => a.id === me);
+  const myViewers = (myAthlete && myAthlete.viewers) || [];
+
+  // incoming access requests (people who want to see MY training)
+  let incoming = [];
+  try { incoming = await Cloud.myShareRequests(); } catch (e) {}
+
+  v.innerHTML = `
+    <p class="sub">Everyone on the team. ${iAmTeam ? 'Open an athlete to see all their trainings, add comments, and send them a notification.' : 'You can ask to follow another athlete’s training — they approve the request.'}</p>
+
+    ${(state.role === 'staff' || state.role === 'coordinator') ? `<div class="card" style="margin-bottom:16px">
+      <h3>My profile</h3>
+      <div class="sub" style="margin-bottom:8px">${roleLabel(state.role)} · ${esc((Cloud.user && Cloud.user.email) || '')}</div>
+      <div id="staff-profile"></div>
+    </div>` : ''}
+
+    ${incoming.length ? `<div class="card" style="margin-bottom:16px;border-color:var(--accent)">
+      <h3>Access requests</h3>
+      <p class="sub">These people asked to follow your training.</p>
+      <div class="list">${incoming.map(r => `<div class="row"><div class="grow"><div class="title">${esc(r.fromName || userName(r.fromUid))}</div><div class="meta">wants to see your workouts</div></div>
+        <button class="btn sm primary" data-approve="${r.id}" data-fromuid="${r.fromUid}">Approve</button>
+        <button class="btn sm danger" data-deny="${r.id}">Deny</button></div>`).join('')}</div>
+    </div>` : ''}
+
+    ${team.length ? `<div class="section-title">Coaches & staff</div>
+    <div class="grid cols-3">${team.map(p => personCard(p, false)).join('')}</div>` : ''}
+
+    <div class="section-title" style="margin-top:18px">Athletes</div>
+    <div class="grid cols-3">${athletes.length ? athletes.map(p => {
+      const canView = iAmTeam || p.uid === me || myViewers.includes(p.uid) || ((state.athletes.find(a => a.id === p.uid) || {}).viewers || []).includes(me);
+      return personCard(p, true, canView);
+    }).join('') : '<div class="empty">No athletes yet.</div>'}</div>`;
+
+  // staff profile editor
+  if ($('#staff-profile')) renderStaffProfile();
+
+  $$('[data-view-ath]').forEach(b => b.addEventListener('click', () => openAthletePanel(b.dataset.viewAth)));
+  $$('[data-req-ath]').forEach(b => b.addEventListener('click', async () => { await Cloud.requestAccess(b.dataset.reqAth); toast('Request sent'); }));
+  $$('[data-approve]').forEach(b => b.addEventListener('click', async () => { await Cloud.approveAccess(b.dataset.fromuid, b.dataset.approve); toast('Approved'); drawTeam(); }));
+  $$('[data-deny]').forEach(b => b.addEventListener('click', async () => { await Cloud.denyAccess(b.dataset.deny); toast('Denied'); drawTeam(); }));
+}
+function personCard(p, isAthlete, canView) {
+  const r = ROLES[p.role] || ROLES.athlete;
+  return `<div class="card">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:42px;height:42px;border-radius:50%;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-size:20px">${r.icon}</div>
+      <div style="min-width:0"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div><div class="sub">${roleLabel(p.role)}${p.title ? ' · ' + esc(p.title) : ''}</div></div>
+    </div>
+    ${p.bio ? `<p class="sub" style="margin-top:8px">${esc(p.bio)}</p>` : ''}
+    ${isAthlete ? `<div class="btn-row" style="margin-top:10px">
+      ${canView ? `<button class="btn sm primary" data-view-ath="${p.uid}">View training</button>` : (p.uid === myUid() ? '' : `<button class="btn sm" data-req-ath="${p.uid}">Request access</button>`)}
+    </div>` : ''}
+  </div>`;
+}
+function renderStaffProfile() {
+  const host = $('#staff-profile'); if (!host) return;
+  const meP = USER_CACHE.find(u => u.uid === myUid()) || { name: myName(), title: '', bio: '' };
+  host.innerHTML = `
+    <div class="inline"><div><label>Name</label><input id="sp-name" value="${esc(meP.name || '')}"/></div>
+      <div><label>Function / title</label><input id="sp-title" value="${esc(meP.title || '')}" placeholder="e.g. Physio, Team manager"/></div></div>
+    <label>Short bio (optional)</label><textarea id="sp-bio" placeholder="What you do for the team…">${esc(meP.bio || '')}</textarea>
+    <div class="btn-row" style="margin-top:10px"><button class="btn primary sm" id="sp-save">Save profile</button></div>`;
+  $('#sp-save').addEventListener('click', async () => {
+    const name = $('#sp-name').value.trim() || myName();
+    const title = $('#sp-title').value.trim(), bio = $('#sp-bio').value.trim();
+    await Cloud.saveMyProfile({ name, title, bio });
+    const u = USER_CACHE.find(x => x.uid === myUid()); if (u) { u.name = name; u.title = title; u.bio = bio; } else USER_CACHE.push({ uid: myUid(), name, title, bio, role: state.role, email: (Cloud.user && Cloud.user.email) || '' });
+    toast('Profile saved');
+  });
+}
+// Read-only view of another person's training (team roles, or an approved athlete).
+async function openAthletePanel(aid) {
+  openModal('Training', '<div class="sub">Loading…</div>', '');
+  let profile = null, sessions = [], wellness = [];
+  const local = state.athletes.find(a => a.id === aid);
+  if (local && athleteSessions(aid).length) { profile = local; sessions = athleteSessions(aid); wellness = (state.wellness || []).filter(w => w.athleteId === aid); }
+  else {
+    const doc = await Cloud.fetchAthleteDoc(aid);
+    if (!doc) { const b = $('#modal-root .mbody'); if (b) b.innerHTML = '<div class="empty">No access to this athlete’s training, or nothing to show.</div>'; return; }
+    profile = { id: aid, name: doc.name || userName(aid) };
+    sessions = (doc.sessions || []).map(s => ({ ...s, athleteId: aid }));
+    wellness = (doc.wellness || []).map(w => ({ ...w, athleteId: aid }));
+    // stash so read-only session detail can find them
+    state._panel = { aid, sessions, wellness };
+  }
+  const today = todayISO();
+  const upcoming = sessions.filter(s => s.date >= today && s.status !== 'done').sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
+  const recent = sessions.filter(s => s.status === 'done').sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
+  const body = `
+    <div class="sub" style="margin-bottom:8px">${esc(profile.name)}</div>
+    <div class="section-title">Upcoming</div>
+    <div class="list">${upcoming.length ? upcoming.map(s => panelSessionRow(s, aid)).join('') : '<div class="empty">Nothing planned.</div>'}</div>
+    <div class="section-title">Recent (done)</div>
+    <div class="list">${recent.length ? recent.map(s => panelSessionRow(s, aid)).join('') : '<div class="empty">No completed sessions.</div>'}</div>`;
+  const b = $('#modal-root .mbody'); if (b) b.innerHTML = body;
+  const h = $('#modal-root .mhead h3'); if (h) h.textContent = profile.name;
+  $$('[data-panel-sess]').forEach(x => x.addEventListener('click', () => openReadonlySession(x.dataset.panelSess, aid, sessions, wellness)));
+}
+function panelSessionRow(s, aid) {
+  const sp = SPORTS[s.sport] || SPORTS.other;
+  const cc = sessionComments(s.id).length;
+  return `<div class="row" style="cursor:pointer" data-panel-sess="${s.id}">
+    <span class="dot" style="background:${sp.color}"></span>
+    <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${cc ? `💬${cc}` : ''} ${s.status === 'done' ? '<span class="badge" style="color:var(--ok)">✓</span>' : ''}</div>
+    <div class="meta">${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS${s.rpe != null ? ' · RPE ' + s.rpe : ''}</div></div>
+  </div>`;
+}
+function openReadonlySession(sid, aid, sessions, wellness) {
+  const s = (sessions || []).find(x => x.id === sid) || state.sessions.find(x => x.id === sid); if (!s) return;
+  const sp = SPORTS[s.sport] || SPORTS.other;
+  const body = `
+    <div class="sub" style="margin-bottom:8px">${sp.icon} ${esc(s.name)} · ${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS${s.rpe != null ? ' · RPE ' + s.rpe : ''}</div>
+    ${s.desc ? `<p class="sub">${esc(s.desc)}</p>` : ''}
+    ${(s.steps && s.steps.length) ? `<label>Workout profile</label>${workoutProfileSVG(s.steps)}<div style="margin-top:8px">${zoneDistHTML(s.steps)}</div>` : ''}
+    <div id="postwork-block"></div>
+    <div id="comments-block"></div>`;
+  openModal(s.name || 'Session', body, '');
+  renderPostWorkout(s, wellness);
+  renderCommentsBlock('comments-block', s);
+}
+
+/* ------------------------------ Comments on a workout ------------------- */
+function renderCommentsBlock(hostId, s) {
+  const host = document.getElementById(hostId); if (!host) return;
+  const draw = () => {
+    const list = sessionComments(s.id).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    host.innerHTML = `
+      <label style="margin-top:14px">Comments — notes to complete during the session</label>
+      <div class="list" style="margin-bottom:8px">
+        ${list.length ? list.map(c => {
+          const mine = c.authorUid === myUid();
+          const canTick = state.role === 'athlete' || mine;
+          return `<div class="row" style="border-left:3px solid ${c.done ? 'var(--ok)' : 'var(--accent)'}">
+            <button class="btn sm" data-c-done="${c.id}" title="Mark done" ${canTick ? '' : 'disabled'} style="flex:0 0 auto">${c.done ? '✅' : '⬜'}</button>
+            <div class="grow"><div class="title" style="${c.done ? 'text-decoration:line-through;opacity:.7' : ''}">${esc(c.text)}</div>
+              <div class="meta">${esc(c.authorName || userName(c.authorUid))}${c.authorRole ? ' · ' + roleLabel(c.authorRole) : ''} · ${fmtTs(c.ts)}</div></div>
+            ${mine || isTeamRole(state.role) ? `<button class="btn sm danger" data-c-del="${c.id}" style="flex:0 0 auto">×</button>` : ''}
+          </div>`;
+        }).join('') : '<div class="sub" style="padding:6px">No comments yet.</div>'}
+      </div>
+      <div class="chat-input"><input id="c-text" placeholder="Add a comment (e.g. ‘do 3rd interval at 300W’)…"/><button class="btn primary" id="c-send">Send</button></div>`;
+    const send = () => {
+      const t = ($('#c-text').value || '').trim(); if (!t) return;
+      const c = { id: uid(), sessionId: s.id, athleteId: s.athleteId, text: t, authorUid: myUid(), authorName: myName(), authorRole: state.role, ts: Date.now(), done: false };
+      (state.comments = state.comments || []).push(c); Cloud.saveComment(c); draw();
+      // notify the athlete a comment landed on their workout
+      if (isTeamRole(state.role) && s.athleteId && s.athleteId !== myUid()) Cloud.sendPush(s.athleteId, 'New comment on your workout 💬', myName() + ': ' + t.slice(0, 80));
+    };
+    $('#c-send').addEventListener('click', send);
+    $('#c-text').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+    host.querySelectorAll('[data-c-done]').forEach(b => b.addEventListener('click', () => { const c = state.comments.find(x => x.id === b.dataset.cDone); if (c) { c.done = !c.done; Cloud.saveComment(c); draw(); } }));
+    host.querySelectorAll('[data-c-del]').forEach(b => b.addEventListener('click', () => { state.comments = state.comments.filter(x => x.id !== b.dataset.cDel); Cloud.deleteComment(b.dataset.cDel); draw(); }));
+  };
+  draw();
+}
+
+/* ------------------------------ Post-workout graphs --------------------- */
+/* Renders Power / Speed / Altitude / HR streams (from Intervals.icu) + the day's HRV/RHR. */
+function renderPostWorkout(s, wellness) {
+  const host = document.getElementById('postwork-block'); if (!host) return;
+  const st = s.streams || null;
+  const w = (wellness || (state.wellness || [])).find(x => x.date === s.date && (x.athleteId === s.athleteId || !x.athleteId));
+  const charts = [];
+  if (st) {
+    if (st.watts && st.watts.some(v => v != null)) charts.push(lineChartSVG(st.watts, '#3b30e6', 'Power', 'W', v => Math.round(v)));
+    if (st.hr && st.hr.some(v => v != null)) charts.push(lineChartSVG(st.hr, '#e50914', 'Heart rate', 'bpm', v => Math.round(v)));
+    if (st.speed && st.speed.some(v => v != null)) charts.push(lineChartSVG(st.speed.map(v => v == null ? null : v * 3.6), '#4cc9f0', 'Speed', 'km/h', v => v.toFixed(1)));
+    if (st.alt && st.alt.some(v => v != null)) charts.push(lineChartSVG(st.alt, '#90be6d', 'Altitude', 'm', v => Math.round(v)));
+  }
+  const hrvLine = (w && (w.hrv != null || w.restingHR != null))
+    ? `<div class="legend" style="margin-top:6px">${w.hrv != null ? `<span><i style="background:var(--accent)"></i>HRV ${w.hrv} ms</span>` : ''}${w.restingHR != null ? `<span><i style="background:var(--accent-2)"></i>Resting HR ${w.restingHR} bpm</span>` : ''} <span class="sub">(that day, from Intervals.icu)</span></div>` : '';
+  if (!charts.length && !hrvLine) {
+    host.innerHTML = s.status === 'done'
+      ? `<div class="hint" style="margin-top:10px">📉 Power / speed / altitude / HR graphs appear here once Intervals.icu has synced this activity’s data.</div>`
+      : '';
+    return;
+  }
+  host.innerHTML = `<label style="margin-top:12px">Session data</label>${charts.join('')}${hrvLine}`;
+}
+// A single labelled line chart over a downsampled series (nulls allowed = gaps).
+function lineChartSVG(series, color, label, unit, fmt) {
+  const vals = series.filter(v => v != null && !isNaN(v));
+  if (!vals.length) return '';
+  const min = Math.min(...vals), max = Math.max(...vals), avg = vals.reduce((n, v) => n + v, 0) / vals.length;
+  const W = 700, H = 90, pad = 6;
+  const n = series.length;
+  const x = i => pad + (i / (n - 1 || 1)) * (W - pad * 2);
+  const y = v => H - pad - ((v - min) / ((max - min) || 1)) * (H - pad * 2);
+  let d = '', pen = false;
+  series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
+  return `<div style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><b style="color:var(--text)">${label}</b><span>avg ${fmt(avg)} · max ${fmt(max)} ${unit}</span></div>
+    <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="height:${H}px;display:block;background:var(--bg-2);border-radius:8px;min-width:260px"><path d="${d.trim()}" fill="none" stroke="${color}" stroke-width="1.6"/></svg></div>
+  </div>`;
+}
+
 /* ------------------------------ Settings -------------------------------- */
 function viewSettings() {
   const v = $('#view');
@@ -2287,7 +2730,7 @@ const Cloud = {
   applyingRemote: false, ready: false, saveTimer: null,
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
-  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'coachUids', 'ownerUid', 'intervals'],
+  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'coachUids', 'viewers', 'ownerUid', 'intervals'],
   ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses', 'wellness'],
 
   init() {
@@ -2325,15 +2768,17 @@ const Cloud = {
     try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', role, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
     this.pendingSignup = null;
 
-    // active mode: coaches can switch between coaching / their own training; athletes stay athletes
+    // active mode: coaches can switch between coaching / their own training; athletes stay athletes;
+    // staff & coordinator keep their own role (read-only team access, no athlete doc of their own).
     let mode = role;
     if (role === 'coach' && (state.viewMode === 'coach' || state.viewMode === 'athlete')) mode = state.viewMode;
-    if (role !== 'coach') mode = 'athlete';
+    else if (role === 'athlete') mode = 'athlete';
     this.role = mode; state.role = mode; state.viewMode = mode;
 
     render(); // show shell immediately
 
     if (mode === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
+    else if (mode === 'staff' || mode === 'coordinator') { this.subscribeCoach(); }
     else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
 
     checkReminders();
@@ -2422,7 +2867,22 @@ const Cloud = {
       if (s.metadata.hasPendingWrites || !s.exists) return;
       this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
     }, () => {});
-    this.unsub = [u1, u2];
+    this.unsub = [u1, u2, ...this.subExtras()];
+  },
+
+  // ---- shared team collections: todos + workout comments (everyone reads) ----
+  subExtras() {
+    const uT = this.db.collection('todos').onSnapshot(qs => {
+      if (qs.metadata.hasPendingWrites) return;
+      state.todos = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.reRender();
+    }, () => {});
+    const uC = this.db.collection('comments').onSnapshot(qs => {
+      if (qs.metadata.hasPendingWrites) return;
+      state.comments = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.reRender();
+    }, () => {});
+    return [uT, uC];
   },
 
   // ---- coach (all athletes) ----
@@ -2440,13 +2900,15 @@ const Cloud = {
       if (s.metadata.hasPendingWrites || !s.exists) return;
       this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
     }, () => {});
-    this.unsub = [u1, u2];
+    this.unsub = [u1, u2, ...this.subExtras()];
   },
 
   // ---- writes ----
   push() {
     if (!this.enabled || !this.user || this.applyingRemote || !this.ready) return;
-    if (state.currentAthleteId) this.pendingAthletes.add(state.currentAthleteId);
+    // Only coach & athlete modes own athlete-doc writes; staff/coordinator are read-only on athletes.
+    const canWriteAthlete = this.role === 'coach' || this.role === 'athlete';
+    if (canWriteAthlete && state.currentAthleteId) this.pendingAthletes.add(state.currentAthleteId);
     if (this.role === 'coach') this.sharedDirty = true;
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => this.flush(), 700);
@@ -2476,6 +2938,8 @@ const Cloud = {
             if ((!m.actual || !m.actual.length) && r.actual && r.actual.length) m.actual = r.actual;
             if (!m.intervalsActivityId && r.intervalsActivityId) m.intervalsActivityId = r.intervalsActivityId;
             if (!m.intervalsEventId && r.intervalsEventId) m.intervalsEventId = r.intervalsEventId;
+            if (!m.streams && r.streams) m.streams = r.streams;   // server-fetched activity graphs
+            if (!m.streamsChecked && r.streamsChecked) m.streamsChecked = r.streamsChecked;
             if (r.status === 'done' && m.status !== 'done') m.status = 'done';
             return m;
           });
@@ -2528,6 +2992,66 @@ const Cloud = {
       batch.set(this.db.collection('shared').doc('coach'), { coaches: t.coaches || [], library: t.library || [], questionnaires: t.questionnaires || [], reminders: t.reminders || [], scienceCustom: t.scienceCustom || [], _updatedAt: Date.now() });
       await batch.commit();
     } catch (e) { console.warn('migration failed', e); }
+  },
+
+  // ---- todos (shared collection) ----
+  saveTodo(t) {
+    if (!this.enabled || !this.user) return;
+    const { id, ...rest } = t;
+    this.db.collection('todos').doc(id).set(rest, { merge: true }).catch(e => toast('Task sync error: ' + (e.code || e.message)));
+    // let the assignee know a new/updated task landed on their plate
+    if (t.assigneeUid && t.assigneeUid !== this.myUid && t.createdByUid === this.myUid) {
+      this.sendPush(t.assigneeUid, '📋 New task: ' + (t.title || 'Task'), (t.due ? 'Deadline ' + t.due + ' · ' : '') + 'from ' + (t.createdByName || myName()));
+    }
+  },
+  deleteTodo(id) { if (this.enabled && this.user) this.db.collection('todos').doc(id).delete().catch(() => {}); },
+
+  // ---- workout comments (shared collection) ----
+  saveComment(c) {
+    if (!this.enabled || !this.user) return;
+    const { id, ...rest } = c;
+    this.db.collection('comments').doc(id).set(rest, { merge: true }).catch(e => toast('Comment sync error: ' + (e.code || e.message)));
+  },
+  deleteComment(id) { if (this.enabled && this.user) this.db.collection('comments').doc(id).delete().catch(() => {}); },
+
+  // ---- read another athlete's doc (team roles, or an approved viewer) ----
+  async fetchAthleteDoc(aid) {
+    if (!this.enabled || !this.user) return null;
+    try { const s = await this.db.collection('athletes').doc(aid).get(); return s.exists ? s.data() : null; }
+    catch (e) { return null; }
+  },
+
+  // ---- athlete ↔ athlete access requests ----
+  async requestAccess(toUid) {
+    if (!this.enabled || !this.user) return;
+    const id = this.myUid + '_' + toUid;
+    try { await this.db.collection('shareRequests').doc(id).set({ fromUid: this.myUid, fromName: myName(), toUid, ts: Date.now(), status: 'pending' }); this.sendPush(toUid, '👀 Access request', myName() + ' wants to follow your training.'); }
+    catch (e) { toast('Request failed: ' + (e.code || e.message)); }
+  },
+  async myShareRequests() {
+    if (!this.enabled || !this.user) return [];
+    try { const qs = await this.db.collection('shareRequests').where('toUid', '==', this.myUid).where('status', '==', 'pending').get(); return qs.docs.map(d => ({ id: d.id, ...d.data() })); }
+    catch (e) { return []; }
+  },
+  async approveAccess(fromUid, reqId) {
+    const a = state.athletes.find(x => x.id === this.myUid);
+    if (a) { a.viewers = a.viewers || []; if (!a.viewers.includes(fromUid)) a.viewers.push(fromUid); save(); }
+    try { await this.db.collection('shareRequests').doc(reqId).set({ status: 'approved' }, { merge: true }); } catch (e) {}
+    this.sendPush(fromUid, '✅ Access granted', myName() + ' shared their training with you.');
+  },
+  async denyAccess(reqId) { try { await this.db.collection('shareRequests').doc(reqId).set({ status: 'denied' }, { merge: true }); } catch (e) {} },
+
+  // ---- staff / coordinator profile (stored on the users doc) ----
+  async saveMyProfile(p) {
+    if (!this.enabled || !this.user) return;
+    try { await this.db.collection('users').doc(this.myUid).set({ name: p.name, title: p.title || '', bio: p.bio || '', role: this.accountRole || state.role, email: this.user.email, lastSeen: Date.now() }, { merge: true }); if (this.user.displayName !== p.name) this.user.updateProfile({ displayName: p.name }).catch(() => {}); }
+    catch (e) { toast('Profile error: ' + (e.code || e.message)); }
+  },
+
+  // ---- notifications (any direction) via the push queue ----
+  sendPush(target, title, body) {
+    if (!this.enabled || !this.user) return;
+    this.db.collection('pushQueue').add({ title, body, target: target || 'all', createdAt: Date.now(), sent: false, byUid: this.myUid, byName: myName(), byRole: state.role }).catch(() => {});
   },
 
   logout() { this.teardown(); if (this.auth) this.auth.signOut(); }
@@ -2588,9 +3112,11 @@ function showAuthScreen(msg) {
         <div id="signup-fields" style="display:none">
           <label>Your name</label><input id="au-name" placeholder="e.g. Marcin"/>
           <label>I am a…</label>
-          <div class="role-pick">
-            <button type="button" class="rolebtn active" data-arole="coach"><span class="ic">🧑‍🏫</span><b>Coach</b><small>Programs & follows athletes</small></button>
-            <button type="button" class="rolebtn" data-arole="athlete"><span class="ic">🏃</span><b>Athlete</b><small>Follows my own plan</small></button>
+          <div class="role-pick" style="flex-wrap:wrap">
+            <button type="button" class="rolebtn active" data-arole="coach" style="flex:1 1 45%"><span class="ic">🧑‍🏫</span><b>Coach</b><small>Programs & follows athletes</small></button>
+            <button type="button" class="rolebtn" data-arole="athlete" style="flex:1 1 45%"><span class="ic">🏃</span><b>Athlete</b><small>Follows my own plan</small></button>
+            <button type="button" class="rolebtn" data-arole="staff" style="flex:1 1 45%"><span class="ic">🤝</span><b>Staff</b><small>Supports the team</small></button>
+            <button type="button" class="rolebtn" data-arole="coordinator" style="flex:1 1 45%"><span class="ic">📋</span><b>Coordinator</b><small>Plans tasks & deadlines</small></button>
           </div>
         </div>
         <label>Email</label><input id="au-email" type="email" autocomplete="email" placeholder="you@example.com"/>

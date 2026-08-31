@@ -2,22 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // A signed-in user is a coach if their users/{uid} doc says so.
-    function isCoach() {
+    // ---- role helpers (role stored on users/{uid}) ----
+    function hasUser() {
       return request.auth != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
+    function role() {
+      return hasUser() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : '';
+    }
+    function isCoach() { return role() == 'coach'; }
+    // "team" = anyone supporting athletes: coach, staff (medewerker) or coordinator.
+    function isTeam() { return role() == 'coach' || role() == 'staff' || role() == 'coordinator'; }
 
-    // Everyone signed in can read the roster of names; you can only write your own profile.
+    // Everyone signed in can read the roster of names/profiles; you write only your own.
     match /users/{uid} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Per-athlete data: a coach can read/write ALL athletes; an athlete only their own doc.
+    // Per-athlete data: team roles read ALL; an athlete reads/writes their own doc;
+    // another athlete may READ it only if the owner listed them in `viewers` (opt-in sharing).
     match /athletes/{aid} {
-      allow read, write: if isCoach() || (request.auth != null && request.auth.uid == aid);
+      allow read: if isTeam()
+        || (request.auth != null && request.auth.uid == aid)
+        || (request.auth != null && request.auth.uid in resource.data.get('viewers', []));
+      allow write: if isCoach() || (request.auth != null && request.auth.uid == aid);
     }
 
     // Coach-managed shared content (coaches list, workout templates, questionnaires, reminders).
@@ -26,15 +35,32 @@ service cloud.firestore {
       allow write: if isCoach();
     }
 
-    // Push tokens: each user writes their own; coaches may read (sending uses the admin server key).
+    // Coordinator to-do tasks — small trusted team: any signed-in member can read/write.
+    match /todos/{id} {
+      allow read, write: if request.auth != null;
+    }
+    // Comments on workouts — any signed-in member can read/add/update.
+    match /comments/{id} {
+      allow read, write: if request.auth != null;
+    }
+    // Athlete ↔ athlete access requests.
+    match /shareRequests/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Push tokens: each user writes their own; team roles may read (sending uses the admin key).
     match /pushTokens/{uid} {
-      allow read: if isCoach() || (request.auth != null && request.auth.uid == uid);
+      allow read: if isTeam() || (request.auth != null && request.auth.uid == uid);
       allow write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // One-off "send now" queue: coaches add items; the push server (admin) processes them.
+    // "Send now" queue — any signed-in member can enqueue (staff↔athlete both directions).
     match /pushQueue/{id} {
-      allow read, write: if isCoach();
+      allow read, write: if request.auth != null;
+    }
+    // Send-log written by the admin push server; readable by signed-in members.
+    match /pushLog/{id} {
+      allow read, write: if request.auth != null;
     }
 
     // Legacy phase-1 doc (used once for migration, then ignored).

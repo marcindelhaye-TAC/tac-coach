@@ -17,6 +17,60 @@ function zoneTimesFor(act, zt) {
   arr.forEach((z, i) => { const secs = typeof z === 'number' ? z : (z && (z.secs || z.time)) || 0; if (secs > 0) out.push({ zt, z: i, min: Math.round(secs / 60) }); });
   return out;
 }
+// downsample a raw stream array to K points (averaging buckets, keeping null gaps)
+function downsample(data, K = 100) {
+  if (!Array.isArray(data) || !data.length) return null;
+  const clean = v => (v == null || isNaN(v)) ? null : Math.round(v * 10) / 10;
+  if (data.length <= K) return data.map(clean);
+  const out = [], bucket = data.length / K;
+  for (let i = 0; i < K; i++) {
+    const start = Math.floor(i * bucket), end = Math.floor((i + 1) * bucket);
+    let sum = 0, c = 0;
+    for (let j = start; j < end; j++) { const v = data[j]; if (v != null && !isNaN(v)) { sum += v; c++; } }
+    out.push(c ? Math.round((sum / c) * 10) / 10 : null);
+  }
+  return out;
+}
+// fetch Power/HR/speed/altitude streams for one activity → compact {watts,hr,speed,alt}
+async function fetchStreams(key, actId) {
+  let arr;
+  try { arr = await ivFetch(key, `/activity/${actId}/streams?types=watts,heartrate,velocity_smooth,altitude`); }
+  catch (e) { return null; }
+  if (!Array.isArray(arr)) return null;
+  const byType = {}; arr.forEach(s => { if (s && s.type) byType[s.type] = s.data; });
+  const out = {};
+  const w = downsample(byType.watts); if (w) out.watts = w;
+  const h = downsample(byType.heartrate); if (h) out.hr = h;
+  const sp = downsample(byType.velocity_smooth); if (sp) out.speed = sp;   // m/s
+  const al = downsample(byType.altitude); if (al) out.alt = al;
+  return Object.keys(out).length ? out : null;
+}
+// attach graphs to recently-completed sessions that don't have them yet (bounded per run)
+async function attachStreams(aid, key) {
+  const ref = db.collection('athletes').doc(aid);
+  let doc; try { doc = await ref.get(); } catch (e) { return 0; }
+  if (!doc.exists) return 0;
+  const sessions = doc.data().sessions || [];
+  const cut = new Date(); cut.setDate(cut.getDate() - BACK_DAYS); const cutoff = ymd(cut);
+  const targets = sessions
+    .filter(s => s.status === 'done' && s.intervalsActivityId && String(s.intervalsActivityId).startsWith('iv-') && !s.streams && !s.streamsChecked && (s.date || '') >= cutoff)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 12);   // cap API calls per run
+  if (!targets.length) return 0;
+  let got = 0;
+  const patch = {};
+  for (const s of targets) {
+    const actId = String(s.intervalsActivityId).slice(3);
+    const st = await fetchStreams(key, actId);
+    if (st) { patch[s.id] = { streams: st }; got++; } else { patch[s.id] = { streamsChecked: true }; }
+  }
+  await db.runTransaction(async (tx) => {
+    const d = await tx.get(ref); if (!d.exists) return;
+    const cur = d.data().sessions || [];
+    const merged = cur.map(cs => { const p = patch[cs.id]; if (!p) return cs; return { ...cs, ...p }; });
+    tx.update(ref, { sessions: merged });
+  });
+  return got;
+}
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) { console.error('Missing FIREBASE_SERVICE_ACCOUNT'); process.exit(1); }
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
@@ -81,6 +135,11 @@ async function syncAthlete(aid, data) {
   try { pull = await pullFromIntervals(aid, key, id); }
   catch (e) { console.error('pull failed', aid, e.message); }
 
+  // 3a. attach Power/HR/speed/altitude graphs to recent completed sessions
+  let streams = 0;
+  try { streams = await attachStreams(aid, key); }
+  catch (e) { console.error('streams failed', aid, e.message); }
+
   // 3b. push TAC feedback (RPE) onto the matched Intervals activities
   let rpe = 0;
   for (const s of (data.sessions || [])) {
@@ -93,7 +152,7 @@ async function syncAthlete(aid, data) {
 
   // 4. stamp last sync (nested field update, won't clobber the rest)
   try { await db.collection('athletes').doc(aid).update({ 'intervals.lastSync': new Date().toISOString().replace('T', ' ').slice(0, 16) }); } catch (e) {}
-  return { athlete: data.name || aid, removed, created, matched: pull.matched, imported: pull.imported, plannedIn: pull.plannedIn, wellness: pull.wellness, rpe };
+  return { athlete: data.name || aid, removed, created, matched: pull.matched, imported: pull.imported, plannedIn: pull.plannedIn, wellness: pull.wellness, rpe, streams };
 }
 
 // Intervals → TAC: completed activities, Intervals-native planned workouts, and daily wellness.
