@@ -3081,44 +3081,94 @@ function renderCommentsBlock(hostId, s) {
   draw();
 }
 
-/* ------------------------------ Post-workout graphs --------------------- */
-/* Renders Power / Speed / Altitude / HR streams (from Intervals.icu) + the day's HRV/RHR. */
+/* ------------------------------ Post-workout analysis ------------------- */
+function _avg(a) { const v = a.filter(x => x != null && !isNaN(x)); return v.length ? v.reduce((n, x) => n + x, 0) / v.length : 0; }
+function _max(a) { const v = a.filter(x => x != null && !isNaN(x)); return v.length ? Math.max(...v) : 0; }
+// Resample the planned steps into an N-point "ideal target" series for a given metric.
+function targetSeries(steps, N, pick) {
+  const total = stepsDuration(steps); if (!total || !N) return null;
+  let acc = 0; const segs = steps.map(st => { const start = acc / total; acc += Number(st.min) || 0; return { start, end: acc / total, st }; });
+  const out = new Array(N).fill(null);
+  for (let i = 0; i < N; i++) { const f = i / (N - 1 || 1); const seg = segs.find(g => f >= g.start && f <= g.end) || segs[segs.length - 1]; out[i] = seg ? pick(seg.st) : null; }
+  return out.some(v => v != null) ? out : null;
+}
+/* Intervals-style analysis: actual Power/HR/Speed/Altitude curves with the IDEAL target line
+   overlaid (dashed), and a synced hover crosshair that reads out the values (top-left). */
 function renderPostWorkout(s, wellness) {
   const host = document.getElementById('postwork-block'); if (!host) return;
-  const st = s.streams || null;
+  const st = s.streams || {};
+  const a = state.athletes.find(x => x.id === s.athleteId) || currentAthlete() || {};
   const w = (wellness || (state.wellness || [])).find(x => x.date === s.date && (x.athleteId === s.athleteId || !x.athleteId));
-  const charts = [];
-  if (st) {
-    if (st.watts && st.watts.some(v => v != null)) charts.push(lineChartSVG(st.watts, '#3b30e6', 'Power', 'W', v => Math.round(v)));
-    if (st.hr && st.hr.some(v => v != null)) charts.push(lineChartSVG(st.hr, '#e50914', 'Heart rate', 'bpm', v => Math.round(v)));
-    if (st.speed && st.speed.some(v => v != null)) charts.push(lineChartSVG(st.speed.map(v => v == null ? null : v * 3.6), '#4cc9f0', 'Speed', 'km/h', v => v.toFixed(1)));
-    if (st.alt && st.alt.some(v => v != null)) charts.push(lineChartSVG(st.alt, '#90be6d', 'Altitude', 'm', v => Math.round(v)));
-  }
+
+  const power = (st.watts || []).slice();
+  const hr = (st.hr || []).slice();
+  const speed = (st.speed || []).map(v => v == null ? null : v * 3.6);
+  const alt = (st.alt || []).slice();
+  const N = Math.max(power.length, hr.length, speed.length, alt.length, 0);
+
   const hrvLine = (w && (w.hrv != null || w.restingHR != null))
-    ? `<div class="legend" style="margin-top:6px">${w.hrv != null ? `<span><i style="background:var(--accent)"></i>HRV ${w.hrv} ms</span>` : ''}${w.restingHR != null ? `<span><i style="background:var(--accent-2)"></i>Resting HR ${w.restingHR} bpm</span>` : ''} <span class="sub">(that day, from Intervals.icu)</span></div>` : '';
-  if (!charts.length && !hrvLine) {
-    host.innerHTML = s.status === 'done'
-      ? `<div class="hint" style="margin-top:10px">📉 Power / speed / altitude / HR graphs appear here once Intervals.icu has synced this activity’s data.</div>`
-      : '';
+    ? `<div class="legend" style="margin-top:8px">${w.hrv != null ? `<span><i style="background:var(--accent)"></i>HRV ${w.hrv} ms</span>` : ''}${w.restingHR != null ? `<span><i style="background:var(--accent-2)"></i>Resting HR ${w.restingHR} bpm</span>` : ''} <span class="sub">(that day, from Intervals.icu)</span></div>` : '';
+
+  if (!N) {
+    host.innerHTML = (s.status === 'done' ? `<div class="hint" style="margin-top:10px">📉 Power / HR / speed / altitude graphs appear here once Intervals.icu has synced this activity.</div>` : '') + hrvLine;
     return;
   }
-  host.innerHTML = `<label style="margin-top:12px">Session data</label>${charts.join('')}${hrvLine}`;
-}
-// A single labelled line chart over a downsampled series (nulls allowed = gaps).
-function lineChartSVG(series, color, label, unit, fmt) {
-  const vals = series.filter(v => v != null && !isNaN(v));
-  if (!vals.length) return '';
-  const min = Math.min(...vals), max = Math.max(...vals), avg = vals.reduce((n, v) => n + v, 0) / vals.length;
-  const W = 700, H = 90, pad = 6;
-  const n = series.length;
-  const x = i => pad + (i / (n - 1 || 1)) * (W - pad * 2);
-  const y = v => H - pad - ((v - min) / ((max - min) || 1)) * (H - pad * 2);
-  let d = '', pen = false;
-  series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
-  return `<div style="margin-top:8px">
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><b style="color:var(--text)">${label}</b><span>avg ${fmt(avg)} · max ${fmt(max)} ${unit}</span></div>
-    <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="height:${H}px;display:block;background:var(--bg-2);border-radius:8px;min-width:260px"><path d="${d.trim()}" fill="none" stroke="${color}" stroke-width="1.6"/></svg></div>
-  </div>`;
+
+  // ideal target lines from the planned steps
+  const pickPower = st2 => { if (st2.zt !== 'power' || !a.ftp) return null; const z = (a.powerZones || [])[st2.z]; if (!z) return null; return Math.round(a.ftp * ((+z.min + +z.max) / 2) / 100); };
+  const pickHr = st2 => { const z = (a.hrZones || [])[st2.z]; if (!z || !a.thresholdHr) return null; return Math.round(a.thresholdHr * ((+z.min + +z.max) / 2) / 100); };
+  const tgtPower = targetSeries(s.steps || [], N, pickPower);
+  const tgtHr = targetSeries(s.steps || [], N, pickHr);
+
+  const panels = [];
+  if (power.some(v => v != null)) panels.push({ key: 'power', label: 'Power', unit: 'W', color: '#6f66ff', series: power, target: tgtPower, fmt: v => Math.round(v) });
+  if (hr.some(v => v != null)) panels.push({ key: 'hr', label: 'Heart rate', unit: 'bpm', color: '#e50914', series: hr, target: tgtHr, fmt: v => Math.round(v) });
+  if (speed.some(v => v != null)) panels.push({ key: 'speed', label: 'Speed', unit: 'km/h', color: '#4cc9f0', series: speed, target: null, fmt: v => v.toFixed(1) });
+  if (alt.some(v => v != null)) panels.push({ key: 'alt', label: 'Altitude', unit: 'm', color: '#90be6d', series: alt, target: null, fmt: v => Math.round(v) });
+
+  const W = 1000, H = 92, pad = 4;
+  const dur = Number(s.duration) || 0;
+  const timeAt = idx => { const sec = dur * 60 * (idx / (N - 1 || 1)); const m = Math.floor(sec / 60), ss = Math.round(sec % 60); return `${m}:${String(ss).padStart(2, '0')}`; };
+  const pathFor = (series, color, dashed) => {
+    const vals = series.filter(v => v != null && !isNaN(v)); if (vals.length < 2) return '';
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const x = i => pad + (i / (N - 1 || 1)) * (W - 2 * pad), y = v => (H - pad) - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * pad);
+    let d = '', pen = false;
+    series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
+    return `<path d="${d.trim()}" fill="none" stroke="${color}" stroke-width="${dashed ? 1.4 : 1.7}"${dashed ? ' stroke-dasharray="6,5" opacity="0.85"' : ''}/>`;
+  };
+
+  host.innerHTML = `
+    <label style="margin-top:12px">Session analysis <span class="sub">— dashed = ideal target · hover to read values</span></label>
+    <div id="an-wrap" style="position:relative">
+      <div id="an-readout" style="position:absolute;top:6px;left:6px;z-index:5;pointer-events:none;background:rgba(16,20,32,.86);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text);white-space:nowrap;max-width:96%;overflow:hidden;text-overflow:ellipsis">Hover the graph to read values…</div>
+      ${panels.map((p, pi) => `
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><b style="color:${p.color}">${p.label}</b><span>avg ${p.fmt(_avg(p.series))} · max ${p.fmt(_max(p.series))} ${p.unit}${p.target ? ' · <span style="color:'+p.color+'">- - ideal</span>' : ''}</span></div>
+          <div class="chart-wrap"><svg class="an-svg" data-pi="${pi}" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;background:var(--bg-2);border-radius:6px;min-width:260px">
+            ${p.target ? pathFor(p.target, p.color, true) : ''}
+            ${pathFor(p.series, p.color, false)}
+            <line class="an-cross" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--text)" stroke-width="1" opacity="0"/>
+          </svg></div>
+        </div>`).join('')}
+    </div>
+    ${hrvLine}`;
+
+  const readout = host.querySelector('#an-readout');
+  const svgs = Array.from(host.querySelectorAll('.an-svg'));
+  const move = (clientX, rect) => {
+    const f = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const idx = Math.round(f * (N - 1));
+    const vx = pad + f * (W - 2 * pad);
+    svgs.forEach(svg => { const c = svg.querySelector('.an-cross'); c.setAttribute('x1', vx); c.setAttribute('x2', vx); c.setAttribute('opacity', '0.65'); });
+    readout.innerHTML = `⏱ ${timeAt(idx)}` + panels.map(p => { const v = p.series[idx]; if (v == null || isNaN(v)) return ''; const tg = p.target && p.target[idx] != null ? ` <span class="sub">(ideal ${p.fmt(p.target[idx])})</span>` : ''; return ` · <b style="color:${p.color}">${p.fmt(v)} ${p.unit}</b>${tg}`; }).join('');
+  };
+  const clear = () => { svgs.forEach(svg => svg.querySelector('.an-cross').setAttribute('opacity', '0')); readout.innerHTML = 'Hover the graph to read values…'; };
+  svgs.forEach(svg => {
+    svg.addEventListener('mousemove', e => move(e.clientX, svg.getBoundingClientRect()));
+    svg.addEventListener('mouseleave', clear);
+    svg.addEventListener('touchmove', e => { if (e.touches[0]) move(e.touches[0].clientX, svg.getBoundingClientRect()); }, { passive: true });
+  });
 }
 
 /* ------------------------------ Settings -------------------------------- */
