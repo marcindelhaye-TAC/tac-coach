@@ -15,9 +15,11 @@ service cloud.firestore {
     function isTeam() { return role() == 'coach' || role() == 'staff' || role() == 'coordinator'; }
 
     // Everyone signed in can read the roster of names/profiles; you write only your own.
+    // A coach may delete a profile (removing an old/test member from the team hub).
     match /users/{uid} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if isCoach();
     }
 
     // Per-athlete data: team roles read ALL; an athlete reads/writes their own doc;

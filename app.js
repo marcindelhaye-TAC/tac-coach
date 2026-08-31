@@ -2279,20 +2279,30 @@ async function drawTeam() {
 
   $$('[data-view-ath]').forEach(b => b.addEventListener('click', () => openAthletePanel(b.dataset.viewAth)));
   $$('[data-req-ath]').forEach(b => b.addEventListener('click', async () => { await Cloud.requestAccess(b.dataset.reqAth); toast('Request sent'); }));
+  $$('[data-del-person]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Remove ' + (b.dataset.delName || 'this person') + ' from the team? This deletes their profile and training data. This cannot be undone.')) return;
+    await Cloud.deletePerson(b.dataset.delPerson);
+    toast('Removed'); drawTeam();
+  }));
   $$('[data-approve]').forEach(b => b.addEventListener('click', async () => { await Cloud.approveAccess(b.dataset.fromuid, b.dataset.approve); toast('Approved'); drawTeam(); }));
   $$('[data-deny]').forEach(b => b.addEventListener('click', async () => { await Cloud.denyAccess(b.dataset.deny); toast('Denied'); drawTeam(); }));
 }
 function personCard(p, isAthlete, canView) {
   const r = ROLES[p.role] || ROLES.athlete;
+  const canRemove = state.role === 'coach' && p.uid && p.uid !== myUid();   // coaches manage the roster
+  const btns = [];
+  if (isAthlete) {
+    if (canView) btns.push(`<button class="btn sm primary" data-view-ath="${p.uid}">View training</button>`);
+    else if (p.uid !== myUid()) btns.push(`<button class="btn sm" data-req-ath="${p.uid}">Request access</button>`);
+  }
+  if (canRemove) btns.push(`<button class="btn sm danger" data-del-person="${p.uid}" data-del-name="${esc(p.name)}">Remove</button>`);
   return `<div class="card">
     <div style="display:flex;align-items:center;gap:10px">
       <div style="width:42px;height:42px;border-radius:50%;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-size:20px">${r.icon}</div>
       <div style="min-width:0"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div><div class="sub">${roleLabel(p.role)}${p.title ? ' · ' + esc(p.title) : ''}</div></div>
     </div>
     ${p.bio ? `<p class="sub" style="margin-top:8px">${esc(p.bio)}</p>` : ''}
-    ${isAthlete ? `<div class="btn-row" style="margin-top:10px">
-      ${canView ? `<button class="btn sm primary" data-view-ath="${p.uid}">View training</button>` : (p.uid === myUid() ? '' : `<button class="btn sm" data-req-ath="${p.uid}">Request access</button>`)}
-    </div>` : ''}
+    ${btns.length ? `<div class="btn-row" style="margin-top:10px">${btns.join('')}</div>` : ''}
   </div>`;
 }
 function renderStaffProfile() {
@@ -3052,6 +3062,16 @@ const Cloud = {
   sendPush(target, title, body) {
     if (!this.enabled || !this.user) return;
     this.db.collection('pushQueue').add({ title, body, target: target || 'all', createdAt: Date.now(), sent: false, byUid: this.myUid, byName: myName(), byRole: state.role }).catch(() => {});
+  },
+
+  // ---- coach removes a person from the team (deletes their athlete + user docs) ----
+  async deletePerson(uid) {
+    if (!this.enabled || !this.user || !uid) return;
+    try { await this.db.collection('athletes').doc(uid).delete(); } catch (e) {}
+    try { await this.db.collection('users').doc(uid).delete(); } catch (e) { toast('Profile needs updated rules to delete: ' + (e.code || e.message)); }
+    state.athletes = (state.athletes || []).filter(a => a.id !== uid);
+    if (typeof USER_CACHE !== 'undefined') USER_CACHE = USER_CACHE.filter(u => u.uid !== uid);
+    if (state.currentAthleteId === uid) state.currentAthleteId = (state.athletes[0] || {}).id;
   },
 
   logout() { this.teardown(); if (this.auth) this.auth.signOut(); }
