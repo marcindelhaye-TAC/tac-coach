@@ -864,7 +864,7 @@ function viewDashboard() {
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
         <h3>Next 2 trainings</h3>
-        <div class="list">${upcoming.length ? upcoming.map(s => sessionRow(s)).join('') : '<div class="empty">Nothing planned.</div>'}</div>
+        <div class="list">${upcoming.length ? upcoming.map(s => dashSessionRow(s)).join('') : '<div class="empty">Nothing planned.</div>'}</div>
         <div class="btn-row" style="margin-top:8px"><button class="btn sm" data-goto="calendar">Open calendar</button></div>
       </div>
       <div class="card">
@@ -971,6 +971,20 @@ function sessionRow(s) {
   </div>`;
 }
 
+// Intervals-style dashboard row: header + the workout graph underneath, whole row opens the session.
+function dashSessionRow(s) {
+  const sp = SPORTS[s.sport] || SPORTS.other;
+  const g = workoutMiniSVG(s, 48);
+  return `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer" data-open-session="${s.id}">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="dot" style="background:${sp.color}"></span>
+      <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${focusBadge(s)}</div>
+        <div class="meta">${fmtDate(s.date)} · ${sp.label} · ${s.duration || 0} min · ${s.load || 0} TSS${s.rpe != null ? ' · RPE ' + s.rpe : ''}</div></div>
+      ${s.status === 'done' ? '<span class="badge"><span class="dot" style="background:var(--ok)"></span>Done</span>' : ''}
+    </div>
+    ${g ? `<div>${g}</div>` : ''}
+  </div>`;
+}
 function loadHistory(aid, weeks) {
   const arr = [];
   for (let i = weeks - 1; i >= 0; i--) {
@@ -1077,6 +1091,43 @@ function workoutProfileSVG(steps) {
   });
   return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="height:110px;display:block;background:var(--bg-2);border-radius:8px;min-width:260px">${bars}</svg></div>`;
 }
+// Compact Intervals-style graph for a session, for calendar chips & dashboard rows.
+// Completed sessions show the ACTUAL power/HR curve (from Intervals streams); planned sessions
+// show the stepped zone profile. Returns '' when there's nothing structured to draw.
+function workoutMiniSVG(s, h) {
+  h = h || 28;
+  const W = 300;
+  // 1) completed with real data → actual power (or HR) line
+  if (s && s.status === 'done' && s.streams) {
+    const st = s.streams;
+    const usePower = st.watts && st.watts.some(v => v != null);
+    const series = usePower ? st.watts : (st.hr && st.hr.some(v => v != null) ? st.hr : null);
+    if (series) {
+      const vals = series.filter(v => v != null && !isNaN(v));
+      if (vals.length > 1) {
+        const mn = Math.min(...vals), mx = Math.max(...vals), n = series.length;
+        const x = i => (i / (n - 1 || 1)) * W, y = v => h - ((v - mn) / ((mx - mn) || 1)) * (h - 2) - 1;
+        let d = '', pen = false;
+        series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
+        return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;background:var(--bg-2)"><path d="${d.trim()}" fill="none" stroke="${usePower ? '#3b30e6' : '#e50914'}" stroke-width="1.4"/></svg>`;
+      }
+    }
+  }
+  // 2) planned (or done without streams) → stepped zone profile
+  const steps = (s && s.steps) || [];
+  const total = stepsDuration(steps);
+  if (total) {
+    let x = 0, bars = '';
+    steps.forEach(st => {
+      const w = (Number(st.min) || 0) / total * W;
+      const bh = Math.max(3, ((st.z + 1) / 7) * h);
+      bars += `<rect x="${x.toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${Math.max(0, w).toFixed(1)}" height="${bh.toFixed(1)}" fill="${zoneColor(st.z)}"/>`;
+      x += w;
+    });
+    return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;background:var(--bg-2)">${bars}</svg>`;
+  }
+  return '';
+}
 // Time-in-zone breakdown rows (like the Intervals side panel).
 function zoneDistHTML(steps) {
   const byZone = {}; let total = 0;
@@ -1159,8 +1210,10 @@ function sessionChip(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
   const f = sessionFocus(s);
   const cc = sessionComments(s.id).length;
+  const g = workoutMiniSVG(s, 24);
   return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
     <div class="t">${sp.icon} ${esc(s.name)} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
+    ${g ? `<div style="margin:3px 0 1px">${g}</div>` : ''}
     <div class="m">${s.duration || 0}min · ${s.load || 0} TSS${f.label !== '—' ? ` · <span style="color:${f.color}">${f.label}</span>` : ''}</div>
   </div>`;
 }
