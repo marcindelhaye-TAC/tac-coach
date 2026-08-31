@@ -154,7 +154,8 @@ const SCIENCE_REFS = {
   sanmillan: { authors: 'San-Millán I, Brooks GA', year: 2018, title: 'Assessment of metabolic flexibility by blood lactate and substrate oxidation across the exercise intensity spectrum', journal: 'Sports Med 48(2):467–479' },
   costill: { authors: 'Costill DL, et al.', year: 1991, title: 'Adaptations to swimming training: influence of training volume', journal: 'Med Sci Sports Exerc 23(3):371–377' },
   faude: { authors: 'Faude O, Kindermann W, Meyer T', year: 2009, title: 'Lactate threshold concepts: how valid are they?', journal: 'Sports Med 39(6):469–490' },
-  plews: { authors: 'Plews DJ, et al.', year: 2013, title: 'Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring', journal: 'Sports Med 43(9):773–781' }
+  plews: { authors: 'Plews DJ, et al.', year: 2013, title: 'Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring', journal: 'Sports Med 43(9):773–781' },
+  daniels: { authors: 'Daniels J', year: 2013, title: "Daniels' Running Formula (3rd ed.)", journal: 'Human Kinetics' }
 };
 
 // zone index helper: Z1=0 … Z7=6.  cat: 'test' | 'workout'.  goal groups the library.
@@ -246,7 +247,75 @@ const SCIENCE_CATALOG = [
     steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 4 }, { zt: 'hr', z: 1, min: 16 }], refs: ['gibala', 'laursen'] },
   { id: 'sc_swimbase_run', cat: 'workout', sport: 'running', goal: 'base', name: 'Easy aerobic run + strides', duration: 50, load: 45,
     desc: '40–50 min easy Zone 2 running (conversational), finishing with 4–6×15 s relaxed strides. Aerobic base plus light neuromuscular touch without fatigue.',
-    steps: [{ zt: 'hr', z: 1, min: 45 }, { zt: 'hr', z: 3, min: 1 }, { zt: 'hr', z: 1, min: 4 }], refs: ['seiler', 'stoggl'] }
+    steps: [{ zt: 'hr', z: 1, min: 45 }, { zt: 'hr', z: 3, min: 1 }, { zt: 'hr', z: 1, min: 4 }], refs: ['seiler', 'stoggl'] },
+
+  /* ===== Expanded library — ≥15 cycling / 15 running / 5 swimming across the goals ===== */
+  // ---- BASE (bike) ----
+  { id: 'sc_bk_long3h', cat: 'workout', sport: 'biking', goal: 'base', name: 'Long endurance ride 3 h', duration: 180, load: 120,
+    desc: '2.5–3 h continuous in Zone 2, cadence 85–95. The single biggest driver of endurance adaptation — builds mitochondria, capillaries and fat oxidation. Fuel steadily.',
+    steps: [{ zt: 'power', z: 1, min: 180 }], refs: ['seiler', 'sanmillan'] },
+  { id: 'sc_bk_fatmax', cat: 'workout', sport: 'biking', goal: 'base', name: 'Fat-max Zone 2 ride 90 min', duration: 90, load: 60,
+    desc: '90 min steady at the top of Zone 2 (just below the first lactate turnpoint), where fat oxidation peaks. Ideal metabolic-efficiency session; keep it strictly aerobic.',
+    steps: [{ zt: 'power', z: 1, min: 90 }], refs: ['sanmillan'] },
+  { id: 'sc_bk_cadence', cat: 'workout', sport: 'biking', goal: 'base', name: 'Cadence & endurance 75 min', duration: 75, load: 55,
+    desc: 'Zone 2 ride with 6×2 min high-cadence (100–110 rpm) drills and 2 min normal between. Aerobic volume plus pedalling efficiency and neuromuscular smoothness.',
+    steps: [{ zt: 'power', z: 1, min: 75 }], refs: ['seiler', 'coggan'] },
+  // ---- BASE (run) ----
+  { id: 'sc_rn_long', cat: 'workout', sport: 'running', goal: 'base', name: 'Long run 90–120 min', duration: 100, load: 80,
+    desc: '90–120 min continuous easy Zone 2. Develops aerobic capacity, durability and fatigue resistance — the backbone of any distance program. Keep it conversational.',
+    steps: [{ zt: 'hr', z: 1, min: 100 }], refs: ['seiler', 'stoggl'] },
+  { id: 'sc_rn_recovery', cat: 'workout', sport: 'running', goal: 'base', name: 'Recovery run 30–40 min', duration: 35, load: 25,
+    desc: '30–40 min very easy Zone 1 running. Promotes blood flow and recovery between key sessions without adding meaningful fatigue. Effort should feel almost too easy.',
+    steps: [{ zt: 'hr', z: 1, min: 35 }], refs: ['seiler'] },
+  { id: 'sc_rn_prog', cat: 'workout', sport: 'running', goal: 'base', name: 'Progression run 60 min', duration: 60, load: 58,
+    desc: 'Start easy (Zone 2) and finish the last 15 min at steady/tempo (upper Zone 3). Teaches pacing and finishing strong on tired legs while staying largely aerobic.',
+    steps: [{ zt: 'hr', z: 1, min: 40 }, { zt: 'hr', z: 2, min: 15 }, { zt: 'hr', z: 3, min: 5 }], refs: ['daniels', 'seiler'] },
+  // ---- BASE (swim) ----
+  { id: 'sc_sw_technique', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Technique + aerobic 1500 m', duration: 45, load: 38,
+    desc: '300 warm-up; 8×50 m drills (catch-up, single-arm, fingertip-drag) on 15 s rest; 600 m steady aerobic; 200 easy. Improves stroke efficiency while building base.',
+    steps: [], refs: ['costill'] },
+
+  // ---- THRESHOLD (bike) ----
+  { id: 'sc_bk_3x15', cat: 'workout', sport: 'biking', goal: 'threshold', name: 'Threshold 3×15 min', duration: 75, load: 88,
+    desc: 'Warm-up; 3×15 min at 95–100% FTP (Zone 4) with 5 min easy between; cool-down. A larger threshold dose than 2×20 at slightly lower intensity — excellent FTP builder.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 1, min: 8 }], refs: ['coggan', 'seiler'] },
+  // ---- THRESHOLD (run) ----
+  { id: 'sc_rn_cruise', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Cruise intervals 5×5 min', duration: 55, load: 74,
+    desc: 'Warm-up; 5×5 min at threshold pace with 60 s jog between; cool-down. Daniels’ cruise intervals accumulate threshold time with brief breaks — raises lactate-threshold pace.',
+    steps: [{ zt: 'hr', z: 1, min: 12 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 1, min: 9 }], refs: ['daniels', 'billat'] },
+  { id: 'sc_rn_tempo25', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Continuous tempo 25 min', duration: 50, load: 72,
+    desc: 'Warm-up; 25 min continuous at threshold — comfortably hard, ~1-hour race effort; cool-down. Classic sustained tempo that lifts the pace you can hold before lactate accumulates.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 25 }, { zt: 'hr', z: 1, min: 10 }], refs: ['seiler', 'faude'] },
+  { id: 'sc_rn_thr2x12', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Threshold 2×12 min', duration: 55, load: 73,
+    desc: 'Warm-up; 2×12 min at threshold with 3 min jog between; cool-down. A manageable threshold dose for build phases — pace should be even and controlled, not a race.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 12 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 3, min: 12 }, { zt: 'hr', z: 1, min: 13 }], refs: ['daniels', 'seiler'] },
+
+  // ---- VO₂MAX (bike) ----
+  { id: 'sc_bk_5x5', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'VO₂max 5×5 min', duration: 60, load: 88,
+    desc: 'Warm-up; 5×5 min at 106–115% FTP (Zone 5) with 2.5 min easy recovery; cool-down. Long VO₂max intervals maximise time at high oxygen uptake — a potent aerobic-power stimulus.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 1, min: 8 }], refs: ['laursen', 'buchheit'] },
+  { id: 'sc_bk_4020', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'Rønnestad 3×13×40/20 s', duration: 58, load: 85,
+    desc: 'Warm-up; 3 sets of 13×(40 s hard ~106–110% FTP / 20 s easy) with 3 min between sets. Short on/off intervals hold more time near VO₂max at lower RPE — Rønnestad’s protocol.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 13 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 13 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 13 }, { zt: 'power', z: 1, min: 5 }], refs: ['ronnestad', 'buchheit'] },
+  // ---- VO₂MAX (run) ----
+  { id: 'sc_rn_400s', cat: 'workout', sport: 'running', goal: 'vo2max', name: '10×400 m @ 3 km pace', duration: 50, load: 74,
+    desc: 'Warm-up; 10×400 m at ~3 km race pace with 90 s jog recovery; cool-down. Sharp VO₂max/vVO₂max stimulus and running economy work. Keep reps even, not all-out.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 12 }, { zt: 'hr', z: 1, min: 15 }], refs: ['billat'] },
+  { id: 'sc_rn_1000s', cat: 'workout', sport: 'running', goal: 'vo2max', name: '5×1000 m @ 5 km pace', duration: 55, load: 78,
+    desc: 'Warm-up; 5×1000 m at ~5 km race pace with 2 min jog; cool-down. Longer VO₂max reps that build aerobic power and race-specific strength for 5–10 km.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 20 }, { zt: 'hr', z: 1, min: 12 }], refs: ['billat', 'daniels'] },
+  { id: 'sc_rn_yasso', cat: 'workout', sport: 'running', goal: 'vo2max', name: 'Yasso 800s — 6×800 m', duration: 55, load: 76,
+    desc: 'Warm-up; 6×800 m hard (~5 km effort) with equal-time jog recovery; cool-down. A popular VO₂max/tempo staple and marathon predictor — build the number of reps over weeks.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 18 }, { zt: 'hr', z: 1, min: 12 }], refs: ['daniels'] },
+
+  // ---- ANAEROBIC (bike) ----
+  { id: 'sc_bk_torque', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Big-gear torque 6×1 min', duration: 45, load: 58,
+    desc: 'Warm-up; 6×1 min low-cadence (50–60 rpm) big-gear max efforts with 5 min easy between; cool-down. Builds anaerobic strength, torque and neuromuscular power. Protect the knees.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 1, min: 12 }], refs: ['ronnestad', 'gibala'] },
+  // ---- ANAEROBIC (run) ----
+  { id: 'sc_rn_200s', cat: 'workout', sport: 'running', goal: 'anaerobic', name: '8×200 m fast', duration: 40, load: 52,
+    desc: 'Warm-up; 8×200 m fast (mile-to-1500 effort) with full walk/jog recovery; cool-down. Develops anaerobic power, speed and running economy. Prioritise good form over max speed.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 8 }, { zt: 'hr', z: 1, min: 15 }], refs: ['gibala', 'laursen'] }
 ];
 const SCIENCE_GOALS = { test: 'Fitness tests', base: 'Base / endurance', threshold: 'Threshold (1-hour max)', vo2max: 'VO₂max', anaerobic: 'Anaerobic / sprint' };
 function refCite(key) { const r = SCIENCE_REFS[key]; return r ? `${r.authors} (${r.year}). ${r.title}. ${r.journal}.` : key; }
@@ -260,11 +329,14 @@ const MACRO_GOALS = {
   race:      'Race prep / peak',
   general:   'General fitness'
 };
+// Each macro goal draws a broad library — its primary group plus adjacent intensities,
+// since every block still rests on aerobic base + neighbouring stimuli (≥20 workouts each).
 function macroGoalCatalogGoals(goal) {
-  if (goal === 'race') return ['threshold', 'vo2max', 'base'];
-  if (goal === 'general') return ['base', 'threshold', 'vo2max'];
-  if (['base', 'threshold', 'vo2max', 'anaerobic'].includes(goal)) return [goal];
-  return ['base', 'threshold', 'vo2max', 'anaerobic'];
+  if (goal === 'base') return ['base', 'threshold'];
+  if (goal === 'threshold') return ['base', 'threshold', 'vo2max'];
+  if (goal === 'vo2max') return ['base', 'threshold', 'vo2max', 'anaerobic'];
+  if (goal === 'anaerobic') return ['base', 'threshold', 'vo2max', 'anaerobic'];
+  return ['base', 'threshold', 'vo2max', 'anaerobic']; // race / general → everything
 }
 // Best-guess goal for a cycle that predates the goal field (reads zones/focus text).
 function inferMacroGoal(c) {
@@ -359,7 +431,7 @@ function rosterAthletes() {
 // list of real coach accounts (for the athlete's "connect to your coach" picker)
 async function fetchCoachUsers() {
   if (!Cloud.enabled || !Cloud.db) return [];
-  try { const qs = await Cloud.db.collection('users').where('role', '==', 'coach').get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email, email: d.data().email })); }
+  try { const qs = await Cloud.db.collection('users').where('role', 'in', ['coach', 'both']).get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email, email: d.data().email })); }
   catch (e) { return []; }
 }
 // everyone with an account (team hub + to-do assignee picker)
@@ -369,17 +441,21 @@ async function fetchAllUsers() {
   catch (e) { return []; }
 }
 
-// Roles: coach (programs), athlete (trains), staff/medewerker (supports the team),
-// coordinator (plans tasks & deadlines). "Team" roles can see everyone's training.
+// The app owner — kept as coach+athlete automatically, never has to re-pick a role.
+const OWNER_EMAIL = 'marcin.delhaye@telenet.be';
+// Roles: coach (programs), athlete (trains), both (coach & athlete), crew (supports the team).
+// "Team" roles can see everyone's training.
 const ROLES = {
   coach:       { label: 'Coach',       icon: '🧑‍🏫', sub: 'Programs & follows athletes' },
   athlete:     { label: 'Athlete',     icon: '🏃',   sub: 'Follows my own plan' },
-  staff:       { label: 'Staff',       icon: '🤝',   sub: 'Supports the team (medewerker)' },
-  coordinator: { label: 'Coordinator', icon: '📋',   sub: 'Plans tasks & deadlines' }
+  both:        { label: 'Coach & athlete', icon: '🧑‍🏫', sub: 'Coaches and trains' },
+  crew:        { label: 'Crew',        icon: '🤝',   sub: 'Supports the team (medewerker)' },
+  staff:       { label: 'Crew',        icon: '🤝',   sub: 'Supports the team (medewerker)' },
+  coordinator: { label: 'Crew',        icon: '🤝',   sub: 'Plans tasks & deadlines' }
 };
 function roleLabel(r) { return (ROLES[r] || {}).label || r; }
-function isTeamRole(r) { return r === 'coach' || r === 'staff' || r === 'coordinator'; }
-function canCoordinate(r) { return r === 'coach' || r === 'coordinator'; }
+function isTeamRole(r) { return r === 'coach' || r === 'staff' || r === 'coordinator' || r === 'crew'; }
+function canCoordinate(r) { return r === 'coach' || r === 'coordinator' || r === 'crew'; }
 const TODO_STATUS = {
   todo:   { label: 'To do',        color: '#8d99ae', icon: '⬜' },
   doing:  { label: 'In progress',  color: '#4cc9f0', icon: '🔵' },
@@ -489,8 +565,8 @@ function closeModal() { $('#modal-root').innerHTML = ''; }
 const NAV = [
   { id: 'dashboard',      label: 'Dashboard',      icon: '📊', roles: ['coach', 'athlete'] },
   { id: 'calendar',       label: 'Calendar',       icon: '📅', roles: ['coach', 'athlete'] },
-  { id: 'todos',          label: 'To-do',          icon: '✅', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
-  { id: 'sharedcal',      label: 'Shared Calendar', icon: '🗓️', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
+  { id: 'todos',          label: 'To-do',          icon: '✅', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
+  { id: 'sharedcal',      label: 'Shared Calendar', icon: '🗓️', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
   { id: 'planning',       label: 'Planning',       icon: '📆', roles: ['coach', 'athlete'] },
   { id: 'library',        label: 'Workouts',       icon: '📚', roles: ['coach'] },
   { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete'] },
@@ -500,11 +576,11 @@ const NAV = [
   { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete'] },
   { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete'] },
   { id: 'references',     label: 'References',     icon: '📖', roles: ['coach', 'athlete'] },
-  { id: 'team',           label: 'Team',           icon: '👥', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
-  { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete', 'staff', 'coordinator'] },
+  { id: 'team',           label: 'Team',           icon: '👥', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
+  { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
   { id: 'athletes',       label: 'Athletes & Zones', icon: '⚙️', roles: ['coach'] },
   { id: 'monitor',        label: 'Monitoring',     icon: '❤️', roles: ['coach'] },
-  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete', 'staff', 'coordinator'] }
+  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] }
 ];
 function navForRole() { return NAV.filter(n => n.roles.includes(state.role)); }
 function go(view) { state.ui.view = view; save(); render(); window.scrollTo(0, 0); }
@@ -534,20 +610,14 @@ function render() {
             <button data-role="coach" class="${state.role === 'coach' ? 'active' : ''}">Coach</button>
             <button data-role="athlete" class="${state.role === 'athlete' ? 'active' : ''}">Athlete</button>
           </div>` : ''}
-          ${(Cloud.user && Cloud.accountRole === 'coach') ? `<div class="seg" style="margin-bottom:8px">
+          ${(Cloud.user && Cloud.accountRole === 'both') ? `<div class="seg" style="margin-bottom:8px">
             <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">Coaching</button>
             <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">My training</button>
           </div>` : ''}
           ${state.role === 'coach' ? `<div class="who">
-            Athlete
+            My athletes
             <select data-athlete-select>
               ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
-            </select>
-          </div>` : ''}
-          ${state.role === 'coach' ? `<div class="who">
-            Acting as
-            <select data-coach-select>
-              ${state.coaches.map(c => `<option value="${c.id}" ${c.id === state.currentCoachId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
             </select>
           </div>` : ''}
           ${Cloud.user ? `<div class="who" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:space-between">
@@ -580,7 +650,6 @@ function render() {
   $$('[data-mode]').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
   if ($('[data-athlete-select]')) $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('[data-athlete-top]')) $('[data-athlete-top]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
-  if ($('[data-coach-select]')) $('[data-coach-select]').addEventListener('change', (e) => { state.currentCoachId = e.target.value; save(); render(); });
   if ($('#logout-btn')) $('#logout-btn').addEventListener('click', () => Cloud.logout());
 
   const views = {
@@ -596,50 +665,80 @@ function render() {
 function viewDashboard() {
   const v = $('#view');
   const a = currentAthlete();
-  const isAthlete = state.role === 'athlete';
+  const me = state.role;
+  const today = todayISO();
 
+  // things to fill in (RPE today / questionnaire / morning / weekly)
   const prompts = pendingPrompts(a);
-  const upcoming = athleteSessions(a.id).filter(s => s.date >= todayISO() && s.status !== 'done')
-    .sort((x, y) => x.date.localeCompare(y.date)).slice(0, 5);
-  const doneCount = athleteSessions(a.id).filter(s => s.status === 'done').length;
-  const plannedCount = athleteSessions(a.id).filter(s => s.status !== 'done').length;
-  const weekLoad = athleteSessions(a.id).filter(s => weekKey(fromISO(s.date)) === weekKey(new Date()))
-    .reduce((n, s) => n + (Number(s.load) || 0), 0);
-  const lastSleep = [...state.checkins.sleep].filter(s => s.athleteId === a.id).sort((x, y) => y.date.localeCompare(x.date))[0];
-  const compliance = weeklyCompliance(a.id, weekKey(new Date()));
+  // messages that came in from other people
+  const inbound = state.messages.filter(m => m.athleteId === a.id && m.from !== me).sort((x, y) => (y.ts || 0) - (x.ts || 0));
+  const recentInbound = inbound.filter(m => (Date.now() - (m.ts || 0)) < 3 * 864e5);
+  const myComments = (state.comments || []).filter(c => c.athleteId === a.id && c.authorUid !== myUid()).sort((x, y) => (y.ts || 0) - (x.ts || 0)).slice(0, 3);
+  // next 2 trainings
+  const upcoming = athleteSessions(a.id).filter(s => s.date >= today && s.status !== 'done').sort((x, y) => x.date.localeCompare(y.date)).slice(0, 2);
+  // next to-do tasks for this person
+  const tasks = (state.todos || []).filter(t => t.assigneeUid === a.id && t.status !== 'done').sort((x, y) => (x.due || '9999-99-99').localeCompare(y.due || '9999-99-99')).slice(0, 4);
+  // today's readiness (Whoop-style)
+  const rec = computeReadiness(a.id, 30);
+  const rd = rec.days.find(d => d.date === today) || rec.days[rec.days.length - 1];
 
   v.innerHTML = `
-    ${recommendationHTML(a.id, todayISO())}
-    ${prompts.length ? `<div class="grid" style="margin-bottom:16px">${prompts.map(p => p.html).join('')}</div>` : ''}
+    ${(prompts.length || recentInbound.length) ? `<div class="grid" style="margin-bottom:16px;gap:10px">
+      ${prompts.map(p => p.html).join('')}
+      ${recentInbound.length ? `<div class="prompt"><span class="icon">💬</span><div class="grow"><b>New messages</b><div class="sub">${recentInbound.length} new message(s) from your ${me === 'athlete' ? 'coach / crew' : 'athlete'}.</div></div><button class="btn primary sm" data-prompt="messages">Open</button></div>` : ''}
+    </div>` : ''}
 
-    <div class="grid cols-4">
-      <div class="card stat"><span class="l">Week load (TSS)</span><span class="v">${weekLoad}</span><div class="grad-bar"></div></div>
-      <div class="card stat"><span class="l">Plan match (week)</span><span class="v" style="color:${compliance == null ? 'var(--muted)' : compliance >= 80 ? 'var(--ok)' : compliance >= 60 ? 'var(--yellow)' : 'var(--accent-2)'}">${compliance == null ? '—' : compliance + '%'}</span><span class="sub">actual vs planned zones</span></div>
-      <div class="card stat"><span class="l">Completed / Planned</span><span class="v">${doneCount}<small style="font-size:14px;color:var(--muted)"> / ${plannedCount}</small></span></div>
-      <div class="card stat"><span class="l">FTP / Max HR</span><span class="v">${a.ftp}<small style="font-size:14px;color:var(--muted)"> W</small></span><span class="sub">${a.maxHr} bpm max</span></div>
-    </div>
+    ${rd ? readinessDashCard(rd) : `<div class="card"><h3>Training readiness</h3><div class="empty">No readiness data yet — connect Intervals.icu (HRV) or log a morning check-in.</div></div>`}
 
-    <div class="section-title">Upcoming sessions</div>
-    <div class="list">
-      ${upcoming.length ? upcoming.map(s => sessionRow(s)).join('') : '<div class="empty">Nothing scheduled. Add sessions on the Calendar.</div>'}
-    </div>
-
-    <div class="card" style="margin-top:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <h3 style="margin:0">Training load by sport — last 8 weeks</h3>
-        ${(() => { const wd = weekDistribution(a.id, weekKey(new Date())); return wd ? `<span class="badge" title="Intensity distribution this week (Seiler)"><span class="dot" style="background:var(--accent)"></span>${wd.model} · ${wd.lit}/${wd.mod}/${wd.hit}% LIT/MOD/HIT</span>` : ''; })()}
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3>Next 2 trainings</h3>
+        <div class="list">${upcoming.length ? upcoming.map(s => sessionRow(s)).join('') : '<div class="empty">Nothing planned.</div>'}</div>
+        <div class="btn-row" style="margin-top:8px"><button class="btn sm" data-goto="calendar">Open calendar</button></div>
       </div>
-      ${stackedLoadChart(weeklyLoadBySport(a.id, 8))}
-      <div class="sub" style="margin-top:6px">Total weekly load, split by sport. The tag shows this week's intensity distribution model.</div>
+      <div class="card">
+        <h3>Next tasks</h3>
+        <div class="list">${tasks.length ? tasks.map(t => { const st = TODO_STATUS[t.status] || TODO_STATUS.todo; const overdue = t.due && t.due < today; return `<div class="row" style="border-left:3px solid ${st.color}"><div class="grow"><div class="title">📋 ${esc(t.title)}</div><div class="meta">${t.due ? `<span style="color:${overdue ? 'var(--bad)' : 'var(--muted)'}">${overdue ? '⚠️ ' : '🎯 '}${fmtDate(t.due)}</span>` : 'no deadline'} · ${st.label}</div></div></div>`; }).join('') : '<div class="empty">No open tasks.</div>'}</div>
+        <div class="btn-row" style="margin-top:8px"><button class="btn sm" data-goto="todos">Open to-do list</button></div>
+      </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3>Recent sleep</h3>
-      ${lastSleep ? `<div class="sub">${fmtDate(lastSleep.date)}</div><div class="stat" style="margin-top:8px"><span class="v">${lastSleep.hours}h</span><span class="l">Quality ${lastSleep.quality}/10 · felt ${lastSleep.feel}/10</span></div>` : '<div class="empty">No sleep check-ins yet.</div>'}
-    </div>`;
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Training load by sport — last 4 weeks</h3>
+        ${(() => { const wd = weekDistribution(a.id, weekKey(new Date())); return wd ? `<span class="badge" title="Intensity distribution this week (Seiler)"><span class="dot" style="background:var(--accent)"></span>${wd.model} · ${wd.lit}/${wd.mod}/${wd.hit}% LIT/MOD/HIT</span>` : ''; })()}
+      </div>
+      ${stackedLoadChart(weeklyLoadBySport(a.id, 4))}
+    </div>
+
+    ${(inbound.length || myComments.length) ? `<div class="card" style="margin-top:16px">
+      <h3>Recent messages &amp; comments</h3>
+      <div class="list">
+        ${inbound.slice(0, 3).map(m => `<div class="row"><div class="grow"><div class="title">💬 ${esc(m.text.slice(0, 90))}${m.text.length > 90 ? '…' : ''}</div><div class="meta">${m.from === 'coach' ? 'Coach / crew' : esc(a.name)} · ${fmtDate(m.date)}</div></div></div>`).join('')}
+        ${myComments.map(c => `<div class="row"><div class="grow"><div class="title">🗒️ ${esc(c.text.slice(0, 90))}${c.text.length > 90 ? '…' : ''}</div><div class="meta">${esc(c.authorName || '')} · comment on a workout</div></div></div>`).join('')}
+      </div>
+      <div class="btn-row" style="margin-top:8px"><button class="btn sm" data-goto="messages">Open messages</button></div>
+    </div>` : ''}`;
 
   $$('[data-open-session]').forEach(b => b.addEventListener('click', () => openSessionModal(b.dataset.openSession)));
+  $$('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
   bindPromptButtons();
+}
+// Whoop-style readiness summary card for the dashboard, with a "full gas / recover" call.
+function readinessDashCard(rd) {
+  const b = rd.band;
+  const advice = b.key === 'green' ? 'Full gas — a key or hard session is well-placed today.'
+    : b.key === 'yellow' ? 'Train smart — moderate work, keep something in reserve.'
+    : 'Recovery is the priority today — easy Z1–Z2 or rest.';
+  return `<div class="card" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+    <div class="ring-wrap"><div class="ring" style="--p:${rd.score};background:conic-gradient(${b.color} calc(${rd.score}*1%), var(--line) 0)"><b>${rd.score}</b></div></div>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Training readiness · Whoop-style</div>
+      <div style="font-size:22px;font-weight:800;color:${b.color}">${b.label}</div>
+      <div class="sub" style="margin-top:4px">${advice}</div>
+    </div>
+    <button class="btn sm" data-goto="recovery">Details</button>
+  </div>`;
 }
 
 function pendingPrompts(a) {
@@ -669,6 +768,13 @@ function pendingPrompts(a) {
       <div class="grow"><b>Weekly reflection</b><div class="sub">How did this week's training feel?</div></div>
       <button class="btn primary sm" data-prompt="weekly">Answer</button></div>` });
 
+  // Questionnaires still to fill in
+  const unfilled = state.questionnaires.filter(q => !state.responses.some(r => r.qid === q.id && r.athleteId === a.id));
+  if (unfilled.length) out.push({ html: `
+    <div class="prompt"><span class="icon">📝</span>
+      <div class="grow"><b>Questionnaire</b><div class="sub">${unfilled.length} questionnaire(s) still to fill in.</div></div>
+      <button class="btn primary sm" data-prompt="quest" data-qid="${unfilled[0].id}">Open</button></div>` });
+
   return out;
 }
 function bindPromptButtons() {
@@ -676,6 +782,8 @@ function bindPromptButtons() {
     if (b.dataset.prompt === 'sleep') openSleepModal();
     if (b.dataset.prompt === 'rpe') openRpeModal(b.dataset.sid);
     if (b.dataset.prompt === 'weekly') openWeeklyModal();
+    if (b.dataset.prompt === 'quest') { state.role === 'athlete' && b.dataset.qid ? openQFill(b.dataset.qid) : go('questionnaires'); }
+    if (b.dataset.prompt === 'messages') go('messages');
   }));
 }
 
@@ -1568,8 +1676,14 @@ function viewAthletes() {
     a.maxHr = Number($('#a-max').value) || 0; a.thresholdPace = Number($('#a-pace').value) || 0;
     save(); render(); toast('Profile saved');
   });
-  if ($('#a-del')) $('#a-del').addEventListener('click', () => {
-    state.athletes = state.athletes.filter(x => x.id !== a.id); state.currentAthleteId = state.athletes[0].id; save(); render();
+  if ($('#a-del')) $('#a-del').addEventListener('click', async () => {
+    if (state.athletes.length <= 1) { toast('You need at least one athlete'); return; }
+    if (!confirm('Remove ' + a.name + '? This permanently deletes their profile and training data.')) return;
+    const aid = a.id;
+    if (Cloud.enabled && Cloud.user) await Cloud.deletePerson(aid);   // actually deletes the server doc
+    state.athletes = state.athletes.filter(x => x.id !== aid);
+    if (!state.athletes.find(x => x.id === state.currentAthleteId)) state.currentAthleteId = (state.athletes[0] || {}).id;
+    save(); render(); toast('Athlete removed');
   });
 
   // ----- Coaches (max 2 per athlete) -----
@@ -2489,7 +2603,7 @@ async function drawTeam() {
   v.innerHTML = `
     <p class="sub">Everyone on the team. ${iAmTeam ? 'Open an athlete to see all their trainings, add comments, and send them a notification.' : 'You can ask to follow another athlete’s training — they approve the request.'}</p>
 
-    ${(state.role === 'staff' || state.role === 'coordinator') ? `<div class="card" style="margin-bottom:16px">
+    ${(state.role === 'staff' || state.role === 'coordinator' || state.role === 'crew') ? `<div class="card" style="margin-bottom:16px">
       <h3>My profile</h3>
       <div class="sub" style="margin-bottom:8px">${roleLabel(state.role)} · ${esc((Cloud.user && Cloud.user.email) || '')}</div>
       <div id="staff-profile"></div>
@@ -2692,11 +2806,11 @@ function viewSettings() {
   if (ivAthlete && !ivAthlete.intervals) ivAthlete.intervals = { athleteId: '', apiKey: '', lastSync: null };
   const iv = (ivAthlete && ivAthlete.intervals) || { athleteId: '', apiKey: '', lastSync: null };
   const nt = state.settings.notifications;
-  const dualCoach = Cloud.user && Cloud.accountRole === 'coach';
+  const dualCoach = Cloud.user && Cloud.accountRole === 'both';
   v.innerHTML = `
     ${Cloud.user ? `<div class="card" style="max-width:640px;margin-bottom:16px">
       <h3>Account</h3>
-      <p class="sub">Signed in as <b style="color:var(--text)">${esc(Cloud.user.email)}</b>${dualCoach ? ' · coach account' : ' · athlete account'}.</p>
+      <p class="sub">Signed in as <b style="color:var(--text)">${esc(Cloud.user.email)}</b> · ${esc(roleLabel(Cloud.accountRole || state.role))} account.</p>
       ${dualCoach ? `<label>Mode</label>
         <div class="seg2" id="acct-mode">
           <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">🧑‍🏫 Coaching</button>
@@ -3012,31 +3126,35 @@ const Cloud = {
     try { const s = await uref.get(); if (s.exists) role = s.data().role; } catch (e) {}
     if (!role && this.pendingSignup) role = this.pendingSignup.role;
     if (!role) role = 'coach';
-    this.accountRole = role;                 // the account's base role (coaches may also train as athletes)
+    // Legacy staff/coordinator accounts now behave as "crew". The owner is always coach+athlete.
+    if (role === 'staff' || role === 'coordinator') role = 'crew';
+    if (this.user.email === OWNER_EMAIL && role === 'coach') role = 'both';
+    this.accountRole = role;                 // coach | athlete | both | crew
     try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', role, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
     this.pendingSignup = null;
 
-    // active mode: coaches can switch between coaching / their own training; athletes stay athletes;
-    // staff & coordinator keep their own role (read-only team access, no athlete doc of their own).
-    let mode = role;
-    if (role === 'coach' && (state.viewMode === 'coach' || state.viewMode === 'athlete')) mode = state.viewMode;
+    // active mode: 'both' accounts switch between coaching / their own training; everyone else has one role.
+    let mode;
+    if (role === 'both') mode = (state.viewMode === 'athlete') ? 'athlete' : 'coach';
     else if (role === 'athlete') mode = 'athlete';
+    else if (role === 'crew') mode = 'crew';
+    else mode = 'coach';
     this.role = mode; state.role = mode; state.viewMode = mode;
 
     render(); // show shell immediately
 
     if (mode === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
-    else if (mode === 'staff' || mode === 'coordinator') { this.subscribeCoach(); }
+    else if (mode === 'crew') { this.subscribeCoach(); }
     else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
 
     checkReminders();
     if (!this._interval) { this._interval = setInterval(checkReminders, 5 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); }); }
   },
 
-  // switch between 'coach' (see all athletes) and 'athlete' (my own training) — coaches only
+  // switch between 'coach' (see all athletes) and 'athlete' (my own training) — coach+athlete accounts
   setMode(mode) {
     if (mode === this.role) return;
-    if (this.accountRole !== 'coach') { toast('Only coach accounts can switch mode'); return; }
+    if (this.accountRole !== 'both') { toast('This account has a single role'); return; }
     this.teardown();
     this.role = mode; state.role = mode; state.viewMode = mode;
     localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -3373,8 +3491,8 @@ function showAuthScreen(msg) {
           <div class="role-pick" style="flex-wrap:wrap">
             <button type="button" class="rolebtn active" data-arole="coach" style="flex:1 1 45%"><span class="ic">🧑‍🏫</span><b>Coach</b><small>Programs & follows athletes</small></button>
             <button type="button" class="rolebtn" data-arole="athlete" style="flex:1 1 45%"><span class="ic">🏃</span><b>Athlete</b><small>Follows my own plan</small></button>
-            <button type="button" class="rolebtn" data-arole="staff" style="flex:1 1 45%"><span class="ic">🤝</span><b>Staff</b><small>Supports the team</small></button>
-            <button type="button" class="rolebtn" data-arole="coordinator" style="flex:1 1 45%"><span class="ic">📋</span><b>Coordinator</b><small>Plans tasks & deadlines</small></button>
+            <button type="button" class="rolebtn" data-arole="both" style="flex:1 1 45%"><span class="ic">🧑‍🏫🏃</span><b>Coach & athlete</b><small>Coaches and trains</small></button>
+            <button type="button" class="rolebtn" data-arole="crew" style="flex:1 1 45%"><span class="ic">🤝</span><b>Crew</b><small>Supports the team</small></button>
           </div>
         </div>
         <label>Email</label><input id="au-email" type="email" autocomplete="email" placeholder="you@example.com"/>
