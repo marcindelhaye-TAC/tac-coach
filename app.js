@@ -2781,8 +2781,8 @@ async function drawTeam() {
     ${incoming.length ? `<div class="card" style="margin-bottom:16px;border-color:var(--accent)">
       <h3>Access requests</h3>
       <p class="sub">These people asked to follow your training.</p>
-      <div class="list">${incoming.map(r => `<div class="row"><div class="grow"><div class="title">${esc(r.fromName || userName(r.fromUid))}</div><div class="meta">wants to see your workouts</div></div>
-        <button class="btn sm primary" data-approve="${r.id}" data-fromuid="${r.fromUid}">Approve</button>
+      <div class="list">${incoming.map(r => `<div class="row"><div class="grow"><div class="title">${esc(r.fromName || userName(r.fromUid))}</div><div class="meta">${(r.fromRole === 'coach' || r.fromRole === 'both') ? 'wants to be your coach' : 'wants to see your workouts'}</div></div>
+        <button class="btn sm primary" data-approve="${r.id}" data-fromuid="${r.fromUid}" data-fromrole="${esc(r.fromRole || '')}">Approve</button>
         <button class="btn sm danger" data-deny="${r.id}">Deny</button></div>`).join('')}</div>
     </div>` : ''}
 
@@ -2792,7 +2792,12 @@ async function drawTeam() {
     <div class="section-title" style="margin-top:18px">Athletes</div>
     <div class="grid cols-3">${athletes.length ? athletes.map(p => {
       const canView = canSeeAll || p.uid === me || state.athletes.some(a => a.id === p.uid); // loaded = approved
-      return personCard(p, true, canView);
+      let canRequest = false;
+      if (p.uid !== me) {
+        if (state.role === 'coach') { const ath = state.athletes.find(a => a.id === p.uid); canRequest = !(ath && (ath.coachUids || []).includes(me)); } // coach: connect if not linked yet
+        else canRequest = !canView;   // crew/athlete: request when not yet approved
+      }
+      return personCard(p, true, canView, canRequest);
     }).join('') : '<div class="empty">No athletes yet.</div>'}</div>`;
 
   // staff profile editor
@@ -2809,16 +2814,16 @@ async function drawTeam() {
     await Cloud.deletePerson(b.dataset.delPerson);
     toast('Removed'); drawTeam();
   }));
-  $$('[data-approve]').forEach(b => b.addEventListener('click', async () => { await Cloud.approveAccess(b.dataset.fromuid, b.dataset.approve); toast('Approved'); drawTeam(); }));
+  $$('[data-approve]').forEach(b => b.addEventListener('click', async () => { await Cloud.approveAccess(b.dataset.fromuid, b.dataset.approve, b.dataset.fromrole); toast('Approved'); drawTeam(); }));
   $$('[data-deny]').forEach(b => b.addEventListener('click', async () => { await Cloud.denyAccess(b.dataset.deny); toast('Denied'); drawTeam(); }));
 }
-function personCard(p, isAthlete, canView) {
+function personCard(p, isAthlete, canView, canRequest) {
   const r = ROLES[p.role] || ROLES.athlete;
   const canRemove = state.role === 'coach' && p.uid && p.uid !== myUid();   // coaches manage the roster
   const btns = [];
   if (isAthlete) {
     if (canView) btns.push(`<button class="btn sm primary" data-view-ath="${p.uid}">View training</button>`);
-    else if (p.uid !== myUid()) btns.push(`<button class="btn sm" data-req-ath="${p.uid}">Request access</button>`);
+    if (canRequest) btns.push(`<button class="btn sm" data-req-ath="${p.uid}">Request access</button>`);
   }
   if (canRemove) btns.push(`<button class="btn sm danger" data-del-person="${p.uid}" data-del-name="${esc(p.name)}">Remove</button>`);
   return `<div class="card">
@@ -3591,19 +3596,27 @@ const Cloud = {
   async requestAccess(toUid) {
     if (!this.enabled || !this.user) return;
     const id = this.myUid + '_' + toUid;
-    try { await this.db.collection('shareRequests').doc(id).set({ fromUid: this.myUid, fromName: myName(), toUid, ts: Date.now(), status: 'pending' }); this.sendPush(toUid, '👀 Access request', myName() + ' wants to follow your training.'); }
-    catch (e) { toast('Request failed: ' + (e.code || e.message)); }
+    const asCoach = this.role === 'coach';
+    try {
+      await this.db.collection('shareRequests').doc(id).set({ fromUid: this.myUid, fromName: myName(), fromRole: this.role, toUid, ts: Date.now(), status: 'pending' });
+      this.sendPush(toUid, '👀 Access request', myName() + (asCoach ? ' would like to coach you.' : ' wants to follow your training.'));
+    } catch (e) { toast('Request failed: ' + (e.code || e.message)); }
   },
   async myShareRequests() {
     if (!this.enabled || !this.user) return [];
     try { const qs = await this.db.collection('shareRequests').where('toUid', '==', this.myUid).where('status', '==', 'pending').get(); return qs.docs.map(d => ({ id: d.id, ...d.data() })); }
     catch (e) { return []; }
   },
-  async approveAccess(fromUid, reqId) {
+  async approveAccess(fromUid, reqId, fromRole) {
     const a = state.athletes.find(x => x.id === this.myUid);
-    if (a) { a.viewers = a.viewers || []; if (!a.viewers.includes(fromUid)) a.viewers.push(fromUid); save(); }
+    if (a) {
+      a.viewers = a.viewers || []; if (!a.viewers.includes(fromUid)) a.viewers.push(fromUid);
+      // a coach requester also becomes one of the athlete's coaches (shows in their roster)
+      if (fromRole === 'coach' || fromRole === 'both') { a.coachUids = a.coachUids || []; if (!a.coachUids.includes(fromUid)) a.coachUids.push(fromUid); }
+      save();
+    }
     try { await this.db.collection('shareRequests').doc(reqId).set({ status: 'approved' }, { merge: true }); } catch (e) {}
-    this.sendPush(fromUid, '✅ Access granted', myName() + ' shared their training with you.');
+    this.sendPush(fromUid, '✅ Access granted', myName() + ' approved your request.');
   },
   async denyAccess(reqId) { try { await this.db.collection('shareRequests').doc(reqId).set({ status: 'denied' }, { merge: true }); } catch (e) {} },
 
