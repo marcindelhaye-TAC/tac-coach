@@ -678,7 +678,7 @@ function viewDashboard() {
   const upcoming = athleteSessions(a.id).filter(s => s.date >= today && s.status !== 'done').sort((x, y) => x.date.localeCompare(y.date)).slice(0, 2);
   // next to-do tasks for this person
   const tasks = (state.todos || []).filter(t => t.assigneeUid === a.id && t.status !== 'done').sort((x, y) => (x.due || '9999-99-99').localeCompare(y.due || '9999-99-99')).slice(0, 4);
-  // today's readiness (Whoop-style)
+  // today's training readiness score
   const rec = computeReadiness(a.id, 30);
   const rd = rec.days.find(d => d.date === today) || rec.days[rec.days.length - 1];
 
@@ -724,7 +724,7 @@ function viewDashboard() {
   $$('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
   bindPromptButtons();
 }
-// Whoop-style readiness summary card for the dashboard, with a "full gas / recover" call.
+// Training readiness summary card for the dashboard, with a "full gas / recover" call.
 function readinessDashCard(rd) {
   const b = rd.band;
   const advice = b.key === 'green' ? 'Full gas — a key or hard session is well-placed today.'
@@ -733,7 +733,7 @@ function readinessDashCard(rd) {
   return `<div class="card" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
     <div class="ring-wrap"><div class="ring" style="--p:${rd.score};background:conic-gradient(${b.color} calc(${rd.score}*1%), var(--line) 0)"><b>${rd.score}</b></div></div>
     <div style="flex:1;min-width:200px">
-      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Training readiness · Whoop-style</div>
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Training readiness score</div>
       <div style="font-size:22px;font-weight:800;color:${b.color}">${b.label}</div>
       <div class="sub" style="margin-top:4px">${advice}</div>
     </div>
@@ -2230,7 +2230,7 @@ function viewMonitor() {
 
 /* ============================================================================
    RECOVERY / TRAINING READINESS  (HRV + resting HR + subjective feel + day notes)
-   A Whoop-style daily readiness score. Higher = more ready to train hard.
+   A daily training readiness score. Higher = more ready to train hard.
    ============================================================================ */
 function readinessBand(s) {
   return s >= 67 ? { key: 'green', label: 'Ready to train', color: '#35c98b' }
@@ -2296,7 +2296,7 @@ function viewRecovery() {
   const latest = todayEntry || r.days[r.days.length - 1];
   const hasSleepToday = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === today);
 
-  const intro = `<p class="sub">A daily <b style="color:var(--text)">Training Readiness</b> score (0–100) for ${esc(a.name)}, built from <b>HRV</b> and <b>resting HR</b> (from Intervals.icu), your <b>morning feeling &amp; sleep</b>, and that day's <b>notes</b> (e.g. alcohol, illness, stress lower it). Same green/yellow/red logic as a Whoop recovery score.</p>`;
+  const intro = `<p class="sub">A daily <b style="color:var(--text)">Training Readiness</b> score (0–100) for ${esc(a.name)}, built from <b>HRV</b> and <b>resting HR</b> (from Intervals.icu), your <b>morning feeling &amp; sleep</b>, and that day's <b>notes</b> (e.g. alcohol, illness, stress lower it). A simple green / yellow / red readiness score.</p>`;
 
   if (!latest) {
     v.innerHTML = intro + `
@@ -2336,7 +2336,7 @@ function viewRecovery() {
         </div>
       </div>
       <div class="card">
-        <h3 style="margin-bottom:6px">Whoop-style bands</h3>
+        <h3 style="margin-bottom:6px">Readiness bands</h3>
         <div class="list">
           <div class="row" style="border-left:3px solid #35c98b"><div class="grow"><div class="title" style="color:#35c98b">Green · 67–100</div><div class="meta">Recovered — ready to push</div></div></div>
           <div class="row" style="border-left:3px solid #f5c518"><div class="grow"><div class="title" style="color:#f5c518">Yellow · 34–66</div><div class="meta">Moderate — train smart</div></div></div>
