@@ -348,3 +348,95 @@ textarea { min-height: 74px; resize: vertical; }
 
 .note-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); display: inline-block; }
 .day-note { font-size: 11px; color: var(--yellow); background: rgba(245,197,24,.1); border-radius: 6px; padding: 3px 5px; }
+
+/* ---------- Weekly calendar rows + summary (CTL/ATL/ACWR + week note) ---------- */
+.cal-weeks { display: flex; flex-direction: column; gap: 8px; }
+.cal-week-row { display: flex; gap: 8px; align-items: stretch; }
+.cal-week-row .wk-days { flex: 1 1 auto; min-width: 0; }
+.cal-week-row.head { align-items: stretch; }
+.cal-wk-sum { flex: 0 0 132px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 9px; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+.cal-wk-sum.head { justify-content: center; align-items: center; text-align: center; color: var(--muted); font-size: 11px; font-weight: 600; background: var(--bg-2); border: 0; }
+.wk-hd { display: none; }
+.wk-tss { font-size: 16px; font-weight: 800; line-height: 1; }
+.wk-tss span { font-size: 10px; color: var(--muted); font-weight: 500; }
+.wk-cta { color: var(--muted); font-size: 10px; }
+.wk-acwr { font-weight: 800; font-size: 12px; }
+.wk-note { color: var(--yellow); font-size: 10px; background: rgba(245,197,24,.1); border-radius: 6px; padding: 2px 6px; }
+.wk-note-btn { padding: 4px 8px; font-size: 11px; align-self: flex-start; }
+@media (max-width: 860px) {
+  .cal-week-row { flex-wrap: wrap; }
+  .cal-week-row .wk-days { flex: 1 1 100%; }
+  .cal-wk-sum { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: flex-start; }
+  .cal-wk-sum.head { display: none; }
+  .wk-note-btn { margin-left: auto; }
+}
+
+/* ============================================================================
+   Polish layer — a cleaner, more professional, app-like feel (Intervals-inspired)
+   ============================================================================ */
+:root { --ring: rgba(59,48,230,.35); }
+* { -webkit-tap-highlight-color: transparent; }
+html { scroll-behavior: smooth; }
+body { letter-spacing: .1px; }
+
+/* smooth micro-interactions */
+.btn, .nav button, .mobile-nav button, .pill-tabs button, .seg button, .seg2 button,
+.row, .card, input, select, textarea, .sess, .zone-chips button, .badge {
+  transition: background .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease, transform .08s ease, opacity .14s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn.primary { box-shadow: 0 2px 10px rgba(59,48,230,.28); }
+.btn.primary:hover { box-shadow: 0 3px 14px rgba(59,48,230,.4); }
+
+/* inputs: clear focus ring */
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+
+/* nav: active accent bar + tighter, calmer look */
+.nav button { position: relative; font-weight: 500; }
+.nav button.active { font-weight: 600; }
+.nav button.active::before {
+  content: ''; position: absolute; left: 2px; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 3px; background: var(--accent);
+}
+.brand h1 { letter-spacing: .2px; }
+
+/* topbar: crisper, subtle bottom hairline */
+.topbar { background: color-mix(in srgb, var(--bg) 86%, transparent); }
+.topbar h2 { letter-spacing: .2px; font-weight: 700; }
+
+/* cards & rows: a hair more refined; interactive rows lift subtly */
+.card { box-shadow: 0 1px 0 rgba(255,255,255,.02) inset; }
+.card h3 { letter-spacing: .2px; }
+.row[data-open-session], .row[data-panel-sess], .row[style*="cursor:pointer"] { cursor: pointer; }
+.row[data-open-session]:hover, .row[data-panel-sess]:hover { border-color: #3a4270; background: #1b2140; }
+
+/* stat cards: number a touch tighter */
+.stat .v { letter-spacing: -.5px; }
+
+/* thin, unobtrusive scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: #3a4270; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* segmented controls: pill feel */
+.seg, .seg2 { border: 1px solid var(--line); }
+
+/* mobile bottom nav: native-app pill + safe area */
+@media (max-width: 860px) {
+  .mobile-nav button { border-radius: 12px; margin: 0 1px; transition: background .14s ease, color .14s ease; }
+  .mobile-nav button.active { background: rgba(59,48,230,.16); }
+  .mobile-nav button.active .ico { transform: translateY(-1px); }
+}
+
+/* installed-app vibe: use full safe areas, feel less like a web page */
+@media (display-mode: standalone) {
+  .topbar { padding-top: env(safe-area-inset-top); height: calc(56px + env(safe-area-inset-top)); }
+  .content { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
+  a[href^="http"]::after { content: ''; } /* keep external links, no visual change */
+}
+.standalone .auth-card { box-shadow: var(--shadow); }
+
+/* toasts float a touch higher & softer */
+.toast { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }

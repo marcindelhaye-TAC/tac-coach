@@ -1,16 +1,24 @@
 {
-  "name": "Tour Against Cancer — Coach",
-  "short_name": "TAC Coach",
-  "description": "Endurance coaching & athlete monitoring app.",
-  "start_url": "./index.html",
+  "name": "Tour Against Cancer — Coaching",
+  "short_name": "TAC",
+  "description": "Endurance coaching & athlete monitoring — training, recovery and planning.",
+  "start_url": "./index.html?app=1",
+  "id": "/tac-coach/",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#0f1220",
   "theme_color": "#0f1220",
+  "categories": ["health", "fitness", "sports", "productivity"],
   "icons": [
     { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Calendar", "short_name": "Calendar", "url": "./index.html?v=calendar", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Recovery", "short_name": "Recovery", "url": "./index.html?v=recovery", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "To-do", "short_name": "To-do", "url": "./index.html?v=todos", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

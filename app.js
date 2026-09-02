@@ -539,6 +539,7 @@ function migrate(s) {
   if (!Array.isArray(s.wellness)) s.wellness = [];
   if (!Array.isArray(s.todos)) s.todos = [];
   if (!Array.isArray(s.comments)) s.comments = [];
+  if (!Array.isArray(s.weekNotes)) s.weekNotes = [];
   if (!s.settings) s.settings = {};
   if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
   s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
@@ -613,6 +614,8 @@ const ROLES = {
   coordinator: { label: 'Crew',        icon: '🤝',   sub: 'Plans tasks & deadlines' }
 };
 function roleLabel(r) { return (ROLES[r] || {}).label || r; }
+// coach and athlete may plan (add/edit/move/delete) sessions; crew is read-only.
+function canPlan() { return state.role === 'coach' || state.role === 'athlete'; }
 function isTeamRole(r) { return r === 'coach' || r === 'staff' || r === 'coordinator' || r === 'crew'; }
 function canCoordinate(r) { return r === 'coach' || r === 'coordinator' || r === 'crew'; }
 // One account can hold several profiles (roles). These map legacy single-role accounts to a list,
@@ -738,6 +741,7 @@ const NAV = [
   { id: 'sharedcal',      label: 'Shared Calendar', icon: '🗓️', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
   { id: 'planning',       label: 'Planning',       icon: '📆', roles: ['coach', 'athlete', 'crew'] },
   { id: 'library',        label: 'Workouts',       icon: '📚', roles: ['coach'] },
+  { id: 'strength',       label: 'Strength',       icon: '🏋️', roles: ['coach', 'athlete', 'crew'] },
   { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete', 'crew'] },
   { id: 'recovery',       label: 'Recovery',       icon: '🔋', roles: ['coach', 'athlete', 'crew'] },
   { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete', 'crew'] },
@@ -823,11 +827,20 @@ function render() {
   if ($('[data-athlete-top]')) $('[data-athlete-top]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('#logout-btn')) $('#logout-btn').addEventListener('click', () => Cloud.logout());
 
+  // athlete-centric views need a selected athlete; guard when there is none.
+  // (dashboard, athletes & settings self-handle; team/todos/sharedcal don't need one.)
+  const SAFE_NO_ATHLETE = ['dashboard', 'athletes', 'settings', 'team', 'todos', 'sharedcal'];
+  if (!SAFE_NO_ATHLETE.includes(view) && !currentAthlete()) {
+    $('#view').innerHTML = `<div class="card" style="max-width:520px"><h3>No athlete selected</h3><p class="sub">${state.role === 'coach' ? 'Add an athlete in <b>Athletes &amp; Zones</b> or <b>Settings</b>, or connect to one from <b>Team</b>.' : 'Ask an athlete to share their training with you from the <b>Team</b> tab.'}</p><div class="btn-row" style="margin-top:10px">${state.role === 'coach' ? '<button class="btn primary" data-goto="athletes">Athletes &amp; Zones</button>' : ''}<button class="btn" data-goto="team">Open Team</button></div></div>`;
+    $$('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
+    return;
+  }
+
   const views = {
     dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
     fitness: viewFitness, testing: viewTesting, nutrition: viewNutrition, goals: viewGoals,
     questionnaires: viewQuestionnaires, references: viewReferences, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings,
-    todos: viewTodos, sharedcal: viewSharedCal, team: viewTeam, recovery: viewRecovery
+    todos: viewTodos, sharedcal: viewSharedCal, team: viewTeam, recovery: viewRecovery, strength: viewStrength
   };
   (views[view] || viewTodos)();
 }
@@ -985,6 +998,13 @@ function pendingPrompts(a) {
       <div class="grow"><b>Questionnaire</b><div class="sub">${unfilled.length} questionnaire(s) still to fill in.</div></div>
       <button class="btn primary sm" data-prompt="quest" data-qid="${unfilled[0].id}">Open</button></div>` });
 
+  // One-tap: turn on phone push notifications
+  const nt = state.settings.notifications;
+  if (Cloud.user && nt && !nt.enabled && ('Notification' in window) && Notification.permission !== 'denied') out.push({ html: `
+    <div class="prompt"><span class="icon">🔔</span>
+      <div class="grow"><b>Turn on phone notifications</b><div class="sub">Get reminders and coach messages on your phone.</div></div>
+      <button class="btn primary sm" data-prompt="enablepush">Enable</button></div>` });
+
   return out;
 }
 function bindPromptButtons() {
@@ -995,7 +1015,34 @@ function bindPromptButtons() {
     if (b.dataset.prompt === 'quest') { state.role === 'athlete' && b.dataset.qid ? openQFill(b.dataset.qid) : go('questionnaires'); }
     if (b.dataset.prompt === 'messages') go('messages');
     if (b.dataset.prompt === 'addcoach') go('team');
+    if (b.dataset.prompt === 'enablepush') enablePush();
   }));
+}
+// One-tap enable of browser + phone (FCM) push.
+async function enablePush() {
+  if (!('Notification' in window)) { toast('This device has no notification support'); return; }
+  const ok = await requestNotifPermission();
+  const nt = state.settings.notifications;
+  nt.enabled = ok; save();
+  if (!ok) { toast('Blocked — allow notifications in your browser settings'); return; }
+  checkReminders();
+  const pushed = await PushKit.enableForCurrentUser();
+  toast(pushed ? 'Phone notifications on 🔔' : 'Notifications on (finish push setup in Settings)');
+  render();
+}
+// Quick "send a notification to this person's phone" composer (coach / crew).
+function openNotifyModal(targetUid, targetName) {
+  const body = `<div class="sub" style="margin-bottom:8px">To: <b style="color:var(--text)">${esc(targetName || 'all athletes')}</b></div>
+    <label>Title</label><input id="nf-title" value="Message from your coach"/>
+    <label>Message</label><textarea id="nf-body" placeholder="e.g. Great session today — easy recovery ride tomorrow."></textarea>
+    <div class="hint">Arrives as a push notification on their phone (if they enabled notifications).</div>`;
+  openModal('Send notification 🔔', body, `<button class="btn primary" id="nf-send">Send</button>`);
+  $('#nf-send').addEventListener('click', () => {
+    const t = ($('#nf-title').value || '').trim() || 'Notification';
+    const b = ($('#nf-body').value || '').trim();
+    Cloud.sendPush(targetUid || 'all', t, b);
+    closeModal(); toast('Sent — arrives on their phone within ~15 min');
+  });
 }
 
 function sessionRow(s) {
@@ -1241,10 +1288,10 @@ function zoneDistHTML(steps) {
 /* ------------------------------ Calendar -------------------------------- */
 function viewCalendar() {
   const actions = $('#topbar-actions');
-  actions.innerHTML = state.role === 'coach'
+  actions.innerHTML = canPlan()
     ? `<button class="btn primary sm" id="add-session">+ Add session</button>`
-    : `<span class="badge">Drag sessions to reschedule</span>`;
-  if (state.role === 'coach') $('#add-session').addEventListener('click', () => openSessionModal(null));
+    : `<span class="badge">Read-only</span>`;
+  if (canPlan()) $('#add-session').addEventListener('click', () => openSessionModal(null));
 
   drawCalendar();
 }
@@ -1256,24 +1303,54 @@ function drawCalendar() {
   const first = new Date(y, m, 1);
   const startOffset = (first.getDay() + 6) % 7; // Monday-based
   const gridStart = addDays(first, -startOffset);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayIso = todayISO();
+  const editable = canPlan();
 
-  let cells = '';
-  for (let i = 0; i < 42; i++) {
-    const d = addDays(gridStart, i);
+  // fitness (CTL/ATL) map covering the visible calendar, for the weekly acute:chronic ratio
+  const backDays = Math.max(60, Math.ceil((today - gridStart) / 86400000) + 2);
+  const fit = {}; computeFitness(a.id, backDays).forEach(d => fit[d.date] = d);
+
+  const dayCell = (d) => {
     const iso = toISO(d);
     const inMonth = d.getMonth() === m;
-    const isToday = iso === todayISO();
+    const isToday = iso === todayIso;
     const daySessions = athleteSessions(a.id).filter(s => s.date === iso);
     const dayLoad = daySessions.reduce((n, s) => n + (Number(s.load) || 0), 0);
     const dayNotes = state.dayNotes.filter(n => n.athleteId === a.id && n.date === iso);
     const dayTodos = (state.todos || []).filter(t => t.assigneeUid === a.id && t.due === iso);
-    cells += `
+    return `
       <div class="cal-cell ${inMonth ? '' : 'dim'} ${isToday ? 'today' : ''}" data-day="${iso}">
         <div class="d"><span>${d.getDate()} ${dayNotes.length ? '<span class="note-dot" title="' + esc(dayNotes.map(n => n.text).join(' · ')) + '"></span>' : ''}</span>${dayLoad ? `<span class="load">${dayLoad} TSS</span>` : ''}</div>
         ${daySessions.map(s => sessionChip(s)).join('')}
         ${dayTodos.map(t => todoChip(t)).join('')}
         ${dayNotes.map(n => `<div class="day-note" title="${esc(n.text)}">📌 ${esc(n.text.slice(0, 24))}${n.text.length > 24 ? '…' : ''}</div>`).join('')}
       </div>`;
+  };
+
+  const acwrColor = r => r >= 0.8 && r <= 1.3 ? 'var(--ok)' : (r > 1.5 || r < 0.5 ? 'var(--bad)' : 'var(--yellow)');
+  let weeksHtml = '';
+  for (let wRow = 0; wRow < 6; wRow++) {
+    let daysHtml = '', weekTSS = 0, lastPast = null;
+    const weekStart = addDays(gridStart, wRow * 7);
+    for (let dcol = 0; dcol < 7; dcol++) {
+      const d = addDays(gridStart, wRow * 7 + dcol);
+      daysHtml += dayCell(d);
+      weekTSS += athleteSessions(a.id).filter(s => s.date === toISO(d)).reduce((n, s) => n + (Number(s.load) || 0), 0);
+      if (d <= today) lastPast = toISO(d);
+    }
+    const wk = weekKey(weekStart);
+    const note = (state.weekNotes || []).find(n => n.athleteId === a.id && n.week === wk);
+    const f = lastPast ? fit[lastPast] : null;
+    const ratio = (f && f.ctl > 0) ? (f.atl / f.ctl) : null;
+    const summary = `
+      <div class="wk-hd">Week</div>
+      <div class="wk-tss">${weekTSS}<span> TSS</span></div>
+      ${f ? `<div class="wk-cta"><span title="Chronic load (fitness, 42d)">CTL ${Math.round(f.ctl)}</span> · <span title="Acute load (fatigue, 7d)">ATL ${Math.round(f.atl)}</span></div>
+        ${ratio != null ? `<div class="wk-acwr" style="color:${acwrColor(ratio)}" title="Acute:Chronic load ratio (ATL/CTL). Sweet spot 0.8–1.3; >1.5 = spike risk.">A:C ${ratio.toFixed(2)}</div>` : ''}` : '<div class="sub" style="font-size:10px">planned</div>'}
+      ${note ? `<div class="wk-note" title="${esc(note.text)}">📝 ${esc(note.text.slice(0, 30))}${note.text.length > 30 ? '…' : ''}</div>` : ''}
+      ${editable ? `<button class="btn sm wk-note-btn" data-weeknote="${wk}">${note ? 'Edit note' : '+ Note'}</button>` : ''}`;
+    weeksHtml += `<div class="cal-week-row"><div class="cal-grid wk-days">${daysHtml}</div><div class="cal-wk-sum">${summary}</div></div>`;
   }
 
   v.innerHTML = `
@@ -1286,14 +1363,30 @@ function drawCalendar() {
       <h3 style="margin:0">${MONTHS[m]} ${y}</h3>
       <div class="btn-row">${Object.entries(SPORTS).map(([k, s]) => `<span class="badge"><span class="dot" style="background:${s.color}"></span>${s.label}</span>`).slice(0,4).join('')}</div>
     </div>
-    <div class="cal-grid">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div>
-    <div class="cal-grid" id="cal-body">${cells}</div>`;
+    <div class="cal-week-row head"><div class="cal-grid wk-days">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div><div class="cal-wk-sum head">Weekly load</div></div>
+    <div class="cal-weeks">${weeksHtml}</div>`;
 
   $('#cal-prev').addEventListener('click', () => shiftMonth(-1));
   $('#cal-next').addEventListener('click', () => shiftMonth(1));
   $('#cal-today').addEventListener('click', () => { const t = new Date(); state.ui.calMonth = t.getMonth(); state.ui.calYear = t.getFullYear(); save(); drawCalendar(); });
+  $$('[data-weeknote]').forEach(b => b.addEventListener('click', () => openWeekNoteModal(b.dataset.weeknote)));
 
   bindCalendarDnD();
+}
+function openWeekNoteModal(wk) {
+  const a = currentAthlete();
+  const existing = (state.weekNotes || []).find(n => n.athleteId === a.id && n.week === wk);
+  const body = `<div class="sub" style="margin-bottom:8px">Week of ${fmtDate(wk)}</div>
+    <label>Note for this week</label>
+    <textarea id="wn-text" placeholder="e.g. Recovery week — keep it easy; travel Thu–Fri">${esc(existing ? existing.text : '')}</textarea>`;
+  openModal('Week note', body, `${existing ? '<button class="btn danger" id="wn-del">Delete</button>' : ''}<button class="btn primary" id="wn-save">Save</button>`);
+  $('#wn-save').addEventListener('click', () => {
+    const t = ($('#wn-text').value || '').trim();
+    if (existing) { if (t) existing.text = t; else state.weekNotes = state.weekNotes.filter(n => n !== existing); }
+    else if (t) (state.weekNotes = state.weekNotes || []).push({ id: uid(), athleteId: a.id, week: wk, text: t });
+    save(); closeModal(); drawCalendar(); toast('Week note saved');
+  });
+  if ($('#wn-del')) $('#wn-del').addEventListener('click', () => { state.weekNotes = state.weekNotes.filter(n => n !== existing); save(); closeModal(); drawCalendar(); toast('Deleted'); });
 }
 function shiftMonth(n) {
   let m = state.ui.calMonth + n, y = state.ui.calYear;
@@ -1339,8 +1432,8 @@ function bindCalendarDnD() {
       const s = state.sessions.find(x => x.id === dragId);
       if (s) { s.date = cell.dataset.day; save(); drawCalendar(); toast('Session moved to ' + fmtDate(s.date)); }
     });
-    // click empty cell to add (coach)
-    cell.addEventListener('click', () => { if (state.role === 'coach') openSessionModal(null, cell.dataset.day); });
+    // click empty cell to add (coach or athlete)
+    cell.addEventListener('click', () => { if (canPlan()) openSessionModal(null, cell.dataset.day); });
   });
 }
 
@@ -1402,10 +1495,10 @@ function recommendationHTML(aid, dateISO) {
     <div class="sub">${sp.icon} ${sp.label} — ${esc(c.focus || '')} ${zones}</div></div></div>`;
 }
 
-function openSessionModal(id, presetDate) {
+function openSessionModal(id, presetDate, presetSport) {
   const editing = id ? state.sessions.find(s => s.id === id) : null;
-  const s = editing || { id: null, sport: 'biking', name: '', duration: 60, load: 50, date: presetDate || todayISO(), desc: '', strength: [], steps: [], status: 'planned' };
-  const canEdit = state.role === 'coach';
+  const s = editing || { id: null, sport: presetSport || 'biking', name: '', duration: presetSport === 'strength' ? 45 : 60, load: presetSport === 'strength' ? 30 : 50, date: presetDate || todayISO(), desc: '', strength: [], steps: [], status: 'planned' };
+  const canEdit = canPlan();   // coach or athlete can add/edit/delete their own sessions
   const a = currentAthlete();
 
   const sportOpts = Object.entries(SPORTS).map(([k, sp]) => `<option value="${k}" ${s.sport === k ? 'selected' : ''}>${sp.icon} ${sp.label}</option>`).join('');
@@ -1938,6 +2031,7 @@ function viewAthletes() {
   $('#add-ath').addEventListener('click', () => openAddAthleteModal(() => viewAthletes()));
 
   const a = currentAthlete();
+  if (!a) { $('#view').innerHTML = `<div class="card" style="max-width:520px"><h3>No athletes yet</h3><p class="sub">Tap <b>+ Add athlete</b> above to create the first athlete you coach.</p></div>`; return; }
   const inRoster = a && Cloud.myUid && (a.coachUids || []).includes(Cloud.myUid);
   const v = $('#view');
   v.innerHTML = `
@@ -2039,23 +2133,37 @@ function viewAthletes() {
   let ztab = 'powerZones';
   function drawZones() {
     const zones = a[ztab];
-    const unit = ztab === 'powerZones' ? '% FTP' : ztab === 'hrZones' ? '% Thr HR' : '% Thr pace';
+    const isPace = ztab === 'paceZones';
     const ref = ztab === 'powerZones' ? a.ftp : ztab === 'hrZones' ? a.thresholdHr : a.thresholdPace;
+    const absUnit = ztab === 'powerZones' ? 'W' : 'bpm';
+    const absOK = !isPace && ref > 0;                       // absolute entry needs a reference value
+    const absMode = absOK && state.ui.zoneUnit === 'abs';
+    const colUnit = absMode ? absUnit : (ztab === 'powerZones' ? '% FTP' : ztab === 'hrZones' ? '% Thr HR' : '% Thr pace');
+    const toAbs = pct => Math.round(ref * pct / 100);
+    const toPct = v => ref ? Math.round(v / ref * 1000) / 10 : v;
+    const rangeText = z => absMode ? `${Math.round(z.min)}–${Math.round(z.max)}%` : zoneAbs(ztab, z, ref);
     $('#zone-card').innerHTML = `
-      <div class="sub" style="margin-bottom:10px">Percentages of ${ztab === 'powerZones' ? 'FTP (' + a.ftp + 'W)' : ztab === 'hrZones' ? 'threshold HR (' + a.thresholdHr + ' bpm)' : 'threshold pace'}. Edit freely.</div>
-      <table class="ztable"><thead><tr><th>Zone</th><th>Min ${unit}</th><th>Max ${unit}</th><th>Range</th></tr></thead>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div class="sub">${absMode ? `Type the exact ${absUnit} for each zone — no percentages needed (uses ${ztab === 'powerZones' ? 'FTP ' + a.ftp + ' W' : 'threshold HR ' + a.thresholdHr + ' bpm'}).` : `Percentages of ${ztab === 'powerZones' ? 'FTP (' + a.ftp + 'W)' : ztab === 'hrZones' ? 'threshold HR (' + a.thresholdHr + ' bpm)' : 'threshold pace'}.`}</div>
+        ${absOK ? `<div class="seg2" id="zunit"><button data-zu="pct" class="${!absMode ? 'active' : ''}">%</button><button data-zu="abs" class="${absMode ? 'active' : ''}">${absUnit}</button></div>` : ''}
+      </div>
+      <table class="ztable"><thead><tr><th>Zone</th><th>Min ${colUnit}</th><th>Max ${colUnit}</th><th>${absMode ? '% range' : (isPace ? 'Pace' : 'Range')}</th></tr></thead>
         <tbody>${zones.map((z, i) => `<tr>
           <td><input data-zi="${i}" data-zk="name" value="${esc(z.name)}"/></td>
-          <td><input data-zi="${i}" data-zk="min" type="number" value="${z.min}" style="width:80px"/></td>
-          <td><input data-zi="${i}" data-zk="max" type="number" value="${z.max}" style="width:80px"/></td>
-          <td class="sub">${zoneAbs(ztab, z, ref)}</td>
+          <td><input data-zi="${i}" data-zk="min" type="number" value="${absMode ? toAbs(z.min) : z.min}" style="width:80px"/></td>
+          <td><input data-zi="${i}" data-zk="max" type="number" value="${absMode ? toAbs(z.max) : z.max}" style="width:80px"/></td>
+          <td class="sub zrange">${rangeText(z)}</td>
         </tr>`).join('')}</tbody></table>
       <div class="btn-row" style="margin-top:10px"><button class="btn sm" id="z-add">+ Add zone</button><button class="btn sm" id="z-reset">Reset defaults</button></div>`;
     $$('#zone-card [data-zi]').forEach(inp => inp.addEventListener('input', () => {
       const i = Number(inp.dataset.zi), k = inp.dataset.zk;
-      a[ztab][i][k] = k === 'name' ? inp.value : Number(inp.value) || 0; save();
-      if (k !== 'name') drawZones();
+      if (k === 'name') { a[ztab][i][k] = inp.value; save(); return; }
+      const val = Number(inp.value) || 0;
+      a[ztab][i][k] = absMode ? toPct(val) : val;
+      save();
+      const cell = inp.closest('tr').querySelector('.zrange'); if (cell) cell.textContent = rangeText(a[ztab][i]); // no full redraw → keeps focus
     }));
+    if ($('#zunit')) $$('#zunit [data-zu]').forEach(b => b.addEventListener('click', () => { state.ui.zoneUnit = b.dataset.zu; save(); drawZones(); }));
     $('#z-add').addEventListener('click', () => { a[ztab].push({ name: 'New zone', min: 0, max: 0 }); save(); drawZones(); });
     $('#z-reset').addEventListener('click', () => { a[ztab] = clone(ztab === 'powerZones' ? DEFAULT_POWER_ZONES : ztab === 'hrZones' ? DEFAULT_HR_ZONES : DEFAULT_PACE_ZONES); save(); drawZones(); });
   }
@@ -2300,6 +2408,64 @@ function openCycleModal(id) {
   if ($('#c-del')) $('#c-del').addEventListener('click', () => { state.cycles = state.cycles.filter(x => x.id !== c.id); save(); closeModal(); render(); toast('Deleted'); });
 }
 
+/* ------------------------------ Strength ------------------------------- */
+// planned rows or legacy {sets,reps,weight,rest} → per-set rows (read-only normalise)
+function normSetRows(ex) {
+  if (Array.isArray(ex.setRows) && ex.setRows.length) return ex.setRows;
+  const n = Math.max(1, Number(ex.sets) || 1);
+  return Array.from({ length: n }, () => ({ reps: ex.reps || '', weight: ex.weight || '', rest: ex.rest || '', rpe: ex.rpe || '' }));
+}
+// total tonnage (kg lifted) = Σ weight×reps across all sets
+function strengthVolume(s) {
+  let vol = 0;
+  (s.strength || []).forEach(ex => normSetRows(ex).forEach(r => {
+    const wkg = parseFloat(String(r.weight || '').replace(',', '.'));
+    const reps = parseInt(String(r.reps || ''), 10);
+    if (!isNaN(wkg) && !isNaN(reps)) vol += wkg * reps;
+  }));
+  return vol ? Math.round(vol) : 0;
+}
+function strengthExTable(ex) {
+  const rows = normSetRows(ex);
+  return `<div style="margin-top:10px">
+    <div style="font-weight:600">${esc(ex.exercise || 'Exercise')}${ex.type ? ` <span class="sub">· ${esc(ex.type)}</span>` : ''}</div>
+    <div style="overflow-x:auto"><table class="set-table"><thead><tr><th>Set</th><th>Reps</th><th>Weight</th><th>Rest</th><th>RPE</th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr><td class="setn">${i + 1}</td><td>${esc(r.reps || '–')}</td><td>${esc(r.weight || '–')}</td><td>${esc(r.rest || '–')}</td><td>${r.rpe ? `<b style="color:${rpeColor(Number(r.rpe) || 0)}">${esc(r.rpe)}</b>` : '–'}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
+}
+function strengthCard(s) {
+  const vol = strengthVolume(s);
+  return `<div class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="min-width:0"><h3 style="margin:0">🏋️ ${esc(s.name)} ${s.status === 'done' ? '<span class="badge" style="color:var(--ok)">✓ done</span>' : '<span class="badge">planned</span>'} ${rpeBadge(s)}</h3>
+        <div class="sub">${fmtDate(s.date)}${s.focus ? ' · ' + esc(s.focus) : ''}${s.targetRpe ? ' · target RPE ' + esc(s.targetRpe) : ''}${vol ? ' · <b style="color:var(--text)">' + vol + ' kg</b> total volume' : ''}</div></div>
+      <button class="btn sm ${canPlan() ? 'primary' : ''}" data-open-session="${s.id}">${canPlan() ? 'Edit / log' : 'View'}</button>
+    </div>
+    ${(s.strength || []).length ? (s.strength || []).map(ex => strengthExTable(ex)).join('') : '<div class="sub" style="margin-top:8px">No exercises logged.</div>'}
+  </div>`;
+}
+function viewStrength() {
+  const a = currentAthlete();
+  const actions = $('#topbar-actions');
+  actions.innerHTML = canPlan() ? `<button class="btn primary sm" id="add-str">+ Add strength session</button>` : '';
+  if (canPlan() && $('#add-str')) $('#add-str').addEventListener('click', () => openSessionModal(null, todayISO(), 'strength'));
+
+  const sessions = athleteSessions(a.id).filter(s => s.sport === 'strength').sort((x, y) => y.date.localeCompare(x.date));
+  const done = sessions.filter(s => s.status === 'done');
+  const totalVol = done.reduce((n, s) => n + strengthVolume(s), 0);
+  const v = $('#view');
+  v.innerHTML = `
+    <p class="sub">All strength sessions for ${esc(a.name)} — weights, reps, rest and <b>RPE per set</b>. ${canPlan() ? 'Add a session, or open one to log exactly what you lifted.' : 'Read-only.'}</p>
+    ${sessions.length ? `<div class="grid cols-3" style="margin:12px 0">
+      <div class="card stat"><span class="l">Strength sessions</span><span class="v">${sessions.length}</span><span class="sub">${done.length} completed</span></div>
+      <div class="card stat"><span class="l">Total volume (done)</span><span class="v">${totalVol ? (totalVol / 1000).toFixed(1) : 0}<small style="font-size:14px;color:var(--muted)"> t</small></span><span class="sub">kg lifted, all sets</span></div>
+      <div class="card stat"><span class="l">Last session</span><span class="v" style="font-size:18px">${fmtDate(sessions[0].date)}</span><span class="sub">${esc(sessions[0].focus || sessions[0].name)}</span></div>
+    </div>` : ''}
+    ${sessions.length ? sessions.map(s => strengthCard(s)).join('') : '<div class="empty">No strength sessions yet.' + (canPlan() ? ' Tap “+ Add strength session”.' : '') + '</div>'}`;
+  $$('[data-open-session]').forEach(b => b.addEventListener('click', () => openSessionModal(b.dataset.openSession)));
+}
+
 /* ------------------------------ Fitness (CTL/ATL/TSB) ------------------- */
 function viewFitness() {
   const a = currentAthlete();
@@ -2449,8 +2615,11 @@ function viewMessages() {
   v.innerHTML = `
     <div class="grid cols-2">
       <div class="card">
-        <h3>💬 Chat ${me === 'coach' ? 'with ' + esc(a.name) : 'with coach'}</h3>
-        <div class="chat" id="chat">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <h3 style="margin:0">💬 Chat ${me === 'coach' ? 'with ' + esc(a.name) : 'with coach'}</h3>
+          ${isTeamRole(me) ? `<button class="btn sm" id="msg-notify" title="Send a push notification">🔔 Notify</button>` : ''}
+        </div>
+        <div class="chat" id="chat" style="margin-top:8px">
           ${msgs.length ? msgs.map(m => {
             const author = m.from === 'coach' ? ((state.coaches.find(c => c.id === m.coachId) || {}).name || 'Coach') : esc(a.name);
             const isMe = m.from === me;
@@ -2484,6 +2653,7 @@ function viewMessages() {
   };
   $('#msg-send').addEventListener('click', send);
   $('#msg-text').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  if ($('#msg-notify')) $('#msg-notify').addEventListener('click', () => openNotifyModal(a.id, a.name));
   $('#note-add').addEventListener('click', () => {
     const t = $('#note-text').value.trim(); if (!t) return;
     state.dayNotes.push({ id: uid(), athleteId: a.id, date: $('#note-date').value, text: t });
@@ -2738,7 +2908,7 @@ function fmtTs(ts) { if (!ts) return ''; const d = new Date(ts); return d.toLoca
 function viewTodos() {
   const v = $('#view');
   const actions = $('#topbar-actions');
-  const canCreate = isTeamRole(state.role);          // coach / coordinator / staff can assign tasks
+  const canCreate = true;          // everyone (coach / crew / athlete) can add to the shared to-do list
   actions.innerHTML = canCreate ? `<button class="btn primary sm" id="add-todo">+ New task</button>` : '';
   // warm the user cache for names / assignee picker
   fetchAllUsers().then(list => { if (cacheUsers(list) && state.ui.view === 'todos') drawTodos(); });
@@ -2751,18 +2921,17 @@ function viewTodos() {
     const openCount = all.filter(t => t.status !== 'done').length;
 
     v.innerHTML = `
-      <p class="sub">${canCreate ? 'Create tasks with a deadline and assign them to anyone on the team. Each task also appears on that person’s calendar and on the <b>Shared Calendar</b>.' : 'Your tasks from the coordinator. Update your status so everyone can follow along.'}</p>
+      <p class="sub">A shared team to-do list — anyone can add a task with a deadline and assign it to a teammate. Each task also appears on that person’s calendar and on the <b>Shared Calendar</b>.</p>
 
       <div class="section-title">My tasks ${mine.length ? `· ${mine.filter(t => t.status !== 'done').length} open` : ''}</div>
       <div class="list">
         ${mine.length ? mine.map(t => todoRow(t, true)).join('') : '<div class="empty">No tasks assigned to you 🎉</div>'}
       </div>
 
-      ${canCreate ? `
       <div class="section-title" style="margin-top:22px">All tasks · ${openCount} open</div>
       <div class="list">
         ${board.length ? board.map(t => todoRow(t, t.assigneeUid === me)).join('') : '<div class="empty">No tasks yet. Tap “+ New task”.</div>'}
-      </div>` : ''}`;
+      </div>`;
 
     bindTodoRows();
   }
@@ -2812,7 +2981,7 @@ function openTodoModal(id, onDone) {
     <label>Details (optional)</label>
     <textarea id="td-desc" ${dis} placeholder="Any extra info…">${esc(t.desc || '')}</textarea>
     <div class="inline">
-      <div><label>Assign to</label><select id="td-who" ${isTeamRole(state.role) ? '' : 'disabled'}>${opts}</select></div>
+      <div><label>Assign to</label><select id="td-who" ${canEdit ? '' : 'disabled'}>${opts}</select></div>
       <div><label>Deadline</label><input id="td-due" type="date" value="${t.due || ''}" ${dis}/></div>
     </div>
     <label>Status</label>
@@ -3024,13 +3193,17 @@ async function openAthletePanel(aid) {
   const upcoming = sessions.filter(s => s.date >= today && s.status !== 'done').sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
   const recent = sessions.filter(s => s.status === 'done').sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
   const body = `
-    <div class="sub" style="margin-bottom:8px">${esc(profile.name)}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+      <div class="sub">${esc(profile.name)}</div>
+      ${isTeamRole(state.role) ? `<button class="btn sm primary" id="panel-notify">🔔 Notify</button>` : ''}
+    </div>
     <div class="section-title">Upcoming</div>
     <div class="list">${upcoming.length ? upcoming.map(s => panelSessionRow(s, aid)).join('') : '<div class="empty">Nothing planned.</div>'}</div>
     <div class="section-title">Recent (done)</div>
     <div class="list">${recent.length ? recent.map(s => panelSessionRow(s, aid)).join('') : '<div class="empty">No completed sessions.</div>'}</div>`;
   const b = $('#modal-root .mbody'); if (b) b.innerHTML = body;
   const h = $('#modal-root .mhead h3'); if (h) h.textContent = profile.name;
+  if ($('#panel-notify')) $('#panel-notify').addEventListener('click', () => openNotifyModal(aid, profile.name));
   $$('[data-panel-sess]').forEach(x => x.addEventListener('click', () => openReadonlySession(x.dataset.panelSess, aid, sessions, wellness)));
 }
 function panelSessionRow(s, aid) {
@@ -3484,7 +3657,7 @@ const Cloud = {
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
   PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'coachUids', 'viewers', 'ownerUid', 'intervals'],
-  ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses', 'wellness'],
+  ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses', 'wellness', 'weekNotes'],
 
   init() {
     if (!window.FIREBASE_CONFIG || typeof firebase === 'undefined') return false;
@@ -3977,6 +4150,14 @@ function friendlyAuthError(e) {
 }
 
 /* ------------------------------ Boot ------------------------------------ */
+// running as an installed app? give the body an "app vibe" hook + honour ?v= shortcuts
+try {
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (standalone) document.documentElement.classList.add('standalone');
+  const qv = new URLSearchParams(location.search).get('v');
+  if (qv && NAV.some(n => n.id === qv)) state.ui.view = qv;
+} catch (e) {}
+
 if (Cloud.init()) {
   Cloud.start();               // cloud mode: auth gate + live sync
 } else {
