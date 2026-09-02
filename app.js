@@ -2777,6 +2777,8 @@ function readinessArrow(good) { return good ? '<span style="color:var(--ok)">▲
 
 function viewRecovery() {
   const a = currentAthlete();
+  const actions = $('#topbar-actions');
+  if (actions) { actions.innerHTML = `<button class="btn sm" id="rec-sync" title="Pull the latest HRV / resting HR from Intervals.icu now">⟳ Sync</button>`; const rs = $('#rec-sync'); if (rs) rs.addEventListener('click', () => triggerIntervalsSync()); }
   const r = computeReadiness(a.id, 30);
   const v = $('#view');
   const today = todayISO();
@@ -3396,8 +3398,11 @@ function viewSettings() {
       <div class="hint">Stored securely in your team's private cloud so the sync server can use it. TAC ⇄ Intervals.icu.</div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn primary" id="iv-save">Save connection</button>
+        <button class="btn" id="iv-syncnow">⟳ Sync now</button>
+        <button class="btn ghost sm" id="iv-syncsetup">1-click setup</button>
       </div>
       <div class="sub" style="margin-top:10px">${iv.apiKey ? '✅ Connected — syncs automatically.' : 'Not connected yet.'} ${iv.lastSync ? '· Last sync: ' + esc(iv.lastSync) : ''}</div>
+      <div class="hint">“Sync now” starts your Intervals sync straight away (data updates in ~1–2 min) instead of waiting for the automatic run. It uses your GitHub — set up 1-click sync once, or it opens GitHub to press “Run workflow”.</div>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:16px">
@@ -3457,6 +3462,8 @@ function viewSettings() {
     ivAthlete.intervals = { athleteId: $('#iv-id').value.trim(), apiKey: $('#iv-key').value.trim(), lastSync: iv.lastSync || null };
     save(); viewSettings(); toast('Intervals connection saved');
   });
+  if ($('#iv-syncnow')) $('#iv-syncnow').addEventListener('click', () => triggerIntervalsSync());
+  if ($('#iv-syncsetup')) $('#iv-syncsetup').addEventListener('click', () => openSyncSetup());
   $('#d-export').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a');
@@ -3560,6 +3567,49 @@ function openReminderModal(id, onSave) {
     if (editing) Object.assign(editing, obj); else state.reminders.push(obj);
     save(); closeModal(); toast('Reminder saved'); onSave && onSave();
   });
+}
+
+/* ------------------------------ Manual "Sync now" ----------------------- */
+// The real sync runs server-side on GitHub Actions (admin key; the browser can't reach Intervals
+// directly because of CORS). "Sync now" starts that workflow immediately via workflow_dispatch.
+const GH_OWNER = 'marcindelhaye-TAC', GH_REPO = 'tac-coach', GH_WF = 'intervals-sync.yml';
+async function triggerIntervalsSync() {
+  const token = (() => { try { return localStorage.getItem('tac_gh_token'); } catch (e) { return null; } })();
+  if (token) {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WF}/dispatches`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        body: JSON.stringify({ ref: 'main' })
+      });
+      if (res.status === 204) { toast('Sync started ⟳ — your Intervals data updates in ~1–2 min'); return; }
+      if (res.status === 401 || res.status === 403 || res.status === 404) { toast('Sync token invalid — re-enter it'); openSyncSetup(); return; }
+      toast('Sync could not start (' + res.status + ')');
+    } catch (e) { toast('Sync failed: ' + e.message); }
+    return;
+  }
+  // no token saved → open GitHub Actions so the user can press "Run workflow"
+  try { window.open(`https://github.com/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WF}`, '_blank'); } catch (e) {}
+  toast('Opened GitHub — press “Run workflow”. Tip: set up 1-click sync so this button does it directly.');
+}
+function openSyncSetup() {
+  const cur = (() => { try { return localStorage.getItem('tac_gh_token') || ''; } catch (e) { return ''; } })();
+  const body = `<p class="sub">For a true one-click “Sync now”, paste a GitHub token. It is stored only on this device (never in the cloud) and used only to start your own sync workflow.</p>
+    <ol class="sub" style="padding-left:18px;line-height:1.7">
+      <li>Open <b>github.com/settings/personal-access-tokens/new</b> (fine-grained token).</li>
+      <li>Repository access → <b>Only select repositories</b> → <b>tac-coach</b>.</li>
+      <li>Permissions → Repository → <b>Actions: Read and write</b>.</li>
+      <li>Generate, copy the token, paste it below.</li>
+    </ol>
+    <label>GitHub token</label><input id="gh-tok" type="password" placeholder="github_pat_…" value="${esc(cur)}"/>
+    <div class="hint">Only on this browser (localStorage). Clear it by emptying the field and saving.</div>`;
+  openModal('One-click sync setup', body, `${cur ? '<button class="btn danger" id="gh-clear">Remove</button>' : ''}<button class="btn primary" id="gh-save">Save</button>`);
+  $('#gh-save').addEventListener('click', () => {
+    const t = ($('#gh-tok').value || '').trim();
+    try { if (t) localStorage.setItem('tac_gh_token', t); else localStorage.removeItem('tac_gh_token'); } catch (e) {}
+    closeModal(); toast(t ? 'One-click sync enabled ✅' : 'Token cleared');
+  });
+  if ($('#gh-clear')) $('#gh-clear').addEventListener('click', () => { try { localStorage.removeItem('tac_gh_token'); } catch (e) {} closeModal(); toast('Token removed'); });
 }
 
 async function triggerInstall() {
