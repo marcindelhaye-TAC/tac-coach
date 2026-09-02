@@ -518,6 +518,8 @@ function macroLibraryFor(c) {
 }
 
 let state = load();
+// on every app start, land the calendar on the current week/month (background syncs never reset it)
+(function () { try { const t = new Date(); state.ui = state.ui || {}; state.ui.calMonth = t.getMonth(); state.ui.calYear = t.getFullYear(); } catch (e) {} })();
 function load() {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -817,6 +819,9 @@ function mobilePrimary() {
   return ids.map(id => nav.find(n => n.id === id)).filter(Boolean).slice(0, 4);
 }
 function go(view) {
+  // opening the Calendar always lands on the current week/month (navigating within it is preserved,
+  // and a background sync won't jump you — this only fires on an explicit tab open)
+  if (view === 'calendar') { const t = new Date(); state.ui.calMonth = t.getMonth(); state.ui.calYear = t.getFullYear(); }
   state.ui.view = view; state.ui._anim = true;
   try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}   // subtle haptic on Android
   save(); render(); window.scrollTo(0, 0);
@@ -2594,6 +2599,7 @@ function viewFitness() {
     </div>
     <div class="card">
       <h3>Fitness / Fatigue / Form — last 120 days</h3>
+      <div id="fc-read" class="badge" style="margin-bottom:6px">Swipe / hover the curve to read values…</div>
       <div class="chart-wrap">${fitnessChart(data)}</div>
       <div class="legend">
         <span><i style="background:var(--accent)"></i>Fitness (CTL)</span>
@@ -2610,9 +2616,11 @@ function viewFitness() {
       ${stackedLoadChart(weeklyLoadBySport(a.id, 12))}
       <div class="sub" style="margin-top:6px">Total weekly load and its split across sports. LIT = easy (Z1–2), MOD = tempo (Z3), HIT = threshold+ (Z4+).</div>
     </div>`;
+  mountFitnessHover(data);
 }
+const FC = { W: 760, H: 260, pad: 30 };
 function fitnessChart(data) {
-  const W = 760, H = 280, pad = 34;
+  const { W, H, pad } = FC;
   if (!data.length) return '<div class="empty">No data yet.</div>';
   const vals = data.flatMap(d => [d.ctl, d.atl, d.tsb]);
   const min = Math.min(0, ...vals), max = Math.max(10, ...vals);
@@ -2620,17 +2628,69 @@ function fitnessChart(data) {
   const y = val => H - pad - ((val - min) / (max - min || 1)) * (H - pad * 2);
   const path = (key) => data.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join(' ');
   const zeroY = y(0);
-  // month gridlines
   let grid = '';
   data.forEach((d, i) => { if (fromISO(d.date).getDate() === 1) grid += `<line x1="${x(i)}" y1="${pad}" x2="${x(i)}" y2="${H - pad}" stroke="var(--line)" stroke-dasharray="2,3"/><text x="${x(i)}" y="${H - pad + 14}" fill="var(--muted)" font-size="10" text-anchor="middle">${MONTHS[fromISO(d.date).getMonth()].slice(0, 3)}</text>`; });
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="min-width:520px">
+  return `<svg id="fc-svg" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;min-width:520px;touch-action:pan-y">
     ${grid}
     <line x1="${pad}" y1="${zeroY}" x2="${W - pad}" y2="${zeroY}" stroke="var(--line)"/>
     <text x="${pad - 6}" y="${zeroY + 3}" fill="var(--muted)" font-size="10" text-anchor="end">0</text>
-    <path d="${path('ctl')}" fill="none" stroke="#3b30e6" stroke-width="2.5"/>
-    <path d="${path('atl')}" fill="none" stroke="#e50914" stroke-width="2"/>
-    <path d="${path('tsb')}" fill="none" stroke="#f5c518" stroke-width="1.6" stroke-dasharray="4,3"/>
+    <path d="${path('ctl')}" fill="none" stroke="#3b30e6" stroke-width="2.2"/>
+    <path d="${path('atl')}" fill="none" stroke="#e50914" stroke-width="1.8"/>
+    <path d="${path('tsb')}" fill="none" stroke="#f5c518" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line class="fc-cross" x1="0" y1="${pad}" x2="0" y2="${H - pad}" stroke="var(--text)" stroke-width="1" opacity="0"/>
+    <g class="fc-dots"></g>
   </svg>`;
+}
+// scrub/swipe the fitness curve like Intervals — crosshair + value readout follow the cursor/finger
+function mountFitnessHover(data) {
+  const svg = document.getElementById('fc-svg'); const read = document.getElementById('fc-read');
+  if (!svg || !read || !data.length) return;
+  const { W, H, pad } = FC, N = data.length;
+  const vals = data.flatMap(d => [d.ctl, d.atl, d.tsb]);
+  const min = Math.min(0, ...vals), max = Math.max(10, ...vals);
+  const xOf = i => pad + (i / (N - 1 || 1)) * (W - pad * 2);
+  const yOf = val => H - pad - ((val - min) / (max - min || 1)) * (H - pad * 2);
+  const cross = svg.querySelector('.fc-cross'), dots = svg.querySelector('.fc-dots');
+  const move = clientX => {
+    const rect = svg.getBoundingClientRect();
+    const vxRaw = (clientX - rect.left) / rect.width * W;
+    const f = Math.max(0, Math.min(1, (vxRaw - pad) / (W - 2 * pad)));
+    const idx = Math.round(f * (N - 1)); const d = data[idx]; if (!d) return;
+    const vx = xOf(idx);
+    cross.setAttribute('x1', vx); cross.setAttribute('x2', vx); cross.setAttribute('opacity', '0.7');
+    dots.innerHTML = `<circle cx="${vx}" cy="${yOf(d.ctl)}" r="3.4" fill="#3b30e6"/><circle cx="${vx}" cy="${yOf(d.atl)}" r="3.4" fill="#e50914"/><circle cx="${vx}" cy="${yOf(d.tsb)}" r="3.4" fill="#f5c518"/>`;
+    read.innerHTML = `<b>${fmtDate(d.date)}</b> · <span style="color:#6f66ff">Fitness ${d.ctl}</span> · <span style="color:#e50914">Fatigue ${d.atl}</span> · <span style="color:#f5c518">Form ${d.tsb}</span>`;
+  };
+  const clear = () => { cross.setAttribute('opacity', '0'); dots.innerHTML = ''; read.innerHTML = 'Swipe / hover the curve to read values…'; };
+  svg.addEventListener('mousemove', e => move(e.clientX));
+  svg.addEventListener('mouseleave', clear);
+  svg.addEventListener('touchstart', e => { if (e.touches[0]) move(e.touches[0].clientX); }, { passive: true });
+  svg.addEventListener('touchmove', e => { if (e.touches[0]) move(e.touches[0].clientX); }, { passive: true });
+}
+
+// Interactive readiness trend (swipe/hover to read each day) — Intervals-style.
+function recoveryTrendSVG(trend) {
+  if (!trend.length) return '<div class="empty">No data</div>';
+  const W = 760, H = 120, n = trend.length, bw = W / n;
+  const bars = trend.map((d, i) => { const h = Math.max(4, d.score) / 100 * H; return `<rect x="${(i * bw + 1).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${d.band.color}" opacity="${d.scored ? 1 : 0.5}"/>`; }).join('');
+  return `<svg id="rc-svg" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;touch-action:pan-y">${bars}<rect class="rc-hl" x="0" y="0" width="${bw.toFixed(1)}" height="${H}" fill="var(--text)" opacity="0"/></svg>`;
+}
+function mountRecoveryHover(trend) {
+  const svg = document.getElementById('rc-svg'); const read = document.getElementById('rc-read');
+  if (!svg || !read || !trend.length) return;
+  const W = 760, n = trend.length, bw = W / n; const hl = svg.querySelector('.rc-hl');
+  const move = clientX => {
+    const rect = svg.getBoundingClientRect();
+    const f = Math.max(0, Math.min(0.999, (clientX - rect.left) / rect.width));
+    const idx = Math.floor(f * n); const d = trend[idx]; if (!d) return;
+    hl.setAttribute('x', (idx * bw).toFixed(1)); hl.setAttribute('opacity', '0.14');
+    read.innerHTML = `<b>${fmtDate(d.date)}</b> · <span style="color:${d.band.color}">${d.score} — ${d.band.label}</span>${d.parts && d.parts.hrv ? ` · HRV ${d.parts.hrv.value}ms` : ''}${d.parts && d.parts.rhr ? ` · RHR ${d.parts.rhr.value}` : ''}${d.parts && d.parts.notes && d.parts.notes.penalty ? ` · −${d.parts.notes.penalty}` : ''}`;
+  };
+  const clear = () => { hl.setAttribute('opacity', '0'); read.innerHTML = 'Swipe / hover to read each day…'; };
+  svg.addEventListener('mousemove', e => move(e.clientX));
+  svg.addEventListener('mouseleave', clear);
+  svg.addEventListener('touchstart', e => { if (e.touches[0]) move(e.touches[0].clientX); }, { passive: true });
+  svg.addEventListener('touchmove', e => { if (e.touches[0]) move(e.touches[0].clientX); }, { passive: true });
 }
 
 /* ------------------------------ Nutrition ------------------------------- */
@@ -2921,9 +2981,8 @@ function viewRecovery() {
   else compRows.push(`<div class="row"><div class="grow"><div class="title">😌 Feeling &amp; sleep</div><div class="meta">No morning check-in ${isToday ? 'today yet' : 'that day'}.</div></div>${isToday ? '<button class="btn sm primary" id="rec-checkin">Log now</button>' : ''}</div>`);
   if (p.notes && (p.notes.penalty || p.notes.list.length)) compRows.push(`<div class="row" style="border-left:3px solid ${p.notes.penalty ? 'var(--bad)' : 'var(--line)'}"><div class="grow"><div class="title">📌 Day notes ${p.notes.penalty ? `<span style="color:var(--bad)">−${p.notes.penalty}</span>` : ''}</div><div class="meta">${p.notes.list.length ? esc(p.notes.list.join(' · ')) : 'none'}${p.notes.hits.length ? ' · ' + p.notes.hits.join(', ') : ''}</div></div></div>`);
 
-  // 30-day trend bars
+  // 30-day trend (interactive)
   const trend = r.days.slice(-30);
-  const bars = trend.map(d => `<span title="${fmtDate(d.date)}: ${d.score} (${d.band.label})" style="flex:1;min-width:4px;height:${Math.max(4, d.score)}%;background:${d.band.color};border-radius:3px 3px 0 0;opacity:${d.scored ? 1 : 0.5}"></span>`).join('');
 
   v.innerHTML = intro + `
     <div class="grid cols-2" style="margin:12px 0;align-items:stretch">
@@ -2953,7 +3012,8 @@ function viewRecovery() {
 
     <div class="card" style="margin-top:16px">
       <h3>Readiness — last 30 days</h3>
-      <div class="spark" style="height:120px;align-items:flex-end">${bars || '<span class="sub">No data</span>'}</div>
+      <div id="rc-read" class="badge" style="margin-bottom:6px">Swipe / hover to read each day…</div>
+      <div class="chart-wrap">${recoveryTrendSVG(trend)}</div>
       <div class="legend" style="margin-top:8px">
         <span><i style="background:#35c98b"></i>Ready</span>
         <span><i style="background:#f5c518"></i>Moderate</span>
@@ -2968,6 +3028,7 @@ function viewRecovery() {
     </div>`;
 
   if ($('#rec-checkin')) $('#rec-checkin').addEventListener('click', () => openSleepModal());
+  mountRecoveryHover(trend);
 }
 
 /* Athlete → coach invitation: connect/disconnect the athlete to real coach accounts. */
