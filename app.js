@@ -1296,6 +1296,11 @@ function viewCalendar() {
   drawCalendar();
 }
 
+function fmtHM(min) { min = Math.round(min || 0); const h = Math.floor(min / 60), mm = min % 60; return h ? (mm ? h + 'h' + String(mm).padStart(2, '0') : h + 'h') : mm + 'm'; }
+function isoWeekNum(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + 3 - ((x.getDay() + 6) % 7)); const w1 = new Date(x.getFullYear(), 0, 4); return 1 + Math.round(((x - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7); }
+function complColor(p) { return p >= 90 ? 'var(--ok)' : p >= 70 ? 'var(--yellow)' : 'var(--accent-2)'; }
+
+// Intervals-style calendar: a per-week DATA rail on the left, 7 day columns, and a Notities column.
 function drawCalendar() {
   const v = $('#view');
   const a = currentAthlete();
@@ -1307,15 +1312,15 @@ function drawCalendar() {
   const todayIso = todayISO();
   const editable = canPlan();
 
-  // fitness (CTL/ATL) map covering the visible calendar, for the weekly acute:chronic ratio
   const backDays = Math.max(60, Math.ceil((today - gridStart) / 86400000) + 2);
   const fit = {}; computeFitness(a.id, backDays).forEach(d => fit[d.date] = d);
+  const sessOn = iso => athleteSessions(a.id).filter(s => s.date === iso);
 
   const dayCell = (d) => {
     const iso = toISO(d);
     const inMonth = d.getMonth() === m;
     const isToday = iso === todayIso;
-    const daySessions = athleteSessions(a.id).filter(s => s.date === iso);
+    const daySessions = sessOn(iso);
     const dayLoad = daySessions.reduce((n, s) => n + (Number(s.load) || 0), 0);
     const dayNotes = state.dayNotes.filter(n => n.athleteId === a.id && n.date === iso);
     const dayTodos = (state.todos || []).filter(t => t.assigneeUid === a.id && t.due === iso);
@@ -1328,29 +1333,40 @@ function drawCalendar() {
       </div>`;
   };
 
-  const acwrColor = r => r >= 0.8 && r <= 1.3 ? 'var(--ok)' : (r > 1.5 || r < 0.5 ? 'var(--bad)' : 'var(--yellow)');
   let weeksHtml = '';
   for (let wRow = 0; wRow < 6; wRow++) {
-    let daysHtml = '', weekTSS = 0, lastPast = null;
+    let daysHtml = '', lastPast = null; const weekSessions = [];
     const weekStart = addDays(gridStart, wRow * 7);
     for (let dcol = 0; dcol < 7; dcol++) {
       const d = addDays(gridStart, wRow * 7 + dcol);
       daysHtml += dayCell(d);
-      weekTSS += athleteSessions(a.id).filter(s => s.date === toISO(d)).reduce((n, s) => n + (Number(s.load) || 0), 0);
+      sessOn(toISO(d)).forEach(s => weekSessions.push(s));
       if (d <= today) lastPast = toISO(d);
     }
     const wk = weekKey(weekStart);
     const note = (state.weekNotes || []).find(n => n.athleteId === a.id && n.week === wk);
     const f = lastPast ? fit[lastPast] : null;
-    const ratio = (f && f.ctl > 0) ? (f.atl / f.ctl) : null;
-    const summary = `
-      <div class="wk-hd">Week</div>
-      <div class="wk-tss">${weekTSS}<span> TSS</span></div>
-      ${f ? `<div class="wk-cta"><span title="Chronic load (fitness, 42d)">CTL ${Math.round(f.ctl)}</span> · <span title="Acute load (fatigue, 7d)">ATL ${Math.round(f.atl)}</span></div>
-        ${ratio != null ? `<div class="wk-acwr" style="color:${acwrColor(ratio)}" title="Acute:Chronic load ratio (ATL/CTL). Sweet spot 0.8–1.3; >1.5 = spike risk.">A:C ${ratio.toFixed(2)}</div>` : ''}` : '<div class="sub" style="font-size:10px">planned</div>'}
-      ${note ? `<div class="wk-note" title="${esc(note.text)}">📝 ${esc(note.text.slice(0, 30))}${note.text.length > 30 ? '…' : ''}</div>` : ''}
-      ${editable ? `<button class="btn sm wk-note-btn" data-weeknote="${wk}">${note ? 'Edit note' : '+ Note'}</button>` : ''}`;
-    weeksHtml += `<div class="cal-week-row"><div class="cal-grid wk-days">${daysHtml}</div><div class="cal-wk-sum">${summary}</div></div>`;
+    let ramp = null; if (f && lastPast) { const prev = fit[toISO(addDays(fromISO(lastPast), -7))]; ramp = prev ? +(f.ctl - prev.ctl).toFixed(1) : null; }
+    const weekTime = weekSessions.reduce((n, s) => n + (Number(s.duration) || 0), 0);
+    const weekLoad = weekSessions.reduce((n, s) => n + (Number(s.load) || 0), 0);
+    const plannedLoad = weekSessions.filter(s => s.status !== 'done').reduce((n, s) => n + (Number(s.load) || 0), 0);
+    const doneLoad = weekSessions.filter(s => s.status === 'done').reduce((n, s) => n + (Number(s.load) || 0), 0);
+    const targetLoad = plannedLoad + doneLoad;
+    const compPct = (f && targetLoad > 0) ? Math.round(doneLoad / targetLoad * 100) : null;
+    const bySport = {}; weekSessions.forEach(s => { const k = s.sport; (bySport[k] = bySport[k] || { t: 0, l: 0 }); bySport[k].t += Number(s.duration) || 0; bySport[k].l += Number(s.load) || 0; });
+    const sportRows = Object.keys(bySport).map(k => { const sp = SPORTS[k] || SPORTS.other; return `<div class="wkl-sport"><span>${sp.icon} ${esc(sp.label)}</span><span>${fmtHM(bySport[k].t)} · ${bySport[k].l}</span></div>`; }).join('');
+    const rail = `
+      <div class="wkl-hd"><b>Wk ${isoWeekNum(weekStart)}</b>${editable ? `<button class="wkl-note-btn" data-weeknote="${wk}" title="Week note">✎</button>` : ''}</div>
+      <div class="wkl-row"><span>Totaal</span><b>${fmtHM(weekTime)}</b></div>
+      <div class="wkl-row"><span>Belasting</span><b>${weekLoad}</b></div>
+      ${f ? `<div class="wkl-row"><span>Conditie</span><b style="color:var(--accent)">${Math.round(f.ctl)}</b></div>
+        <div class="wkl-row"><span>Verm.</span><b style="color:var(--accent-2)">${Math.round(f.atl)}</b></div>
+        <div class="wkl-row"><span>Vorm</span><b style="color:${f.tsb >= 0 ? 'var(--ok)' : 'var(--yellow)'}">${Math.round(f.tsb)}</b></div>
+        ${ramp != null ? `<div class="wkl-row"><span>Helling</span><b>${ramp >= 0 ? '+' : ''}${ramp}</b></div>` : ''}` : ''}
+      ${sportRows ? `<div class="wkl-sports">${sportRows}</div>` : ''}
+      ${compPct != null ? `<div class="wkl-comp"><span class="sub">Gevolgd</span> ${doneLoad}/${targetLoad} <b style="color:${complColor(compPct)}">${compPct}%</b><div class="wkl-bar"><span style="width:${Math.min(100, compPct)}%;background:${complColor(compPct)}"></span></div></div>` : ''}`;
+    const notesCell = `<div class="cal-wk-notes ${editable ? 'edit' : ''}" ${editable ? `data-weeknote="${wk}"` : ''}>${note ? `<div class="wkn-text">${esc(note.text)}</div>` : (editable ? `<div class="wkn-add">+ notitie</div>` : '')}</div>`;
+    weeksHtml += `<div class="cal-week-row"><div class="cal-wk-left">${rail}</div><div class="cal-grid wk-days">${daysHtml}</div>${notesCell}</div>`;
   }
 
   v.innerHTML = `
@@ -1361,17 +1377,36 @@ function drawCalendar() {
         <button class="btn sm" id="cal-next">›</button>
       </div>
       <h3 style="margin:0">${MONTHS[m]} ${y}</h3>
-      <div class="btn-row">${Object.entries(SPORTS).map(([k, s]) => `<span class="badge"><span class="dot" style="background:${s.color}"></span>${s.label}</span>`).slice(0,4).join('')}</div>
+      <div class="btn-row"><span class="badge" title="Drag a planned session onto a completed one to pair them">⇄ drag to pair</span></div>
     </div>
-    <div class="cal-week-row head"><div class="cal-grid wk-days">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div><div class="cal-wk-sum head">Weekly load</div></div>
+    <div class="cal-week-row head">
+      <div class="cal-wk-left head">Week</div>
+      <div class="cal-grid wk-days">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div>
+      <div class="cal-wk-notes head">Notities</div>
+    </div>
     <div class="cal-weeks">${weeksHtml}</div>`;
 
   $('#cal-prev').addEventListener('click', () => shiftMonth(-1));
   $('#cal-next').addEventListener('click', () => shiftMonth(1));
   $('#cal-today').addEventListener('click', () => { const t = new Date(); state.ui.calMonth = t.getMonth(); state.ui.calYear = t.getFullYear(); save(); drawCalendar(); });
-  $$('[data-weeknote]').forEach(b => b.addEventListener('click', () => openWeekNoteModal(b.dataset.weeknote)));
+  $$('[data-weeknote]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); openWeekNoteModal(b.dataset.weeknote); }));
 
   bindCalendarDnD();
+}
+// Pair a planned session with a completed one (drag one onto the other) → one done session with the
+// plan attached, so compliance can be computed. The planned survives (keeps its structure & name).
+function pairSessions(aId, bId) {
+  const A = state.sessions.find(s => s.id === aId), B = state.sessions.find(s => s.id === bId);
+  if (!A || !B || A === B) return;
+  const doneS = A.status === 'done' ? A : (B.status === 'done' ? B : null);
+  const planS = A.status !== 'done' ? A : (B.status !== 'done' ? B : null);
+  if (!doneS || !planS || doneS === planS) { toast('Drag a planned session onto a completed one'); return; }
+  ['load', 'duration', 'actual', 'streams', 'streamsChecked', 'intervalsActivityId', 'intervalsEventId', 'rpe', 'feltNote', 'avgHr', 'avgPower', 'distanceKm'].forEach(k => { if (doneS[k] != null) planS[k] = doneS[k]; });
+  planS.status = 'done'; planS.date = doneS.date;
+  state.sessions = state.sessions.filter(s => s.id !== doneS.id);
+  save(); drawCalendar();
+  const c = sessionCompliance(planS);
+  toast(c != null ? `Paired · ${c}% compliance` : 'Session paired');
 }
 function openWeekNoteModal(wk) {
   const a = currentAthlete();
@@ -1396,13 +1431,17 @@ function shiftMonth(n) {
 
 function sessionChip(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
-  const f = sessionFocus(s);
   const cc = sessionComments(s.id).length;
-  const g = workoutMiniSVG(s, 28);
-  return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
-    <div class="t">${sp.icon} ${esc(s.name)} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
+  const g = workoutMiniSVG(s, 26);
+  const done = s.status === 'done';
+  const comp = done ? sessionCompliance(s) : null;
+  const hr = s.avgHr != null ? s.avgHr : (s.streams && Array.isArray(s.streams.hr) ? Math.round(_avg(s.streams.hr)) : null);
+  const line2 = [hr ? `❤ ${hr}` : '', s.load ? `${s.load} TSS` : '', s.rpe != null ? `RPE ${s.rpe}` : ''].filter(Boolean);
+  return `<div class="sess ${done ? 'done' : 'planned'}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
+    <div class="t">${sp.icon} <b>${s.duration || 0}min</b>${s.distanceKm ? ` · ${s.distanceKm} km` : ''} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${done ? '<span class="check">✓</span>' : ''}</div>
+    ${line2.length ? `<div class="m2">${line2.map((x, i) => (i === 2 && s.rpe != null) ? `<span style="color:${rpeColor(s.rpe)}">${x}</span>` : x).join(' · ')}</div>` : ''}
     ${g ? `<div style="margin:3px 0 1px">${g}</div>` : ''}
-    <div class="m">${s.duration || 0}min · ${s.load || 0} TSS${s.rpe != null ? ` · <b style="color:${rpeColor(s.rpe)}">RPE ${s.rpe}</b>` : ''}${f.label !== '—' ? ` · <span style="color:${f.color}">${f.label}</span>` : ''}</div>
+    <div class="m">${esc(s.name)}${comp != null ? ` <span class="comp" style="color:${complColor(comp)}">✓${comp}%</span>` : ''}</div>
   </div>`;
 }
 // Task chip shown on the assignee's calendar (📋), coloured by status.
@@ -1421,6 +1460,10 @@ function bindCalendarDnD() {
     el.addEventListener('dragstart', (e) => { dragId = el.dataset.sess; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => el.style.opacity = '.4', 0); });
     el.addEventListener('dragend', () => { el.style.opacity = '1'; dragId = null; });
     el.addEventListener('click', (e) => { e.stopPropagation(); openSessionModal(el.dataset.sess); });
+    // drop a session ONTO another → pair planned + completed (Intervals-style)
+    el.addEventListener('dragover', (e) => { if (dragId && dragId !== el.dataset.sess) { e.preventDefault(); e.stopPropagation(); el.classList.add('pair-hover'); } });
+    el.addEventListener('dragleave', () => el.classList.remove('pair-hover'));
+    el.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove('pair-hover'); if (dragId && dragId !== el.dataset.sess && canPlan()) pairSessions(dragId, el.dataset.sess); });
   });
   $$('.todo-chip').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openTodoModal(el.dataset.todo); }));
   $$('.cal-cell').forEach(cell => {
@@ -3941,6 +3984,7 @@ const Cloud = {
             if (!m.intervalsEventId && r.intervalsEventId) m.intervalsEventId = r.intervalsEventId;
             if (!m.streams && r.streams) m.streams = r.streams;   // server-fetched activity graphs
             if (!m.streamsChecked && r.streamsChecked) m.streamsChecked = r.streamsChecked;
+            ['distanceKm', 'avgHr', 'avgPower'].forEach(k => { if (m[k] == null && r[k] != null) m[k] = r[k]; });
             if (r.status === 'done' && m.status !== 'done') m.status = 'done';
             return m;
           });

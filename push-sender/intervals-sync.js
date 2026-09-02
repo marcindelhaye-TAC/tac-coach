@@ -17,6 +17,16 @@ function zoneTimesFor(act, zt) {
   arr.forEach((z, i) => { const secs = typeof z === 'number' ? z : (z && (z.secs || z.time)) || 0; if (secs > 0) out.push({ zt, z: i, min: Math.round(secs / 60) }); });
   return out;
 }
+// per-activity card stats: distance (km), average HR, average power
+function statsFor(act) {
+  const o = {};
+  if (act.distance != null) o.distanceKm = Math.round(act.distance / 100) / 10;
+  const hr = act.average_heartrate != null ? act.average_heartrate : act.icu_average_hr;
+  if (hr != null) o.avgHr = Math.round(hr);
+  const pw = act.icu_average_watts != null ? act.icu_average_watts : act.average_watts;
+  if (pw != null) o.avgPower = Math.round(pw);
+  return o;
+}
 // downsample a raw stream array to K points (averaging buckets, keeping null gaps)
 function downsample(data, K = 100) {
   if (!Array.isArray(data) || !data.length) return null;
@@ -209,6 +219,7 @@ async function pullFromIntervals(aid, key, id) {
         // already imported — refresh RPE, and backfill a zone profile if it has none yet
         if (already.rpe == null && arpe != null) { already.rpe = arpe; matched++; }
         if (!already.actual || !already.actual.length) { let a2 = zoneTimesFor(act, 'power'); if (!a2.length) a2 = zoneTimesFor(act, 'hr'); if (a2.length) { already.actual = a2; matched++; } }
+        const st0 = statsFor(act); ['distanceKm', 'avgHr', 'avgPower'].forEach(k => { if (already[k] == null && st0[k] != null) already[k] = st0[k]; });
         continue;
       }
       const date = String(act.start_date_local || '').slice(0, 10); if (!date) continue;
@@ -222,10 +233,12 @@ async function pullFromIntervals(aid, key, id) {
         if (m.rpe == null && arpe != null) m.rpe = arpe;   // bring RPE entered in Intervals into TAC
         const zt = (m.steps && m.steps[0] && m.steps[0].zt) || 'power';
         const actual = zoneTimesFor(act, zt); if (actual.length) m.actual = actual;
+        Object.assign(m, statsFor(act));
         matched++;
       } else {
         const ns = { id: rid(), athleteId: aid, date, sport, name: act.name || 'Activity', duration: dur, load, desc: 'Imported from Intervals.icu', steps: [], strength: [], status: 'done', intervalsActivityId: actId };
         if (arpe != null) ns.rpe = arpe;
+        Object.assign(ns, statsFor(act));
         // give imported activities a zone profile (power first, else HR) so a graph can be drawn
         let iact = zoneTimesFor(act, 'power'); if (!iact.length) iact = zoneTimesFor(act, 'hr');
         if (iact.length) ns.actual = iact;

@@ -349,26 +349,44 @@ textarea { min-height: 74px; resize: vertical; }
 .note-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); display: inline-block; }
 .day-note { font-size: 11px; color: var(--yellow); background: rgba(245,197,24,.1); border-radius: 6px; padding: 3px 5px; }
 
-/* ---------- Weekly calendar rows + summary (CTL/ATL/ACWR + week note) ---------- */
+/* ---------- Intervals-style calendar: left data rail + 7 days + notes column ---------- */
 .cal-weeks { display: flex; flex-direction: column; gap: 8px; }
 .cal-week-row { display: flex; gap: 8px; align-items: stretch; }
 .cal-week-row .wk-days { flex: 1 1 auto; min-width: 0; }
-.cal-week-row.head { align-items: stretch; }
-.cal-wk-sum { flex: 0 0 132px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 9px; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
-.cal-wk-sum.head { justify-content: center; align-items: center; text-align: center; color: var(--muted); font-size: 11px; font-weight: 600; background: var(--bg-2); border: 0; }
-.wk-hd { display: none; }
-.wk-tss { font-size: 16px; font-weight: 800; line-height: 1; }
-.wk-tss span { font-size: 10px; color: var(--muted); font-weight: 500; }
-.wk-cta { color: var(--muted); font-size: 10px; }
-.wk-acwr { font-weight: 800; font-size: 12px; }
-.wk-note { color: var(--yellow); font-size: 10px; background: rgba(245,197,24,.1); border-radius: 6px; padding: 2px 6px; }
-.wk-note-btn { padding: 4px 8px; font-size: 11px; align-self: flex-start; }
+.cal-wk-left { flex: 0 0 172px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 11.5px; display: flex; flex-direction: column; gap: 2px; }
+.cal-wk-left.head, .cal-wk-notes.head { flex: 0 0 172px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; font-weight: 700; background: var(--bg-2); border: 0; border-radius: 8px; }
+.cal-wk-notes.head { flex-basis: 132px; }
+.wkl-hd { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 3px; }
+.wkl-note-btn { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+.wkl-note-btn:hover { color: var(--text); }
+.wkl-row { display: flex; justify-content: space-between; color: var(--muted); line-height: 1.5; }
+.wkl-row b { color: var(--text); font-weight: 700; }
+.wkl-sports { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--line); }
+.wkl-sport { display: flex; justify-content: space-between; color: var(--muted); line-height: 1.5; }
+.wkl-comp { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--line); color: var(--muted); }
+.wkl-comp b { font-weight: 800; }
+.wkl-bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.wkl-bar span { display: block; height: 100%; border-radius: 3px; }
+.cal-wk-notes { flex: 0 0 132px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 11.5px; color: var(--muted); overflow: hidden; }
+.cal-wk-notes.edit { cursor: pointer; }
+.cal-wk-notes.edit:hover { border-color: var(--accent); }
+.cal-wk-notes .wkn-text { color: var(--yellow); white-space: pre-wrap; }
+.cal-wk-notes .wkn-add { opacity: .5; }
+/* planned = outlined/ghost card; done = solid; pairing hover ring */
+.sess.planned { background: var(--bg-2); border: 1px dashed var(--line); border-left: 4px solid; opacity: .95; }
+.sess.done { background: var(--panel-2); }
+.sess .m2 { color: var(--muted); font-size: 11px; }
+.sess .comp { font-weight: 800; }
+.sess.pair-hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (max-width: 860px) {
   .cal-week-row { flex-wrap: wrap; }
+  .cal-wk-left { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; gap: 4px 14px; }
+  .cal-wk-left .wkl-hd { flex: 1 1 100%; }
+  .cal-wk-left .wkl-row, .cal-wk-left .wkl-sport { flex: 0 0 auto; gap: 5px; }
+  .cal-wk-left .wkl-sports, .cal-wk-left .wkl-comp { flex: 1 1 100%; border-top: 0; margin-top: 2px; padding-top: 0; }
   .cal-week-row .wk-days { flex: 1 1 100%; }
-  .cal-wk-sum { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: flex-start; }
-  .cal-wk-sum.head { display: none; }
-  .wk-note-btn { margin-left: auto; }
+  .cal-wk-notes { flex: 1 1 100%; }
+  .cal-wk-left.head, .cal-wk-notes.head { display: none; }
 }
 
 /* ============================================================================

@@ -2,8 +2,7 @@ name: Sync workouts to Intervals.icu
 
 on:
   schedule:
-    - cron: '*/30 * * * *'        # every 30 minutes — near-constant two-way sync
-    - cron: '*/10 4-8 * * *'      # extra morning runs (06:00–10:00 Brussels) → fresh HRV/RHR for the daily readiness score
+    - cron: '*/15 * * * *'        # every 15 minutes — near-constant two-way sync
   workflow_dispatch: {}          # manual "Run workflow" from the Actions tab
 
 jobs:
