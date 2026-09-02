@@ -1435,7 +1435,8 @@ function drawCalendar() {
       ${f ? `<div class="wkl-row"><span>Conditie</span><b style="color:var(--accent)">${Math.round(f.ctl)}</b></div>
         <div class="wkl-row"><span>Verm.</span><b style="color:var(--accent-2)">${Math.round(f.atl)}</b></div>
         <div class="wkl-row"><span>Vorm</span><b style="color:${f.tsb >= 0 ? 'var(--ok)' : 'var(--yellow)'}">${Math.round(f.tsb)}</b></div>
-        ${ramp != null ? `<div class="wkl-row"><span>Helling</span><b>${ramp >= 0 ? '+' : ''}${ramp}</b></div>` : ''}` : ''}
+        ${ramp != null ? `<div class="wkl-row"><span>Helling</span><b>${ramp >= 0 ? '+' : ''}${ramp}</b></div>` : ''}
+        ${f.ctl > 0 ? (() => { const r = f.atl / f.ctl; const col = (r >= 0.8 && r <= 1.3) ? 'var(--ok)' : (r < 0.8 ? 'var(--yellow)' : 'var(--bad)'); return `<div class="wkl-row" title="Acute:Chronic load ratio (ATL/CTL) — sweet spot 0.8–1.3; above = ramping hard, below = detraining"><span>A:C load</span><b style="color:${col}">${r.toFixed(2)}</b></div>`; })() : ''}` : ''}
       ${sportRows ? `<div class="wkl-sports">${sportRows}</div>` : ''}
       ${compPct != null ? `<div class="wkl-comp"><span class="sub">Gevolgd</span> ${doneLoad}/${targetLoad} <b style="color:${complColor(compPct)}">${compPct}%</b><div class="wkl-bar"><span style="width:${Math.min(100, compPct)}%;background:${complColor(compPct)}"></span></div></div>` : ''}`;
     const notesCell = `<div class="cal-wk-notes ${editable ? 'edit' : ''}" ${editable ? `data-weeknote="${wk}"` : ''}>${note ? `<div class="wkn-text">${esc(note.text)}</div>` : (editable ? `<div class="wkn-add">+ notitie</div>` : '')}</div>`;
