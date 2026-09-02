@@ -122,7 +122,9 @@ function seed() {
       { id: uid(), kind: 'sleep', title: 'Good morning 🌙', body: 'How did you sleep? Log your morning check-in.', time: '07:00', freq: 'daily', target: 'all', active: true },
       { id: uid(), kind: 'weekly', title: 'Weekly reflection 📆', body: 'How did this week feel? Fill in your weekly check-in.', time: '20:00', freq: 'sun', target: 'all', active: true }
     ],
-    scienceCustom: []
+    scienceCustom: [],
+    todos: [],        /* coordinator to-do tasks (shared collection) */
+    comments: []      /* comments on workouts (shared collection) */
   };
 }
 
@@ -149,7 +151,15 @@ const SCIENCE_REFS = {
   buchheit: { authors: 'Buchheit M, Laursen PB', year: 2013, title: 'High-intensity interval training, solutions to the programming puzzle (Parts I & II)', journal: 'Sports Med 43(5):313–338; 43(10):927–954' },
   buchheit3015: { authors: 'Buchheit M', year: 2008, title: 'The 30-15 Intermittent Fitness Test: accuracy for individualizing interval training', journal: 'J Strength Cond Res 22(2):365–374' },
   bangsbo: { authors: 'Bangsbo J, Iaia FM, Krustrup P', year: 2008, title: 'The Yo-Yo intermittent recovery test: a useful tool for evaluation of physical performance', journal: 'Sports Med 38(1):37–51' },
-  sanmillan: { authors: 'San-Millán I, Brooks GA', year: 2018, title: 'Assessment of metabolic flexibility by blood lactate and substrate oxidation across the exercise intensity spectrum', journal: 'Sports Med 48(2):467–479' }
+  sanmillan: { authors: 'San-Millán I, Brooks GA', year: 2018, title: 'Assessment of metabolic flexibility by blood lactate and substrate oxidation across the exercise intensity spectrum', journal: 'Sports Med 48(2):467–479' },
+  costill: { authors: 'Costill DL, et al.', year: 1991, title: 'Adaptations to swimming training: influence of training volume', journal: 'Med Sci Sports Exerc 23(3):371–377' },
+  faude: { authors: 'Faude O, Kindermann W, Meyer T', year: 2009, title: 'Lactate threshold concepts: how valid are they?', journal: 'Sports Med 39(6):469–490' },
+  plews: { authors: 'Plews DJ, et al.', year: 2013, title: 'Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring', journal: 'Sports Med 43(9):773–781' },
+  daniels: { authors: 'Daniels J', year: 2013, title: "Daniels' Running Formula (3rd ed.)", journal: 'Human Kinetics' },
+  maglischo: { authors: 'Maglischo EW', year: 2003, title: 'Swimming Fastest', journal: 'Human Kinetics' },
+  olbrecht: { authors: 'Olbrecht J', year: 2000, title: 'The Science of Winning: Planning, Periodizing and Optimizing Swim Training', journal: 'Swimshop/Luton' },
+  pyne: { authors: 'Pyne DB, Lee H, Swanwick KM', year: 2001, title: 'Monitoring the lactate threshold in world-ranked swimmers', journal: 'Med Sci Sports Exerc 33(2):291–297' },
+  toussaint: { authors: 'Toussaint HM, Hollander AP', year: 1994, title: 'Energetics of competitive swimming: implications for training programmes', journal: 'Sports Med 18(6):384–405' }
 };
 
 // zone index helper: Z1=0 … Z7=6.  cat: 'test' | 'workout'.  goal groups the library.
@@ -216,10 +226,296 @@ const SCIENCE_CATALOG = [
     steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 6, min: 4 }, { zt: 'power', z: 0, min: 8 }], refs: ['tabata'] },
   { id: 'sc_sit', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Sprint intervals 5×30 s all-out', duration: 35, load: 55,
     desc: 'Warm-up; 5×30 s ALL-OUT (Wingate-style) with 4 min easy recovery; cool-down. Potent stimulus for aerobic and anaerobic adaptations with low total time.',
-    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 1, min: 4 }], refs: ['gibala'] }
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 4 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 1, min: 4 }], refs: ['gibala'] },
+
+  // ---- Swimming across the goals ----
+  { id: 'sc_swimz2', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Aerobic swim — long steady', duration: 45, load: 40,
+    desc: 'Continuous 1200–2000 m at an easy, smooth pace (~CSS + 8–12 s/100 m), relaxed bilateral breathing. Builds swimming-specific aerobic base and stroke efficiency. Keep it comfortable.',
+    steps: [], refs: ['costill', 'seiler'] },
+  { id: 'sc_swimcss', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'CSS intervals 8×100', duration: 50, load: 62,
+    desc: 'Warm-up 300–400 m; 8×100 m at Critical Swim Speed (threshold) pace on 10–15 s rest; easy cool-down. Develops the pace you can hold for ~30 min — the swim threshold.',
+    steps: [], refs: ['costill', 'faude'] },
+  { id: 'sc_swimvo2', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'VO₂ swim 10×50 fast', duration: 45, load: 68,
+    desc: 'Warm-up; 10×50 m fast (well above CSS, ~1500 m race effort) on 25–30 s rest, or 6×100 hard. Maximises time near VO₂max for aerobic power in the water.',
+    steps: [], refs: ['laursen', 'costill'] },
+  { id: 'sc_swimsprint', cat: 'workout', sport: 'swimming', goal: 'anaerobic', name: 'Sprint swim 8×25 all-out', duration: 35, load: 45,
+    desc: 'Warm-up; 8×25 m ALL-OUT with full recovery (~60–75 s). Develops anaerobic power, stroke rate and speed. Very demanding — use sparingly.',
+    steps: [], refs: ['gibala'] },
+
+  // ---- Extra running coverage ----
+  { id: 'sc_runtempo', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Tempo run 2×15 min', duration: 60, load: 78,
+    desc: 'Warm-up; 2×15 min at threshold — comfortably hard, roughly current 1-hour race pace — with 3 min easy jog between; cool-down. Raises lactate-threshold pace.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 1, min: 12 }], refs: ['seiler', 'billat'] },
+  { id: 'sc_runhill', cat: 'workout', sport: 'running', goal: 'anaerobic', name: 'Hill sprints 8×15 s', duration: 35, load: 48,
+    desc: 'Warm-up; 8×15 s maximal uphill sprints with full walk-down recovery; cool-down. Builds neuromuscular power, running economy and strength with low injury risk.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 4 }, { zt: 'hr', z: 1, min: 16 }], refs: ['gibala', 'laursen'] },
+  { id: 'sc_swimbase_run', cat: 'workout', sport: 'running', goal: 'base', name: 'Easy aerobic run + strides', duration: 50, load: 45,
+    desc: '40–50 min easy Zone 2 running (conversational), finishing with 4–6×15 s relaxed strides. Aerobic base plus light neuromuscular touch without fatigue.',
+    steps: [{ zt: 'hr', z: 1, min: 45 }, { zt: 'hr', z: 3, min: 1 }, { zt: 'hr', z: 1, min: 4 }], refs: ['seiler', 'stoggl'] },
+
+  /* ===== Expanded library — ≥15 cycling / 15 running / 5 swimming across the goals ===== */
+  // ---- BASE (bike) ----
+  { id: 'sc_bk_long3h', cat: 'workout', sport: 'biking', goal: 'base', name: 'Long endurance ride 3 h', duration: 180, load: 120,
+    desc: '2.5–3 h continuous in Zone 2, cadence 85–95. The single biggest driver of endurance adaptation — builds mitochondria, capillaries and fat oxidation. Fuel steadily.',
+    steps: [{ zt: 'power', z: 1, min: 180 }], refs: ['seiler', 'sanmillan'] },
+  { id: 'sc_bk_fatmax', cat: 'workout', sport: 'biking', goal: 'base', name: 'Fat-max Zone 2 ride 90 min', duration: 90, load: 60,
+    desc: '90 min steady at the top of Zone 2 (just below the first lactate turnpoint), where fat oxidation peaks. Ideal metabolic-efficiency session; keep it strictly aerobic.',
+    steps: [{ zt: 'power', z: 1, min: 90 }], refs: ['sanmillan'] },
+  { id: 'sc_bk_cadence', cat: 'workout', sport: 'biking', goal: 'base', name: 'Cadence & endurance 75 min', duration: 75, load: 55,
+    desc: 'Zone 2 ride with 6×2 min high-cadence (100–110 rpm) drills and 2 min normal between. Aerobic volume plus pedalling efficiency and neuromuscular smoothness.',
+    steps: [{ zt: 'power', z: 1, min: 75 }], refs: ['seiler', 'coggan'] },
+  // ---- BASE (run) ----
+  { id: 'sc_rn_long', cat: 'workout', sport: 'running', goal: 'base', name: 'Long run 90–120 min', duration: 100, load: 80,
+    desc: '90–120 min continuous easy Zone 2. Develops aerobic capacity, durability and fatigue resistance — the backbone of any distance program. Keep it conversational.',
+    steps: [{ zt: 'hr', z: 1, min: 100 }], refs: ['seiler', 'stoggl'] },
+  { id: 'sc_rn_recovery', cat: 'workout', sport: 'running', goal: 'base', name: 'Recovery run 30–40 min', duration: 35, load: 25,
+    desc: '30–40 min very easy Zone 1 running. Promotes blood flow and recovery between key sessions without adding meaningful fatigue. Effort should feel almost too easy.',
+    steps: [{ zt: 'hr', z: 1, min: 35 }], refs: ['seiler'] },
+  { id: 'sc_rn_prog', cat: 'workout', sport: 'running', goal: 'base', name: 'Progression run 60 min', duration: 60, load: 58,
+    desc: 'Start easy (Zone 2) and finish the last 15 min at steady/tempo (upper Zone 3). Teaches pacing and finishing strong on tired legs while staying largely aerobic.',
+    steps: [{ zt: 'hr', z: 1, min: 40 }, { zt: 'hr', z: 2, min: 15 }, { zt: 'hr', z: 3, min: 5 }], refs: ['daniels', 'seiler'] },
+  // ---- BASE (swim) ----
+  { id: 'sc_sw_technique', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Technique + aerobic 1500 m', duration: 45, load: 38,
+    desc: '300 warm-up; 8×50 m drills (catch-up, single-arm, fingertip-drag) on 15 s rest; 600 m steady aerobic; 200 easy. Improves stroke efficiency while building base.',
+    steps: [], refs: ['costill'] },
+
+  // ---- THRESHOLD (bike) ----
+  { id: 'sc_bk_3x15', cat: 'workout', sport: 'biking', goal: 'threshold', name: 'Threshold 3×15 min', duration: 75, load: 88,
+    desc: 'Warm-up; 3×15 min at 95–100% FTP (Zone 4) with 5 min easy between; cool-down. A larger threshold dose than 2×20 at slightly lower intensity — excellent FTP builder.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 1, min: 8 }], refs: ['coggan', 'seiler'] },
+  // ---- THRESHOLD (run) ----
+  { id: 'sc_rn_cruise', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Cruise intervals 5×5 min', duration: 55, load: 74,
+    desc: 'Warm-up; 5×5 min at threshold pace with 60 s jog between; cool-down. Daniels’ cruise intervals accumulate threshold time with brief breaks — raises lactate-threshold pace.',
+    steps: [{ zt: 'hr', z: 1, min: 12 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 0, min: 1 }, { zt: 'hr', z: 3, min: 5 }, { zt: 'hr', z: 1, min: 9 }], refs: ['daniels', 'billat'] },
+  { id: 'sc_rn_tempo25', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Continuous tempo 25 min', duration: 50, load: 72,
+    desc: 'Warm-up; 25 min continuous at threshold — comfortably hard, ~1-hour race effort; cool-down. Classic sustained tempo that lifts the pace you can hold before lactate accumulates.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 25 }, { zt: 'hr', z: 1, min: 10 }], refs: ['seiler', 'faude'] },
+  { id: 'sc_rn_thr2x12', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Threshold 2×12 min', duration: 55, load: 73,
+    desc: 'Warm-up; 2×12 min at threshold with 3 min jog between; cool-down. A manageable threshold dose for build phases — pace should be even and controlled, not a race.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 12 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 3, min: 12 }, { zt: 'hr', z: 1, min: 13 }], refs: ['daniels', 'seiler'] },
+
+  // ---- VO₂MAX (bike) ----
+  { id: 'sc_bk_5x5', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'VO₂max 5×5 min', duration: 60, load: 88,
+    desc: 'Warm-up; 5×5 min at 106–115% FTP (Zone 5) with 2.5 min easy recovery; cool-down. Long VO₂max intervals maximise time at high oxygen uptake — a potent aerobic-power stimulus.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 5 }, { zt: 'power', z: 1, min: 8 }], refs: ['laursen', 'buchheit'] },
+  { id: 'sc_bk_4020', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'Rønnestad 3×13×40/20 s', duration: 58, load: 85,
+    desc: 'Warm-up; 3 sets of 13×(40 s hard ~106–110% FTP / 20 s easy) with 3 min between sets. Short on/off intervals hold more time near VO₂max at lower RPE — Rønnestad’s protocol.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 13 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 13 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 13 }, { zt: 'power', z: 1, min: 5 }], refs: ['ronnestad', 'buchheit'] },
+  // ---- VO₂MAX (run) ----
+  { id: 'sc_rn_400s', cat: 'workout', sport: 'running', goal: 'vo2max', name: '10×400 m @ 3 km pace', duration: 50, load: 74,
+    desc: 'Warm-up; 10×400 m at ~3 km race pace with 90 s jog recovery; cool-down. Sharp VO₂max/vVO₂max stimulus and running economy work. Keep reps even, not all-out.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 12 }, { zt: 'hr', z: 1, min: 15 }], refs: ['billat'] },
+  { id: 'sc_rn_1000s', cat: 'workout', sport: 'running', goal: 'vo2max', name: '5×1000 m @ 5 km pace', duration: 55, load: 78,
+    desc: 'Warm-up; 5×1000 m at ~5 km race pace with 2 min jog; cool-down. Longer VO₂max reps that build aerobic power and race-specific strength for 5–10 km.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 20 }, { zt: 'hr', z: 1, min: 12 }], refs: ['billat', 'daniels'] },
+  { id: 'sc_rn_yasso', cat: 'workout', sport: 'running', goal: 'vo2max', name: 'Yasso 800s — 6×800 m', duration: 55, load: 76,
+    desc: 'Warm-up; 6×800 m hard (~5 km effort) with equal-time jog recovery; cool-down. A popular VO₂max/tempo staple and marathon predictor — build the number of reps over weeks.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 18 }, { zt: 'hr', z: 1, min: 12 }], refs: ['daniels'] },
+
+  // ---- ANAEROBIC (bike) ----
+  { id: 'sc_bk_torque', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Big-gear torque 6×1 min', duration: 45, load: 58,
+    desc: 'Warm-up; 6×1 min low-cadence (50–60 rpm) big-gear max efforts with 5 min easy between; cool-down. Builds anaerobic strength, torque and neuromuscular power. Protect the knees.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 6, min: 1 }, { zt: 'power', z: 1, min: 12 }], refs: ['ronnestad', 'gibala'] },
+  // ---- ANAEROBIC (run) ----
+  { id: 'sc_rn_200s', cat: 'workout', sport: 'running', goal: 'anaerobic', name: '8×200 m fast', duration: 40, load: 52,
+    desc: 'Warm-up; 8×200 m fast (mile-to-1500 effort) with full walk/jog recovery; cool-down. Develops anaerobic power, speed and running economy. Prioritise good form over max speed.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 8 }, { zt: 'hr', z: 1, min: 15 }], refs: ['gibala', 'laursen'] },
+
+  /* ===== Library expansion to ≥20 per sport (cycling 20 · running 20 · swimming 20) ===== */
+  // ---- CYCLING (+5) ----
+  { id: 'sc_bk_recovery', cat: 'workout', sport: 'biking', goal: 'base', name: 'Recovery spin 45 min', duration: 45, load: 25,
+    desc: '45 min very easy Zone 1, high cadence, flat. Flushes the legs and speeds recovery between hard days without adding training stress. Should feel almost effortless.',
+    steps: [{ zt: 'power', z: 0, min: 45 }], refs: ['seiler'] },
+  { id: 'sc_bk_thrpyr', cat: 'workout', sport: 'biking', goal: 'threshold', name: 'Threshold pyramid 5-10-15-10-5', duration: 80, load: 90,
+    desc: 'Warm-up; 5–10–15–10–5 min at 95–100% FTP with 5 min easy between; cool-down. A varied threshold session that accumulates ~45 min at FTP — strong stimulus for the 1-hour power.',
+    steps: [{ zt: 'power', z: 1, min: 12 }, { zt: 'power', z: 3, min: 5 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 10 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 15 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 10 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 3, min: 5 }, { zt: 'power', z: 1, min: 3 }], refs: ['coggan', 'seiler'] },
+  { id: 'sc_bk_3x3', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'VO₂max 3×3 min @ 118% FTP', duration: 45, load: 78,
+    desc: 'Warm-up; 3×3 min at ~115–120% FTP (Zone 5) with 3 min easy recovery; cool-down. Short, sharp VO₂max intervals — excellent for raising maximal aerobic power on limited time.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 3 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 3 }, { zt: 'power', z: 0, min: 3 }, { zt: 'power', z: 4, min: 3 }, { zt: 'power', z: 1, min: 12 }], refs: ['laursen', 'buchheit'] },
+  { id: 'sc_bk_3030', cat: 'workout', sport: 'biking', goal: 'vo2max', name: 'VO₂ 2×10×30/30 s', duration: 50, load: 78,
+    desc: 'Warm-up; 2 sets of 10×(30 s hard ~110–120% FTP / 30 s easy) with 5 min between sets. Classic 30/30 on–offs sustain a large fraction of the session near VO₂max at moderate RPE.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 4, min: 10 }, { zt: 'power', z: 0, min: 5 }, { zt: 'power', z: 4, min: 10 }, { zt: 'power', z: 1, min: 10 }], refs: ['ronnestad', 'buchheit'] },
+  { id: 'sc_bk_stomp', cat: 'workout', sport: 'biking', goal: 'anaerobic', name: 'Standing-start stomps 8×15 s', duration: 40, load: 50,
+    desc: 'Warm-up; 8×15 s max efforts from a near-standstill in a big gear, ~5 min easy between; cool-down. Builds peak power, torque and neuromuscular recruitment. Keep the core braced.',
+    steps: [{ zt: 'power', z: 1, min: 15 }, { zt: 'power', z: 6, min: 2 }, { zt: 'power', z: 1, min: 23 }], refs: ['gibala', 'ronnestad'] },
+
+  // ---- RUNNING (+5) ----
+  { id: 'sc_rn_fartlek', cat: 'workout', sport: 'running', goal: 'base', name: 'Aerobic fartlek 45 min', duration: 45, load: 50,
+    desc: '45 min easy Zone 2 with 8×1 min gently floated surges (upper Zone 3) spread through the run, easy jog between. Adds variety and light stimulus while staying largely aerobic.',
+    steps: [{ zt: 'hr', z: 1, min: 20 }, { zt: 'hr', z: 2, min: 8 }, { zt: 'hr', z: 1, min: 17 }], refs: ['seiler', 'daniels'] },
+  { id: 'sc_rn_2x15', cat: 'workout', sport: 'running', goal: 'threshold', name: 'Threshold 2×15 min', duration: 60, load: 80,
+    desc: 'Warm-up; 2×15 min at threshold with 3 min jog between; cool-down. A larger continuous threshold dose than 2×12 for athletes with a solid base — even, controlled effort.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 0, min: 3 }, { zt: 'hr', z: 3, min: 15 }, { zt: 'hr', z: 1, min: 12 }], refs: ['daniels', 'seiler'] },
+  { id: 'sc_rn_vvo2', cat: 'workout', sport: 'running', goal: 'vo2max', name: 'vVO₂max 6×3 min', duration: 50, load: 78,
+    desc: 'Warm-up; 6×3 min at the velocity at VO₂max (~3 km race pace) with 2 min jog recovery; cool-down. Maximises time at VO₂max — one of the most effective sessions for aerobic power.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 18 }, { zt: 'hr', z: 1, min: 12 }], refs: ['billat', 'laursen'] },
+  { id: 'sc_rn_3030', cat: 'workout', sport: 'running', goal: 'vo2max', name: 'VO₂ 20×30/30 s', duration: 45, load: 70,
+    desc: 'Warm-up; 20×(30 s at vVO₂max / 30 s easy jog); cool-down. Billat’s 30/30 intervals let you spend a long total time near VO₂max at a controlled effort. Keep the fast reps even.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 4, min: 20 }, { zt: 'hr', z: 1, min: 10 }], refs: ['billat', 'buchheit'] },
+  { id: 'sc_rn_flying', cat: 'workout', sport: 'running', goal: 'anaerobic', name: 'Flying sprints 6×80 m', duration: 35, load: 42,
+    desc: 'Warm-up; 6×80 m with a rolling build to near-max speed over the middle 40 m, full walk-back recovery; cool-down. Develops top-end speed, coordination and economy at low injury risk.',
+    steps: [{ zt: 'hr', z: 1, min: 15 }, { zt: 'hr', z: 5, min: 4 }, { zt: 'hr', z: 1, min: 16 }], refs: ['gibala', 'laursen'] },
+
+  // ---- SWIMMING (+15) ----
+  // base / technique
+  { id: 'sc_sw_endur2k', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Aerobic endurance 2000 m', duration: 50, load: 55,
+    desc: '2000 m continuous freestyle at a smooth aerobic pace, negative-split (second half slightly faster). Builds swimming-specific aerobic capacity and pacing discipline.',
+    steps: [], refs: ['maglischo', 'costill'] },
+  { id: 'sc_sw_pull', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Pull set 8×200', duration: 55, load: 55,
+    desc: '300 warm-up; 8×200 m with pull-buoy (and light paddles) at a steady aerobic effort on 20 s rest; 200 easy. Develops upper-body aerobic endurance and a strong, long stroke.',
+    steps: [], refs: ['maglischo'] },
+  { id: 'sc_sw_recovery', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Recovery swim 1000 m', duration: 30, load: 22,
+    desc: '1000 m very easy, mixing strokes and 4×50 drills. Promotes recovery, mobility and technique between hard sessions without meaningful load.',
+    steps: [], refs: ['maglischo'] },
+  { id: 'sc_sw_drills', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Technique 12×50 drills', duration: 40, load: 32,
+    desc: '300 warm-up; 12×50 m stroke drills (catch-up, single-arm, fingertip-drag, sculling, fist) on 15 s rest; 300 easy swim focusing on the feel you built. Improves efficiency and economy.',
+    steps: [], refs: ['toussaint', 'maglischo'] },
+  { id: 'sc_sw_kick', cat: 'workout', sport: 'swimming', goal: 'base', name: 'Kick set 10×50', duration: 35, load: 35,
+    desc: '10×50 m kick with board (moderate, steady) on 20 s rest, interspersed with 100 easy swim. Builds leg endurance, ankle mobility and body position.',
+    steps: [], refs: ['maglischo'] },
+  // threshold (CSS)
+  { id: 'sc_sw_css5x200', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'CSS 5×200', duration: 55, load: 68,
+    desc: 'Warm-up 400; 5×200 m at Critical Swim Speed (threshold) on 20 s rest; 200 easy. The core threshold session for swimmers — raises the pace you can hold for ~30 min.',
+    steps: [], refs: ['pyne', 'faude'] },
+  { id: 'sc_sw_brokencss', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'Broken threshold 3×300', duration: 55, load: 70,
+    desc: 'Warm-up; 3×300 m at CSS with 30 s rest; easy cool-down. Longer threshold reps that build sustained lactate-clearance capacity for open-water and distance events.',
+    steps: [], refs: ['pyne'] },
+  { id: 'sc_sw_pyramid', cat: 'workout', sport: 'swimming', goal: 'threshold', name: 'Threshold pyramid 100-200-300-200-100', duration: 55, load: 68,
+    desc: 'Warm-up; 100-200-300-200-100 m at CSS with 15–20 s rest; cool-down. A varied threshold ladder that keeps focus while accumulating quality distance at race-relevant pace.',
+    steps: [], refs: ['olbrecht'] },
+  { id: 'sc_sw_20x50', cat: 'workout', sport: 'swimming', goal: 'threshold', name: '20×50 @ CSS on tight rest', duration: 45, load: 66,
+    desc: 'Warm-up; 20×50 m at CSS on short rest (~5–10 s), holding an even pace throughout; cool-down. Race-pace threshold work that trains rhythm and pace-holding under fatigue.',
+    steps: [], refs: ['pyne', 'olbrecht'] },
+  // VO2max
+  { id: 'sc_sw_10x100', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'VO₂ 10×100 @ 1500 pace', duration: 50, load: 74,
+    desc: 'Warm-up; 10×100 m at ~1500 m race pace (faster than CSS) on 15–20 s rest; cool-down. Sustains a high fraction of VO₂max — a key aerobic-power set for middle-distance swimmers.',
+    steps: [], refs: ['olbrecht', 'laursen'] },
+  { id: 'sc_sw_broken400', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'Broken 400s (4×[4×100])', duration: 55, load: 76,
+    desc: 'Warm-up; 4 rounds of 4×100 m descending 1→4 (last fastest) on 15 s rest, 45 s between rounds; cool-down. Progressive high-intensity aerobic set targeting VO₂max and pace control.',
+    steps: [], refs: ['maglischo'] },
+  { id: 'sc_sw_50sfast', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: '16×50 fast on 1:00', duration: 40, load: 68,
+    desc: 'Warm-up; 16×50 m fast (above CSS) leaving on 1:00 so faster swims earn more rest; cool-down. High-aerobic-power set that builds speed endurance and VO₂max.',
+    steps: [], refs: ['maglischo', 'laursen'] },
+  { id: 'sc_sw_hypoxic', cat: 'workout', sport: 'swimming', goal: 'vo2max', name: 'Breath-control 8×75', duration: 40, load: 58,
+    desc: 'Warm-up; 8×75 m at strong aerobic effort breathing every 5 / 7 / 9 strokes (by 25) on 20 s rest; cool-down. Controlled hypoventilation that challenges CO₂ tolerance and stroke rhythm. Stop if lightheaded.',
+    steps: [], refs: ['toussaint'] },
+  // anaerobic / sprint
+  { id: 'sc_sw_25s', cat: 'workout', sport: 'swimming', goal: 'anaerobic', name: 'Sprint 12×25 all-out', duration: 35, load: 45,
+    desc: 'Warm-up; 12×25 m ALL-OUT with full recovery (~45–60 s); generous cool-down. Develops maximal swimming speed, stroke power and turnover. Quality over quantity — rest fully.',
+    steps: [], refs: ['maglischo', 'gibala'] },
+  { id: 'sc_sw_lactate', cat: 'workout', sport: 'swimming', goal: 'anaerobic', name: 'Lactate production 6×50 max', duration: 40, load: 55,
+    desc: 'Warm-up; 6×50 m at maximal effort with 2–3 min rest to allow near-full recovery; long easy cool-down. Trains anaerobic capacity and lactate tolerance — use sparingly, 1×/week max.',
+    steps: [], refs: ['olbrecht'] }
 ];
+
+/* Top up the library so EVERY sport has ≥ TARGET_PER_GOAL templates in EACH goal group.
+   The 60 hand-written workouts above stay the "featured" set; these fill the rest with
+   evidence-based variations (rep/duration progressions) so coaches have a deep menu. */
+const TARGET_PER_GOAL = 15;
+(function buildGeneratedCatalog() {
+  const sports = ['biking', 'running', 'swimming'];
+  const goals = ['base', 'threshold', 'vo2max', 'anaerobic'];
+  const zt = { biking: 'power', running: 'hr', swimming: null };
+  const zi = { base: 1, threshold: 3, vo2max: 4, anaerobic: 5 };
+  const word = { biking: 'ride', running: 'run', swimming: 'swim' };
+  const baseDurs = { biking: [60, 75, 90, 105, 120, 135, 150, 165, 180, 210], running: [40, 50, 60, 70, 80, 90, 100, 110, 120, 135], swimming: [30, 35, 40, 45, 50, 55, 60, 65, 70, 75] };
+  const goalBlurb = {
+    base: 'Aerobic Zone 2 work — builds the endurance base; keep it controlled and conversational.',
+    threshold: 'Threshold work near your 1-hour power/pace — raises the output you can sustain.',
+    vo2max: 'VO₂max intervals — maximise time at high aerobic power; hard but evenly paced.',
+    anaerobic: 'Anaerobic / sprint work — short maximal efforts with full recovery; use sparingly.'
+  };
+  const refBy = (sport, goal) => ({
+    base: ['seiler', 'sanmillan'],
+    threshold: sport === 'swimming' ? ['pyne', 'faude'] : (sport === 'running' ? ['daniels', 'seiler'] : ['coggan', 'seiler']),
+    vo2max: sport === 'swimming' ? ['olbrecht', 'laursen'] : (sport === 'running' ? ['billat', 'laursen'] : ['laursen', 'buchheit']),
+    anaerobic: sport === 'swimming' ? ['maglischo', 'gibala'] : ['gibala', 'laursen']
+  }[goal]);
+  const specs = (sport, goal) => {
+    const w = word[sport];
+    if (goal === 'base') {
+      const arr = baseDurs[sport].map(d => ['Zone 2 endurance ' + w + ' — ' + d + ' min', d, Math.round(d * 0.6)]);
+      arr.push(['Recovery ' + w + ' (very easy)', sport === 'swimming' ? 25 : 35, 20]);
+      arr.push(['Steady aerobic ' + w + ' — fat-max', sport === 'swimming' ? 55 : 100, 60]);
+      arr.push(['Aerobic ' + w + ' + technique/cadence', sport === 'swimming' ? 45 : 75, 52]);
+      arr.push(['Progression ' + w + ' (easy → tempo)', sport === 'swimming' ? 50 : 70, 60]);
+      return arr;
+    }
+    if (goal === 'threshold') {
+      const combos = [[2, 12], [2, 15], [2, 20], [3, 8], [3, 10], [3, 12], [3, 15], [4, 8], [4, 10], [5, 6], [5, 8], [1, 25]];
+      const arr = combos.map(([r, l]) => ['Threshold ' + w + ' ' + r + '×' + l + ' min', 20 + r * l + (r - 1) * 3, Math.round(r * l * 1.5) + 25]);
+      arr.push(['Sweet-spot ' + w + ' 3×12 min', 65, 72]);
+      arr.push(['Over-unders ' + w + ' 4×8 min', 62, 80]);
+      arr.push(['Threshold pyramid ' + w, 75, 86]);
+      return arr;
+    }
+    if (goal === 'vo2max') {
+      const combos = [[4, 4], [5, 4], [6, 3], [8, 3], [5, 5], [6, 4], [10, 2], [3, 3]];
+      const arr = combos.map(([r, l]) => ['VO₂max ' + w + ' ' + r + '×' + l + ' min', 25 + r * l + (r - 1) * 3, Math.round(r * l * 2) + 25]);
+      arr.push(['VO₂ ' + w + ' 30/30 ×2 sets', 48, 74]);
+      arr.push(['VO₂ ' + w + ' 30/30 ×3 sets', 52, 78]);
+      arr.push(['VO₂ ' + w + ' 40/20 ×3 sets', 55, 80]);
+      arr.push(['VO₂ ' + w + ' 15/15 ×2 sets', 45, 70]);
+      return arr;
+    }
+    const combos = [[5, 30], [8, 20], [10, 30], [6, 45], [4, 60], [8, 15], [12, 15], [6, 90], [10, 20]];
+    const arr = combos.map(([r, s]) => ['Sprints ' + w + ' ' + r + '×' + s + ' s all-out', 30 + Math.ceil(r * s / 60) + 8, 40 + r]);
+    arr.push(['Tabata ' + w + ' 8×20/10 s', 24, 40]);
+    arr.push(['Speed-endurance ' + w + ' 4×2 min', 40, 60]);
+    arr.push(['Neuromuscular ' + w + ' 8×15 s max', 38, 48]);
+    return arr;
+  };
+  sports.forEach(sport => goals.forEach(goal => {
+    const have = SCIENCE_CATALOG.filter(x => x.cat !== 'test' && x.sport === sport && x.goal === goal).length;
+    const need = Math.max(0, TARGET_PER_GOAL - have);
+    specs(sport, goal).slice(0, need).forEach((sp, i) => {
+      const [name, dur, load] = sp;
+      const steps = zt[sport]
+        ? (goal === 'base' ? [{ zt: zt[sport], z: 1, min: dur }]
+          : [{ zt: zt[sport], z: 0, min: 12 }, { zt: zt[sport], z: zi[goal], min: Math.max(6, Math.round(dur * 0.45)) }, { zt: zt[sport], z: 0, min: 10 }])
+        : [];
+      SCIENCE_CATALOG.push({ id: 'gen_' + sport + '_' + goal + '_' + i, cat: 'workout', sport, goal, name, duration: dur, load, desc: name + '. ' + goalBlurb[goal], steps, refs: refBy(sport, goal), generated: true });
+    });
+  }));
+})();
 const SCIENCE_GOALS = { test: 'Fitness tests', base: 'Base / endurance', threshold: 'Threshold (1-hour max)', vo2max: 'VO₂max', anaerobic: 'Anaerobic / sprint' };
 function refCite(key) { const r = SCIENCE_REFS[key]; return r ? `${r.authors} (${r.year}). ${r.title}. ${r.journal}.` : key; }
+
+// Macrocycle training goals → which catalog goal-groups make up its matching workout library.
+const MACRO_GOALS = {
+  base:      'Aerobic base (Z1/Z2)',
+  threshold: 'Threshold / FTP',
+  vo2max:    'VO₂max',
+  anaerobic: 'Anaerobic / sprint',
+  race:      'Race prep / peak',
+  general:   'General fitness'
+};
+// Each macro goal draws a broad library — its primary group plus adjacent intensities,
+// since every block still rests on aerobic base + neighbouring stimuli (≥20 workouts each).
+function macroGoalCatalogGoals(goal) {
+  // Even an aerobic-base block keeps some VO₂max work (polarized training), so base includes it too.
+  if (goal === 'base') return ['base', 'threshold', 'vo2max'];
+  return ['base', 'threshold', 'vo2max', 'anaerobic']; // every other block → the whole spread
+}
+// Best-guess goal for a cycle that predates the goal field (reads zones/focus text).
+function inferMacroGoal(c) {
+  if (c && c.goal) return c.goal;
+  const t = (((c && c.zones) || []).join(' ') + ' ' + ((c && c.focus) || '')).toLowerCase();
+  if (/z6|z7|sprint|anaerob|neuromusc/.test(t)) return 'anaerobic';
+  if (/vo2|vo₂|z5/.test(t)) return 'vo2max';
+  if (/threshold|drempel|ftp|tempo|z4/.test(t)) return 'threshold';
+  if (/z1|z2|base|basis|aeroob|aerobic|endurance|uithouding/.test(t)) return 'base';
+  if (/race|wedstrijd|peak|taper/.test(t)) return 'race';
+  return 'base';
+}
+// Workouts (built-in + team-added) that match a cycle's goal, grouped by sport.
+function macroLibraryFor(c) {
+  const goals = macroGoalCatalogGoals(inferMacroGoal(c));
+  const items = [...(state.scienceCustom || []), ...SCIENCE_CATALOG].filter(w => w.cat !== 'test' && goals.includes(w.goal));
+  const bySport = {};
+  items.forEach(w => { (bySport[w.sport] = bySport[w.sport] || []).push(w); });
+  return bySport;
+}
 
 let state = load();
 function load() {
@@ -241,13 +537,16 @@ function migrate(s) {
   if (!Array.isArray(s.reminders)) s.reminders = [];
   if (!Array.isArray(s.scienceCustom)) s.scienceCustom = [];
   if (!Array.isArray(s.wellness)) s.wellness = [];
+  if (!Array.isArray(s.todos)) s.todos = [];
+  if (!Array.isArray(s.comments)) s.comments = [];
+  if (!Array.isArray(s.weekNotes)) s.weekNotes = [];
   if (!s.settings) s.settings = {};
   if (!s.settings.notifications) s.settings.notifications = { enabled: false, morning: true, postSession: true, sundayEve: true, morningTime: '07:00', eveningTime: '20:00' };
   s.sessions.forEach(x => { if (!Array.isArray(x.steps)) x.steps = []; });
   // Coaches (2 coaches per athlete support)
   if (!Array.isArray(s.coaches) || !s.coaches.length) s.coaches = [{ id: uid(), name: 'Coach 1' }, { id: uid(), name: 'Coach 2' }];
   if (!s.currentCoachId || !s.coaches.find(c => c.id === s.currentCoachId)) s.currentCoachId = s.coaches[0].id;
-  s.athletes.forEach(a => { if (!Array.isArray(a.coachIds)) a.coachIds = [s.coaches[0].id]; if (!Array.isArray(a.coachUids)) a.coachUids = []; });
+  s.athletes.forEach(a => { if (!Array.isArray(a.coachIds)) a.coachIds = [s.coaches[0].id]; if (!Array.isArray(a.coachUids)) a.coachUids = []; if (!Array.isArray(a.viewers)) a.viewers = []; });
   return s;
 }
 function currentCoach() { return state.coaches.find(c => c.id === state.currentCoachId) || state.coaches[0]; }
@@ -292,9 +591,52 @@ function rosterAthletes() {
 // list of real coach accounts (for the athlete's "connect to your coach" picker)
 async function fetchCoachUsers() {
   if (!Cloud.enabled || !Cloud.db) return [];
-  try { const qs = await Cloud.db.collection('users').where('role', '==', 'coach').get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email, email: d.data().email })); }
+  try { const qs = await Cloud.db.collection('users').where('role', 'in', ['coach', 'both']).get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email, email: d.data().email })); }
   catch (e) { return []; }
 }
+// everyone with an account (team hub + to-do assignee picker)
+async function fetchAllUsers() {
+  if (!Cloud.enabled || !Cloud.db) return [];
+  try { const qs = await Cloud.db.collection('users').get(); return qs.docs.map(d => ({ uid: d.id, name: d.data().name || (d.data().email || '').split('@')[0], email: d.data().email || '', role: d.data().role || 'athlete', title: d.data().title || '', bio: d.data().bio || '' })); }
+  catch (e) { return []; }
+}
+
+// The app owner — kept as coach+athlete automatically, never has to re-pick a role.
+const OWNER_EMAIL = 'marcin.delhaye@telenet.be';
+// Roles: coach (programs), athlete (trains), both (coach & athlete), crew (supports the team).
+// "Team" roles can see everyone's training.
+const ROLES = {
+  coach:       { label: 'Coach',       icon: '🧑‍🏫', sub: 'Programs & follows athletes' },
+  athlete:     { label: 'Athlete',     icon: '🏃',   sub: 'Follows my own plan' },
+  both:        { label: 'Coach & athlete', icon: '🧑‍🏫', sub: 'Coaches and trains' },
+  crew:        { label: 'Crew',        icon: '🤝',   sub: 'Supports the team (medewerker)' },
+  staff:       { label: 'Crew',        icon: '🤝',   sub: 'Supports the team (medewerker)' },
+  coordinator: { label: 'Crew',        icon: '🤝',   sub: 'Plans tasks & deadlines' }
+};
+function roleLabel(r) { return (ROLES[r] || {}).label || r; }
+// coach and athlete may plan (add/edit/move/delete) sessions; crew is read-only.
+function canPlan() { return state.role === 'coach' || state.role === 'athlete'; }
+function isTeamRole(r) { return r === 'coach' || r === 'staff' || r === 'coordinator' || r === 'crew'; }
+function canCoordinate(r) { return r === 'coach' || r === 'coordinator' || r === 'crew'; }
+// One account can hold several profiles (roles). These map legacy single-role accounts to a list,
+// give a legacy label, choose a default active profile, and label the switcher buttons.
+function rolesFromLegacy(role) {
+  if (role === 'both') return ['coach', 'athlete'];
+  if (role === 'staff' || role === 'coordinator') return ['crew'];
+  return [role || 'coach'];
+}
+function accountRoleLabel(roles) { return (roles.includes('coach') && roles.includes('athlete')) ? 'both' : (roles[0] || 'coach'); }
+function primaryMode(roles) { return roles.includes('coach') ? 'coach' : roles.includes('athlete') ? 'athlete' : (roles[0] || 'coach'); }
+function modeLabel(r) { return r === 'coach' ? 'Coaching' : r === 'athlete' ? 'My training' : r === 'crew' ? 'Crew' : roleLabel(r); }
+const TODO_STATUS = {
+  todo:   { label: 'To do',        color: '#8d99ae', icon: '⬜' },
+  doing:  { label: 'In progress',  color: '#4cc9f0', icon: '🔵' },
+  atrisk: { label: 'Deadline at risk', color: '#f5c518', icon: '⚠️' },
+  done:   { label: 'Done',         color: '#35c98b', icon: '✅' }
+};
+// the signed-in person's own uid + display name (for authoring todos/comments)
+function myUid() { return Cloud.myUid || null; }
+function myName() { return (Cloud.user && (Cloud.user.displayName || (Cloud.user.email || '').split('@')[0])) || 'Me'; }
 
 /* ------------------------------ Zones / load / compliance --------------- */
 const CYCLE_TYPES = { macro: 'Macrocycle', meso: 'Mesocycle', micro: 'Microcycle' };
@@ -393,32 +735,104 @@ function closeModal() { $('#modal-root').innerHTML = ''; }
 
 /* ------------------------------ Nav / Router ---------------------------- */
 const NAV = [
-  { id: 'dashboard',      label: 'Dashboard',      icon: '📊', roles: ['coach', 'athlete'] },
-  { id: 'calendar',       label: 'Calendar',       icon: '📅', roles: ['coach', 'athlete'] },
-  { id: 'planning',       label: 'Planning',       icon: '🗓️', roles: ['coach', 'athlete'] },
+  { id: 'dashboard',      label: 'Dashboard',      icon: '📊', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'calendar',       label: 'Calendar',       icon: '📅', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'todos',          label: 'To-do',          icon: '✅', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
+  { id: 'sharedcal',      label: 'Shared Calendar', icon: '🗓️', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
+  { id: 'planning',       label: 'Planning',       icon: '📆', roles: ['coach', 'athlete', 'crew'] },
   { id: 'library',        label: 'Workouts',       icon: '📚', roles: ['coach'] },
-  { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete'] },
-  { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete'] },
-  { id: 'nutrition',      label: 'Nutrition',      icon: '🥗', roles: ['coach', 'athlete'] },
-  { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete'] },
-  { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete'] },
-  { id: 'references',     label: 'References',     icon: '📖', roles: ['coach', 'athlete'] },
-  { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete'] },
+  { id: 'strength',       label: 'Strength',       icon: '🏋️', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'fitness',        label: 'Fitness',        icon: '📈', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'recovery',       label: 'Recovery',       icon: '🔋', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'testing',        label: 'Testing',        icon: '🧪', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'nutrition',      label: 'Nutrition',      icon: '🥗', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'goals',          label: 'Goals',          icon: '🎯', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'questionnaires', label: 'Questionnaires', icon: '📝', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'references',     label: 'References',     icon: '📖', roles: ['coach', 'athlete', 'crew'] },
+  { id: 'team',           label: 'Team',           icon: '👥', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
+  { id: 'messages',       label: 'Messages',       icon: '💬', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] },
   { id: 'athletes',       label: 'Athletes & Zones', icon: '⚙️', roles: ['coach'] },
   { id: 'monitor',        label: 'Monitoring',     icon: '❤️', roles: ['coach'] },
-  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete'] }
+  { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] }
 ];
 function navForRole() { return NAV.filter(n => n.roles.includes(state.role)); }
-function go(view) { state.ui.view = view; save(); render(); window.scrollTo(0, 0); }
+/* ------------------------------ Mobile app feel ------------------------- */
+// "More" bottom sheet listing every tab (native overflow pattern)
+function openMoreSheet() {
+  const nav = navForRole();
+  const root = $('#modal-root');
+  root.innerHTML = `<div class="overlay sheet-overlay" data-overlay>
+    <div class="more-sheet">
+      <div class="more-grip"></div>
+      <div class="more-title">${esc((Cloud.user && Cloud.user.email) || 'Menu')}</div>
+      <div class="more-grid">
+        ${nav.map(n => `<button data-mnav="${n.id}" class="more-item ${state.ui.view === n.id ? 'active' : ''}"><span class="mi-ico">${n.icon}</span><span>${esc(n.label)}</span></button>`).join('')}
+      </div>
+      ${Cloud.user ? `<button class="btn danger" id="more-logout" style="width:100%;margin-top:12px;justify-content:center">Log out</button>` : ''}
+    </div></div>`;
+  const ov = root.querySelector('[data-overlay]');
+  ov.addEventListener('mousedown', e => { if (e.target.dataset.overlay !== undefined) closeModal(); });
+  ov.addEventListener('touchstart', e => { if (e.target.dataset.overlay !== undefined) closeModal(); }, { passive: true });
+  root.querySelectorAll('[data-mnav]').forEach(b => b.addEventListener('click', () => { closeModal(); go(b.dataset.mnav); }));
+  if ($('#more-logout')) $('#more-logout').addEventListener('click', () => { closeModal(); Cloud.logout(); });
+}
+// hide the launch splash once the app has rendered
+function hideSplash() {
+  const sp = document.getElementById('splash');
+  if (sp && !sp.classList.contains('hide')) { sp.classList.add('hide'); setTimeout(() => { try { sp.remove(); } catch (e) {} }, 450); }
+}
+// one-time: pull-to-refresh gesture on mobile
+function initMobileApp() {
+  if (window.__tacMobileInit) return; window.__tacMobileInit = true;
+  let ind;
+  try { ind = document.createElement('div'); ind.id = 'ptr-ind'; ind.textContent = '⟳'; document.body.appendChild(ind); } catch (e) { return; }
+  let startY = 0, pulling = false, dist = 0; const threshold = 72;
+  const modalOpen = () => !!document.querySelector('#modal-root .modal, #modal-root .more-sheet');
+  window.addEventListener('touchstart', e => {
+    if (window.scrollY <= 0 && !modalOpen() && e.touches.length === 1) { startY = e.touches[0].clientY; pulling = true; dist = 0; } else pulling = false;
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (!pulling) return; dist = e.touches[0].clientY - startY;
+    if (dist > 0) { const d = Math.min(dist * 0.6, 90); ind.style.transform = `translateX(-50%) translateY(${d}px)`; ind.style.opacity = Math.min(1, d / threshold); ind.classList.toggle('ready', d >= threshold); }
+  }, { passive: true });
+  window.addEventListener('touchend', () => {
+    if (!pulling) return; pulling = false;
+    if (dist * 0.6 >= threshold) {
+      ind.classList.add('spin');
+      setTimeout(() => { render(); ind.classList.remove('spin', 'ready'); ind.style.transform = ''; ind.style.opacity = '0'; toast('Refreshed ⟳'); }, 350);
+    } else { ind.style.transform = ''; ind.style.opacity = '0'; ind.classList.remove('ready'); }
+  });
+}
+// mobile bottom bar shows 4 primary tabs per role + a "More" sheet with the rest (native pattern)
+const MOBILE_PRIMARY = {
+  coach: ['dashboard', 'calendar', 'team', 'todos'],
+  athlete: ['dashboard', 'calendar', 'recovery', 'todos'],
+  crew: ['team', 'todos', 'sharedcal', 'messages'],
+  staff: ['team', 'todos', 'sharedcal', 'messages'],
+  coordinator: ['todos', 'sharedcal', 'team', 'messages']
+};
+function mobilePrimary() {
+  const nav = navForRole();
+  const ids = MOBILE_PRIMARY[state.role] || nav.slice(0, 4).map(n => n.id);
+  return ids.map(id => nav.find(n => n.id === id)).filter(Boolean).slice(0, 4);
+}
+function go(view) {
+  state.ui.view = view; state.ui._anim = true;
+  try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}   // subtle haptic on Android
+  save(); render(); window.scrollTo(0, 0);
+}
 
 /* ============================================================================
    RENDER
    ============================================================================ */
 function render() {
   const nav = navForRole();
-  if (!nav.find(n => n.id === state.ui.view)) state.ui.view = 'dashboard';
+  // crew with no approved athletes yet → keep them on the non-athlete tabs (Team to request access)
+  const ATH_VIEWS = ['dashboard', 'calendar', 'planning', 'fitness', 'recovery', 'testing', 'nutrition', 'goals', 'questionnaires', 'references', 'monitor', 'library', 'athletes'];
+  if (state.role === 'crew' && !(state.athletes || []).length && ATH_VIEWS.includes(state.ui.view)) state.ui.view = 'team';
+  if (!nav.find(n => n.id === state.ui.view)) state.ui.view = (nav[0] && nav[0].id) || 'dashboard';
   const view = state.ui.view;
-  if (state.role === 'coach') { const r = rosterAthletes(); if (r.length && !r.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = r[0].id; }
+  if (state.role === 'coach' || state.role === 'crew') { const r = rosterAthletes(); if (r.length && !r.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = r[0].id; }
 
   const app = $('#app');
   app.innerHTML = `
@@ -436,20 +850,13 @@ function render() {
             <button data-role="coach" class="${state.role === 'coach' ? 'active' : ''}">Coach</button>
             <button data-role="athlete" class="${state.role === 'athlete' ? 'active' : ''}">Athlete</button>
           </div>` : ''}
-          ${(Cloud.user && Cloud.accountRole === 'coach') ? `<div class="seg" style="margin-bottom:8px">
-            <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">Coaching</button>
-            <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">My training</button>
+          ${(Cloud.user && Cloud.accountRoles && Cloud.accountRoles.length > 1) ? `<div class="seg" style="margin-bottom:8px;flex-wrap:wrap;gap:3px">
+            ${Cloud.accountRoles.map(r => `<button data-mode="${r}" class="${state.role === r ? 'active' : ''}">${modeLabel(r)}</button>`).join('')}
           </div>` : ''}
-          ${state.role === 'coach' ? `<div class="who">
-            Athlete
+          ${((state.role === 'coach' || state.role === 'crew') && rosterAthletes().length) ? `<div class="who">
+            My athletes (${rosterAthletes().length})
             <select data-athlete-select>
               ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
-            </select>
-          </div>` : ''}
-          ${state.role === 'coach' ? `<div class="who">
-            Acting as
-            <select data-coach-select>
-              ${state.coaches.map(c => `<option value="${c.id}" ${c.id === state.currentCoachId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
             </select>
           </div>` : ''}
           ${Cloud.user ? `<div class="who" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:space-between">
@@ -463,89 +870,171 @@ function render() {
         <div class="topbar">
           <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
             <h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0">${nav.find(n => n.id === view)?.label || ''}</h2>
-            ${(state.role === 'coach' && rosterAthletes().length) ? `<select class="topbar-athlete" data-athlete-top title="Switch athlete">
+            ${((state.role === 'coach' || state.role === 'crew') && rosterAthletes().length) ? `<select class="topbar-athlete" data-athlete-top title="Switch athlete">
               ${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>` : ''}
           </div>
           <div class="actions" id="topbar-actions"></div>
         </div>
-        <div class="content" id="view"></div>
+        <div class="content ${state.ui._anim ? 'enter' : ''}" id="view"></div>
       </main>
 
       <nav class="mobile-nav">
-        ${nav.map(n => `<button data-nav="${n.id}" class="${view === n.id ? 'active' : ''}"><span class="ico">${n.icon}</span>${n.label}</button>`).join('')}
+        ${mobilePrimary().map(n => `<button data-nav="${n.id}" class="${view === n.id ? 'active' : ''}"><span class="ico">${n.icon}</span>${n.label}</button>`).join('')}
+        <button id="more-nav" class="${!mobilePrimary().some(n => n.id === view) ? 'active' : ''}"><span class="ico">⋯</span>More</button>
       </nav>
     </div>`;
+  state.ui._anim = false;
 
+  hideSplash(); initMobileApp();
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => go(b.dataset.nav)));
+  if ($('#more-nav')) $('#more-nav').addEventListener('click', () => openMoreSheet());
   $$('[data-role]').forEach(b => b.addEventListener('click', () => { state.role = b.dataset.role; save(); render(); }));
   $$('[data-mode]').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
   if ($('[data-athlete-select]')) $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('[data-athlete-top]')) $('[data-athlete-top]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
-  if ($('[data-coach-select]')) $('[data-coach-select]').addEventListener('change', (e) => { state.currentCoachId = e.target.value; save(); render(); });
   if ($('#logout-btn')) $('#logout-btn').addEventListener('click', () => Cloud.logout());
+
+  // athlete-centric views need a selected athlete; guard when there is none.
+  // (dashboard, athletes & settings self-handle; team/todos/sharedcal don't need one.)
+  const SAFE_NO_ATHLETE = ['dashboard', 'athletes', 'settings', 'team', 'todos', 'sharedcal'];
+  if (!SAFE_NO_ATHLETE.includes(view) && !currentAthlete()) {
+    $('#view').innerHTML = `<div class="card" style="max-width:520px"><h3>No athlete selected</h3><p class="sub">${state.role === 'coach' ? 'Add an athlete in <b>Athletes &amp; Zones</b> or <b>Settings</b>, or connect to one from <b>Team</b>.' : 'Ask an athlete to share their training with you from the <b>Team</b> tab.'}</p><div class="btn-row" style="margin-top:10px">${state.role === 'coach' ? '<button class="btn primary" data-goto="athletes">Athletes &amp; Zones</button>' : ''}<button class="btn" data-goto="team">Open Team</button></div></div>`;
+    $$('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
+    return;
+  }
 
   const views = {
     dashboard: viewDashboard, calendar: viewCalendar, planning: viewPlanning, library: viewLibrary,
     fitness: viewFitness, testing: viewTesting, nutrition: viewNutrition, goals: viewGoals,
-    questionnaires: viewQuestionnaires, references: viewReferences, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings
+    questionnaires: viewQuestionnaires, references: viewReferences, messages: viewMessages, athletes: viewAthletes, monitor: viewMonitor, settings: viewSettings,
+    todos: viewTodos, sharedcal: viewSharedCal, team: viewTeam, recovery: viewRecovery, strength: viewStrength
   };
-  (views[view] || viewDashboard)();
+  (views[view] || viewTodos)();
+}
+
+// Quick "add an athlete" for a coach — creates an athlete they coach (in their roster).
+function openAddAthleteModal(onDone) {
+  const body = `
+    <label>Athlete name</label>
+    <input id="na-name" placeholder="e.g. Jan Peeters"/>
+    <label>Email (optional)</label>
+    <input id="na-email" placeholder="athlete@email.com"/>
+    <div class="hint">Creates an athlete you coach and program for. If they also want their own login, they can sign up and connect to you from their app.</div>`;
+  openModal('Add athlete', body, `<button class="btn primary" id="na-go">+ Add athlete</button>`);
+  const submit = () => {
+    const name = ($('#na-name').value || '').trim() || 'New athlete';
+    const a = { id: uid(), name, email: ($('#na-email').value || '').trim(), sport: 'biking', ftp: 200, maxHr: 190, thresholdHr: 165, thresholdPace: 270, powerZones: clone(DEFAULT_POWER_ZONES), hrZones: clone(DEFAULT_HR_ZONES), paceZones: clone(DEFAULT_PACE_ZONES), coachIds: [], coachUids: Cloud.myUid ? [Cloud.myUid] : [], viewers: [] };
+    state.athletes.push(a); state.currentAthleteId = a.id; save(); closeModal(); toast('Athlete added');
+    if (onDone) onDone(); else render();
+  };
+  $('#na-go').addEventListener('click', submit);
+  $('#na-name').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
 }
 
 /* ------------------------------ Dashboard ------------------------------- */
 function viewDashboard() {
   const v = $('#view');
   const a = currentAthlete();
-  const isAthlete = state.role === 'athlete';
+  const me = state.role;
+  const today = todayISO();
 
+  // coach/crew with no athletes yet → point them to where athletes are managed
+  if (!a) {
+    v.innerHTML = `<div class="card" style="max-width:560px">
+      <h3>No athletes yet</h3>
+      <p class="sub">${state.role === 'coach' ? 'Add an athlete from <b>Athletes &amp; Zones</b> or <b>Settings</b>, or connect to an existing athlete account from the Team tab.' : 'Ask an athlete to share their training with you from the Team tab.'}</p>
+      <div class="btn-row" style="margin-top:10px">
+        ${state.role === 'coach' ? `<button class="btn primary" data-goto="athletes">Athletes &amp; Zones</button>` : ''}
+        <button class="btn" data-goto="team">Open Team</button>
+      </div>
+    </div>`;
+    $$('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
+    return;
+  }
+
+  // things to fill in (RPE today / questionnaire / morning / weekly)
   const prompts = pendingPrompts(a);
-  const upcoming = athleteSessions(a.id).filter(s => s.date >= todayISO() && s.status !== 'done')
-    .sort((x, y) => x.date.localeCompare(y.date)).slice(0, 5);
-  const doneCount = athleteSessions(a.id).filter(s => s.status === 'done').length;
-  const plannedCount = athleteSessions(a.id).filter(s => s.status !== 'done').length;
-  const weekLoad = athleteSessions(a.id).filter(s => weekKey(fromISO(s.date)) === weekKey(new Date()))
-    .reduce((n, s) => n + (Number(s.load) || 0), 0);
-  const lastSleep = [...state.checkins.sleep].filter(s => s.athleteId === a.id).sort((x, y) => y.date.localeCompare(x.date))[0];
-  const compliance = weeklyCompliance(a.id, weekKey(new Date()));
+  // messages that came in from other people
+  const inbound = state.messages.filter(m => m.athleteId === a.id && m.from !== me).sort((x, y) => (y.ts || 0) - (x.ts || 0));
+  const recentInbound = inbound.filter(m => (Date.now() - (m.ts || 0)) < 3 * 864e5);
+  const myComments = (state.comments || []).filter(c => c.athleteId === a.id && c.authorUid !== myUid()).sort((x, y) => (y.ts || 0) - (x.ts || 0)).slice(0, 3);
+  // next 2 trainings
+  const upcoming = athleteSessions(a.id).filter(s => s.date >= today && s.status !== 'done').sort((x, y) => x.date.localeCompare(y.date)).slice(0, 2);
+  // next to-do tasks for this person
+  const tasks = (state.todos || []).filter(t => t.assigneeUid === a.id && t.status !== 'done').sort((x, y) => (x.due || '9999-99-99').localeCompare(y.due || '9999-99-99')).slice(0, 4);
+  // today's training readiness score
+  const rec = computeReadiness(a.id, 30);
+  const rd = rec.days.find(d => d.date === today) || rec.days[rec.days.length - 1];
 
   v.innerHTML = `
-    ${recommendationHTML(a.id, todayISO())}
-    ${prompts.length ? `<div class="grid" style="margin-bottom:16px">${prompts.map(p => p.html).join('')}</div>` : ''}
+    ${(prompts.length || recentInbound.length) ? `<div class="grid" style="margin-bottom:16px;gap:10px">
+      ${prompts.map(p => p.html).join('')}
+      ${recentInbound.length ? `<div class="prompt"><span class="icon">💬</span><div class="grow"><b>New messages</b><div class="sub">${recentInbound.length} new message(s) from your ${me === 'athlete' ? 'coach / crew' : 'athlete'}.</div></div><button class="btn primary sm" data-prompt="messages">Open</button></div>` : ''}
+    </div>` : ''}
 
-    <div class="grid cols-4">
-      <div class="card stat"><span class="l">Week load (TSS)</span><span class="v">${weekLoad}</span><div class="grad-bar"></div></div>
-      <div class="card stat"><span class="l">Plan match (week)</span><span class="v" style="color:${compliance == null ? 'var(--muted)' : compliance >= 80 ? 'var(--ok)' : compliance >= 60 ? 'var(--yellow)' : 'var(--accent-2)'}">${compliance == null ? '—' : compliance + '%'}</span><span class="sub">actual vs planned zones</span></div>
-      <div class="card stat"><span class="l">Completed / Planned</span><span class="v">${doneCount}<small style="font-size:14px;color:var(--muted)"> / ${plannedCount}</small></span></div>
-      <div class="card stat"><span class="l">FTP / Max HR</span><span class="v">${a.ftp}<small style="font-size:14px;color:var(--muted)"> W</small></span><span class="sub">${a.maxHr} bpm max</span></div>
-    </div>
+    ${rd ? readinessDashCard(rd) : `<div class="card"><h3>Training readiness</h3><div class="empty">No readiness data yet — connect Intervals.icu (HRV) or log a morning check-in.</div></div>`}
 
-    <div class="section-title">Upcoming sessions</div>
-    <div class="list">
-      ${upcoming.length ? upcoming.map(s => sessionRow(s)).join('') : '<div class="empty">Nothing scheduled. Add sessions on the Calendar.</div>'}
-    </div>
-
-    <div class="card" style="margin-top:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <h3 style="margin:0">Training load by sport — last 8 weeks</h3>
-        ${(() => { const wd = weekDistribution(a.id, weekKey(new Date())); return wd ? `<span class="badge" title="Intensity distribution this week (Seiler)"><span class="dot" style="background:var(--accent)"></span>${wd.model} · ${wd.lit}/${wd.mod}/${wd.hit}% LIT/MOD/HIT</span>` : ''; })()}
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3>Next 2 trainings</h3>
+        <div class="list">${upcoming.length ? upcoming.map(s => dashSessionRow(s)).join('') : '<div class="empty">Nothing planned.</div>'}</div>
+        <div class="btn-row" style="margin-top:8px"><button class="btn sm" data-goto="calendar">Open calendar</button></div>
       </div>
-      ${stackedLoadChart(weeklyLoadBySport(a.id, 8))}
-      <div class="sub" style="margin-top:6px">Total weekly load, split by sport. The tag shows this week's intensity distribution model.</div>
+      <div class="card">
+        <h3>Next tasks</h3>
+        <div class="list">${tasks.length ? tasks.map(t => { const st = TODO_STATUS[t.status] || TODO_STATUS.todo; const overdue = t.due && t.due < today; return `<div class="row" style="border-left:3px solid ${st.color}"><div class="grow"><div class="title">📋 ${esc(t.title)}</div><div class="meta">${t.due ? `<span style="color:${overdue ? 'var(--bad)' : 'var(--muted)'}">${overdue ? '⚠️ ' : '🎯 '}${fmtDate(t.due)}</span>` : 'no deadline'} · ${st.label}</div></div></div>`; }).join('') : '<div class="empty">No open tasks.</div>'}</div>
+        <div class="btn-row" style="margin-top:8px"><button class="btn sm" data-goto="todos">Open to-do list</button></div>
+      </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3>Recent sleep</h3>
-      ${lastSleep ? `<div class="sub">${fmtDate(lastSleep.date)}</div><div class="stat" style="margin-top:8px"><span class="v">${lastSleep.hours}h</span><span class="l">Quality ${lastSleep.quality}/10 · felt ${lastSleep.feel}/10</span></div>` : '<div class="empty">No sleep check-ins yet.</div>'}
-    </div>`;
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Training load by sport — last 4 weeks</h3>
+        ${(() => { const wd = weekDistribution(a.id, weekKey(new Date())); return wd ? `<span class="badge" title="Intensity distribution this week (Seiler)"><span class="dot" style="background:var(--accent)"></span>${wd.model} · ${wd.lit}/${wd.mod}/${wd.hit}% LIT/MOD/HIT</span>` : ''; })()}
+      </div>
+      ${stackedLoadChart(weeklyLoadBySport(a.id, 4))}
+    </div>
+
+    ${(inbound.length || myComments.length) ? `<div class="card" style="margin-top:16px">
+      <h3>Recent messages &amp; comments</h3>
+      <div class="list">
+        ${inbound.slice(0, 3).map(m => `<div class="row"><div class="grow"><div class="title">💬 ${esc(m.text.slice(0, 90))}${m.text.length > 90 ? '…' : ''}</div><div class="meta">${m.from === 'coach' ? 'Coach / crew' : esc(a.name)} · ${fmtDate(m.date)}</div></div></div>`).join('')}
+        ${myComments.map(c => `<div class="row"><div class="grow"><div class="title">🗒️ ${esc(c.text.slice(0, 90))}${c.text.length > 90 ? '…' : ''}</div><div class="meta">${esc(c.authorName || '')} · comment on a workout</div></div></div>`).join('')}
+      </div>
+      <div class="btn-row" style="margin-top:8px"><button class="btn sm" data-goto="messages">Open messages</button></div>
+    </div>` : ''}`;
 
   $$('[data-open-session]').forEach(b => b.addEventListener('click', () => openSessionModal(b.dataset.openSession)));
+  $$('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
   bindPromptButtons();
+}
+// Training readiness summary card for the dashboard, with a "full gas / recover" call.
+function readinessDashCard(rd) {
+  const b = rd.band;
+  const advice = b.key === 'green' ? 'Full gas — a key or hard session is well-placed today.'
+    : b.key === 'yellow' ? 'Train smart — moderate work, keep something in reserve.'
+    : 'Recovery is the priority today — easy Z1–Z2 or rest.';
+  return `<div class="card" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+    <div class="ring-wrap"><div class="ring" style="--p:${rd.score};background:conic-gradient(${b.color} calc(${rd.score}*1%), var(--line) 0)"><b>${rd.score}</b></div></div>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Training readiness score</div>
+      <div style="font-size:22px;font-weight:800;color:${b.color}">${b.label}</div>
+      <div class="sub" style="margin-top:4px">${advice}</div>
+    </div>
+    <button class="btn sm" data-goto="recovery">Details</button>
+  </div>`;
 }
 
 function pendingPrompts(a) {
   const out = [];
   const today = todayISO();
+
+  // Athlete with no coach yet → connect one
+  if (state.role === 'athlete' && Cloud.user && (!a.coachUids || !a.coachUids.length)) out.push({ html: `
+    <div class="prompt" style="border-left-color:var(--accent-2)"><span class="icon">🧑‍🏫</span>
+      <div class="grow"><b>Connect with your coach</b><div class="sub">Add your coach so they can follow and program your training.</div></div>
+      <button class="btn primary sm" data-prompt="addcoach">Connect</button></div>` });
 
   // Morning sleep
   const hasSleep = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === today);
@@ -554,11 +1043,11 @@ function pendingPrompts(a) {
       <div class="grow"><b>Morning check-in</b><div class="sub">How did you sleep last night?</div></div>
       <button class="btn primary sm" data-prompt="sleep">Answer</button></div>` });
 
-  // Post-session RPE (done but no rpe)
-  const pending = athleteSessions(a.id).filter(s => s.status === 'done' && (s.rpe == null));
+  // Post-session RPE — only for a session done TODAY (no nagging about past sessions)
+  const pending = athleteSessions(a.id).filter(s => s.status === 'done' && s.rpe == null && s.date === today);
   if (pending.length) out.push({ html: `
     <div class="prompt"><span class="icon">✅</span>
-      <div class="grow"><b>Session feedback</b><div class="sub">${pending.length} completed session(s) need an RPE & how you felt.</div></div>
+      <div class="grow"><b>Today's session</b><div class="sub">How was your training today? Add your RPE & how you felt.</div></div>
       <button class="btn primary sm" data-prompt="rpe" data-sid="${pending[0].id}">Answer</button></div>` });
 
   // Weekly reflection (on/after Sunday, once per week)
@@ -570,6 +1059,20 @@ function pendingPrompts(a) {
       <div class="grow"><b>Weekly reflection</b><div class="sub">How did this week's training feel?</div></div>
       <button class="btn primary sm" data-prompt="weekly">Answer</button></div>` });
 
+  // Questionnaires still to fill in
+  const unfilled = state.questionnaires.filter(q => !state.responses.some(r => r.qid === q.id && r.athleteId === a.id));
+  if (unfilled.length) out.push({ html: `
+    <div class="prompt"><span class="icon">📝</span>
+      <div class="grow"><b>Questionnaire</b><div class="sub">${unfilled.length} questionnaire(s) still to fill in.</div></div>
+      <button class="btn primary sm" data-prompt="quest" data-qid="${unfilled[0].id}">Open</button></div>` });
+
+  // One-tap: turn on phone push notifications
+  const nt = state.settings.notifications;
+  if (Cloud.user && nt && !nt.enabled && ('Notification' in window) && Notification.permission !== 'denied') out.push({ html: `
+    <div class="prompt"><span class="icon">🔔</span>
+      <div class="grow"><b>Turn on phone notifications</b><div class="sub">Get reminders and coach messages on your phone.</div></div>
+      <button class="btn primary sm" data-prompt="enablepush">Enable</button></div>` });
+
   return out;
 }
 function bindPromptButtons() {
@@ -577,7 +1080,37 @@ function bindPromptButtons() {
     if (b.dataset.prompt === 'sleep') openSleepModal();
     if (b.dataset.prompt === 'rpe') openRpeModal(b.dataset.sid);
     if (b.dataset.prompt === 'weekly') openWeeklyModal();
+    if (b.dataset.prompt === 'quest') { state.role === 'athlete' && b.dataset.qid ? openQFill(b.dataset.qid) : go('questionnaires'); }
+    if (b.dataset.prompt === 'messages') go('messages');
+    if (b.dataset.prompt === 'addcoach') go('team');
+    if (b.dataset.prompt === 'enablepush') enablePush();
   }));
+}
+// One-tap enable of browser + phone (FCM) push.
+async function enablePush() {
+  if (!('Notification' in window)) { toast('This device has no notification support'); return; }
+  const ok = await requestNotifPermission();
+  const nt = state.settings.notifications;
+  nt.enabled = ok; save();
+  if (!ok) { toast('Blocked — allow notifications in your browser settings'); return; }
+  checkReminders();
+  const pushed = await PushKit.enableForCurrentUser();
+  toast(pushed ? 'Phone notifications on 🔔' : 'Notifications on (finish push setup in Settings)');
+  render();
+}
+// Quick "send a notification to this person's phone" composer (coach / crew).
+function openNotifyModal(targetUid, targetName) {
+  const body = `<div class="sub" style="margin-bottom:8px">To: <b style="color:var(--text)">${esc(targetName || 'all athletes')}</b></div>
+    <label>Title</label><input id="nf-title" value="Message from your coach"/>
+    <label>Message</label><textarea id="nf-body" placeholder="e.g. Great session today — easy recovery ride tomorrow."></textarea>
+    <div class="hint">Arrives as a push notification on their phone (if they enabled notifications).</div>`;
+  openModal('Send notification 🔔', body, `<button class="btn primary" id="nf-send">Send</button>`);
+  $('#nf-send').addEventListener('click', () => {
+    const t = ($('#nf-title').value || '').trim() || 'Notification';
+    const b = ($('#nf-body').value || '').trim();
+    Cloud.sendPush(targetUid || 'all', t, b);
+    closeModal(); toast('Sent — arrives on their phone within ~15 min');
+  });
 }
 
 function sessionRow(s) {
@@ -593,6 +1126,20 @@ function sessionRow(s) {
   </div>`;
 }
 
+// Intervals-style dashboard row: header + the workout graph underneath, whole row opens the session.
+function dashSessionRow(s) {
+  const sp = SPORTS[s.sport] || SPORTS.other;
+  const g = workoutMiniSVG(s, 46);
+  return `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer" data-open-session="${s.id}">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="dot" style="background:${sp.color}"></span>
+      <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${focusBadge(s)} ${rpeBadge(s)}</div>
+        <div class="meta">${fmtDate(s.date)} · ${sp.label} · ${s.duration || 0} min · ${s.load || 0} TSS${s.feltNote ? ' · “' + esc(s.feltNote) + '”' : ''}</div></div>
+      ${s.status === 'done' ? '<span class="badge"><span class="dot" style="background:var(--ok)"></span>Done</span>' : ''}
+    </div>
+    ${g ? `<div>${g}</div>` : ''}
+  </div>`;
+}
 function loadHistory(aid, weeks) {
   const arr = [];
   for (let i = weeks - 1; i >= 0; i--) {
@@ -636,6 +1183,14 @@ function focusBadge(s) {
   const f = sessionFocus(s);
   if (f.label === '—') return '';
   return `<span class="badge" title="Training focus (from zones)" style="border:1px solid ${f.color};color:${f.color}"><span class="dot" style="background:${f.color}"></span>${f.label}</span>`;
+}
+// How hard the session felt (RPE 1–10) — green (easy) → yellow → red (max).
+function rpeColor(r) { return r >= 8 ? 'var(--bad)' : r >= 5 ? 'var(--yellow)' : 'var(--ok)'; }
+function rpeWord(r) { return r >= 9 ? 'maximal' : r >= 7 ? 'hard' : r >= 5 ? 'moderate' : r >= 3 ? 'easy' : 'very easy'; }
+function rpeBadge(s) {
+  if (!s || s.rpe == null) return '';
+  const c = rpeColor(s.rpe);
+  return `<span class="badge" title="How hard it felt (RPE 1–10)${s.feltNote ? ' — ' + esc(s.feltNote) : ''}" style="border:1px solid ${c};color:${c}">💪 RPE ${s.rpe}</span>`;
 }
 function weeklyLoadBySport(aid, weeks) {
   const out = [];
@@ -699,6 +1254,90 @@ function workoutProfileSVG(steps) {
   });
   return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="height:110px;display:block;background:var(--bg-2);border-radius:8px;min-width:260px">${bars}</svg></div>`;
 }
+// Compact Intervals-style graph for a session, for calendar chips & dashboard rows.
+// Completed sessions show the ACTUAL power/HR curve (from Intervals streams); planned sessions
+// show the stepped zone profile. Returns '' when there's nothing structured to draw.
+// Derive time-in-zone from a completed session's raw stream (power, else HR) using the athlete's
+// zones — so a clean zone bar can be drawn even when the server hasn't stored `actual` yet.
+function streamZoneDist(s) {
+  const st = s && s.streams; if (!st) return [];
+  const a = state.athletes.find(x => x.id === s.athleteId) || currentAthlete(); if (!a) return [];
+  let series, zones, ref, zt;
+  if (st.watts && st.watts.some(v => v != null)) { series = st.watts; zones = a.powerZones || DEFAULT_POWER_ZONES; ref = a.ftp; zt = 'power'; }
+  else if (st.hr && st.hr.some(v => v != null)) { series = st.hr; zones = a.hrZones || DEFAULT_HR_ZONES; ref = a.thresholdHr; zt = 'hr'; }
+  else return [];
+  if (!ref) return [];
+  const per = (Number(s.duration) || series.length) / (series.length || 1); // minutes per sample
+  const counts = {};
+  series.forEach(v => {
+    if (v == null || isNaN(v)) return;
+    const pct = v / ref * 100;
+    let zi = zones.findIndex(z => pct >= z.min && pct <= z.max);
+    if (zi < 0) zi = pct < zones[0].min ? 0 : zones.length - 1;
+    counts[zi] = (counts[zi] || 0) + per;
+  });
+  return Object.keys(counts).map(z => ({ zt, z: Number(z), min: Math.round(counts[z]) }));
+}
+function smoothSeries(arr, win) {
+  if (!win || win <= 0) return arr;
+  return arr.map((_, i) => { let s = 0, c = 0; for (let j = Math.max(0, i - win); j <= Math.min(arr.length - 1, i + win); j++) { const v = arr[j]; if (v != null && !isNaN(v)) { s += v; c++; } } return c ? s / c : null; });
+}
+function miniSVG(inner, h) {
+  return `<svg viewBox="0 0 300 ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;border-radius:4px;background:var(--bg-2)">${inner}</svg>`;
+}
+// Intervals-style workout graph. Completed sessions show the FILLED power/HR curve over time,
+// coloured by zone (peaks & valleys visible); planned sessions show the workout profile
+// (width = time, height = intensity, colour = zone).
+function workoutMiniSVG(s, h) {
+  h = h || 28;
+  const W = 300;
+  // A) completed with real data → filled area over time, height = intensity, colour = zone
+  if (s && s.status === 'done' && s.streams) {
+    const a = state.athletes.find(x => x.id === s.athleteId) || currentAthlete();
+    const st = s.streams;
+    let series = null, zones = null, ref = null;
+    if (st.watts && st.watts.some(v => v != null)) { series = st.watts; zones = (a && a.powerZones) || DEFAULT_POWER_ZONES; ref = a && a.ftp; }
+    else if (st.hr && st.hr.some(v => v != null)) { series = st.hr; zones = (a && a.hrZones) || DEFAULT_HR_ZONES; ref = a && a.thresholdHr; }
+    if (series) {
+      const sm = smoothSeries(series, 2);
+      const vals = sm.filter(v => v != null && !isNaN(v));
+      if (vals.length > 1) {
+        const mx = Math.max(...vals) || 1, n = sm.length, bw = W / n;
+        let bars = '';
+        sm.forEach((v, i) => {
+          if (v == null || isNaN(v)) return;
+          const bh = Math.max(1, (v / mx) * (h - 1));
+          let zi = 0;
+          if (ref) { const pct = v / ref * 100; zi = zones.findIndex(z => pct >= z.min && pct <= z.max); if (zi < 0) zi = pct < zones[0].min ? 0 : zones.length - 1; }
+          bars += `<rect x="${(i * bw).toFixed(2)}" y="${(h - bh).toFixed(2)}" width="${(bw + 0.6).toFixed(2)}" height="${bh.toFixed(2)}" fill="${zoneColor(zi)}"/>`;
+        });
+        return miniSVG(bars, h);
+      }
+    }
+  }
+  // B) planned with a zone structure → workout-profile bars (width = time, height = intensity)
+  const steps = (s && s.steps && s.steps.length) ? s.steps : null;
+  if (steps) {
+    const total = stepsDuration(steps);
+    if (total) {
+      let x = 0, bars = '';
+      steps.forEach(st => { const w = (Number(st.min) || 0) / total * W; const bh = Math.max(2, ((st.z + 1) / 7) * (h - 1)); bars += `<rect x="${x.toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${Math.max(0, w).toFixed(1)}" height="${bh.toFixed(1)}" fill="${zoneColor(st.z)}"/>`; x += w; });
+      return miniSVG(bars, h);
+    }
+  }
+  // C) completed without a stream → profile from time-in-zone (height = intensity, grouped by zone)
+  const dist = (s && s.actual && s.actual.length) ? s.actual : streamZoneDist(s);
+  if (dist.length) {
+    const byZone = {}; let total = 0;
+    dist.forEach(st => { const m = Number(st.min) || 0; byZone[st.z] = (byZone[st.z] || 0) + m; total += m; });
+    if (total) {
+      let x = 0, bars = '';
+      Object.keys(byZone).map(Number).sort((a, b) => a - b).forEach(z => { const w = byZone[z] / total * W; const bh = Math.max(2, ((z + 1) / 7) * (h - 1)); bars += `<rect x="${x.toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${Math.max(0, w).toFixed(1)}" height="${bh.toFixed(1)}" fill="${zoneColor(z)}"/>`; x += w; });
+      return miniSVG(bars, h);
+    }
+  }
+  return '';
+}
 // Time-in-zone breakdown rows (like the Intervals side panel).
 function zoneDistHTML(steps) {
   const byZone = {}; let total = 0;
@@ -717,14 +1356,19 @@ function zoneDistHTML(steps) {
 /* ------------------------------ Calendar -------------------------------- */
 function viewCalendar() {
   const actions = $('#topbar-actions');
-  actions.innerHTML = state.role === 'coach'
+  actions.innerHTML = canPlan()
     ? `<button class="btn primary sm" id="add-session">+ Add session</button>`
-    : `<span class="badge">Drag sessions to reschedule</span>`;
-  if (state.role === 'coach') $('#add-session').addEventListener('click', () => openSessionModal(null));
+    : `<span class="badge">Read-only</span>`;
+  if (canPlan()) $('#add-session').addEventListener('click', () => openSessionModal(null));
 
   drawCalendar();
 }
 
+function fmtHM(min) { min = Math.round(min || 0); const h = Math.floor(min / 60), mm = min % 60; return h ? (mm ? h + 'h' + String(mm).padStart(2, '0') : h + 'h') : mm + 'm'; }
+function isoWeekNum(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + 3 - ((x.getDay() + 6) % 7)); const w1 = new Date(x.getFullYear(), 0, 4); return 1 + Math.round(((x - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7); }
+function complColor(p) { return p >= 90 ? 'var(--ok)' : p >= 70 ? 'var(--yellow)' : 'var(--accent-2)'; }
+
+// Intervals-style calendar: a per-week DATA rail on the left, 7 day columns, and a Notities column.
 function drawCalendar() {
   const v = $('#view');
   const a = currentAthlete();
@@ -732,22 +1376,65 @@ function drawCalendar() {
   const first = new Date(y, m, 1);
   const startOffset = (first.getDay() + 6) % 7; // Monday-based
   const gridStart = addDays(first, -startOffset);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayIso = todayISO();
+  const editable = canPlan();
 
-  let cells = '';
-  for (let i = 0; i < 42; i++) {
-    const d = addDays(gridStart, i);
+  const backDays = Math.max(60, Math.ceil((today - gridStart) / 86400000) + 2);
+  const fit = {}; computeFitness(a.id, backDays).forEach(d => fit[d.date] = d);
+  const sessOn = iso => athleteSessions(a.id).filter(s => s.date === iso);
+
+  const dayCell = (d) => {
     const iso = toISO(d);
     const inMonth = d.getMonth() === m;
-    const isToday = iso === todayISO();
-    const daySessions = athleteSessions(a.id).filter(s => s.date === iso);
+    const isToday = iso === todayIso;
+    const daySessions = sessOn(iso);
     const dayLoad = daySessions.reduce((n, s) => n + (Number(s.load) || 0), 0);
     const dayNotes = state.dayNotes.filter(n => n.athleteId === a.id && n.date === iso);
-    cells += `
+    const dayTodos = (state.todos || []).filter(t => t.assigneeUid === a.id && t.due === iso);
+    return `
       <div class="cal-cell ${inMonth ? '' : 'dim'} ${isToday ? 'today' : ''}" data-day="${iso}">
         <div class="d"><span>${d.getDate()} ${dayNotes.length ? '<span class="note-dot" title="' + esc(dayNotes.map(n => n.text).join(' · ')) + '"></span>' : ''}</span>${dayLoad ? `<span class="load">${dayLoad} TSS</span>` : ''}</div>
         ${daySessions.map(s => sessionChip(s)).join('')}
+        ${dayTodos.map(t => todoChip(t)).join('')}
         ${dayNotes.map(n => `<div class="day-note" title="${esc(n.text)}">📌 ${esc(n.text.slice(0, 24))}${n.text.length > 24 ? '…' : ''}</div>`).join('')}
       </div>`;
+  };
+
+  let weeksHtml = '';
+  for (let wRow = 0; wRow < 6; wRow++) {
+    let daysHtml = '', lastPast = null; const weekSessions = [];
+    const weekStart = addDays(gridStart, wRow * 7);
+    for (let dcol = 0; dcol < 7; dcol++) {
+      const d = addDays(gridStart, wRow * 7 + dcol);
+      daysHtml += dayCell(d);
+      sessOn(toISO(d)).forEach(s => weekSessions.push(s));
+      if (d <= today) lastPast = toISO(d);
+    }
+    const wk = weekKey(weekStart);
+    const note = (state.weekNotes || []).find(n => n.athleteId === a.id && n.week === wk);
+    const f = lastPast ? fit[lastPast] : null;
+    let ramp = null; if (f && lastPast) { const prev = fit[toISO(addDays(fromISO(lastPast), -7))]; ramp = prev ? +(f.ctl - prev.ctl).toFixed(1) : null; }
+    const weekTime = weekSessions.reduce((n, s) => n + (Number(s.duration) || 0), 0);
+    const weekLoad = weekSessions.reduce((n, s) => n + (Number(s.load) || 0), 0);
+    const plannedLoad = weekSessions.filter(s => s.status !== 'done').reduce((n, s) => n + (Number(s.load) || 0), 0);
+    const doneLoad = weekSessions.filter(s => s.status === 'done').reduce((n, s) => n + (Number(s.load) || 0), 0);
+    const targetLoad = plannedLoad + doneLoad;
+    const compPct = (f && targetLoad > 0) ? Math.round(doneLoad / targetLoad * 100) : null;
+    const bySport = {}; weekSessions.forEach(s => { const k = s.sport; (bySport[k] = bySport[k] || { t: 0, l: 0 }); bySport[k].t += Number(s.duration) || 0; bySport[k].l += Number(s.load) || 0; });
+    const sportRows = Object.keys(bySport).map(k => { const sp = SPORTS[k] || SPORTS.other; return `<div class="wkl-sport"><span>${sp.icon} ${esc(sp.label)}</span><span>${fmtHM(bySport[k].t)} · ${bySport[k].l}</span></div>`; }).join('');
+    const rail = `
+      <div class="wkl-hd"><b>Wk ${isoWeekNum(weekStart)}</b>${editable ? `<button class="wkl-note-btn" data-weeknote="${wk}" title="Week note">✎</button>` : ''}</div>
+      <div class="wkl-row"><span>Totaal</span><b>${fmtHM(weekTime)}</b></div>
+      <div class="wkl-row"><span>Belasting</span><b>${weekLoad}</b></div>
+      ${f ? `<div class="wkl-row"><span>Conditie</span><b style="color:var(--accent)">${Math.round(f.ctl)}</b></div>
+        <div class="wkl-row"><span>Verm.</span><b style="color:var(--accent-2)">${Math.round(f.atl)}</b></div>
+        <div class="wkl-row"><span>Vorm</span><b style="color:${f.tsb >= 0 ? 'var(--ok)' : 'var(--yellow)'}">${Math.round(f.tsb)}</b></div>
+        ${ramp != null ? `<div class="wkl-row"><span>Helling</span><b>${ramp >= 0 ? '+' : ''}${ramp}</b></div>` : ''}` : ''}
+      ${sportRows ? `<div class="wkl-sports">${sportRows}</div>` : ''}
+      ${compPct != null ? `<div class="wkl-comp"><span class="sub">Gevolgd</span> ${doneLoad}/${targetLoad} <b style="color:${complColor(compPct)}">${compPct}%</b><div class="wkl-bar"><span style="width:${Math.min(100, compPct)}%;background:${complColor(compPct)}"></span></div></div>` : ''}`;
+    const notesCell = `<div class="cal-wk-notes ${editable ? 'edit' : ''}" ${editable ? `data-weeknote="${wk}"` : ''}>${note ? `<div class="wkn-text">${esc(note.text)}</div>` : (editable ? `<div class="wkn-add">+ notitie</div>` : '')}</div>`;
+    weeksHtml += `<div class="cal-week-row"><div class="cal-wk-left">${rail}</div><div class="cal-grid wk-days">${daysHtml}</div>${notesCell}</div>`;
   }
 
   v.innerHTML = `
@@ -758,16 +1445,51 @@ function drawCalendar() {
         <button class="btn sm" id="cal-next">›</button>
       </div>
       <h3 style="margin:0">${MONTHS[m]} ${y}</h3>
-      <div class="btn-row">${Object.entries(SPORTS).map(([k, s]) => `<span class="badge"><span class="dot" style="background:${s.color}"></span>${s.label}</span>`).slice(0,4).join('')}</div>
+      <div class="btn-row"><span class="badge" title="Drag a planned session onto a completed one to pair them">⇄ drag to pair</span></div>
     </div>
-    <div class="cal-grid">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div>
-    <div class="cal-grid" id="cal-body">${cells}</div>`;
+    <div class="cal-week-row head">
+      <div class="cal-wk-left head">Week</div>
+      <div class="cal-grid wk-days">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div>
+      <div class="cal-wk-notes head">Notities</div>
+    </div>
+    <div class="cal-weeks">${weeksHtml}</div>`;
 
   $('#cal-prev').addEventListener('click', () => shiftMonth(-1));
   $('#cal-next').addEventListener('click', () => shiftMonth(1));
   $('#cal-today').addEventListener('click', () => { const t = new Date(); state.ui.calMonth = t.getMonth(); state.ui.calYear = t.getFullYear(); save(); drawCalendar(); });
+  $$('[data-weeknote]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); openWeekNoteModal(b.dataset.weeknote); }));
 
   bindCalendarDnD();
+}
+// Pair a planned session with a completed one (drag one onto the other) → one done session with the
+// plan attached, so compliance can be computed. The planned survives (keeps its structure & name).
+function pairSessions(aId, bId) {
+  const A = state.sessions.find(s => s.id === aId), B = state.sessions.find(s => s.id === bId);
+  if (!A || !B || A === B) return;
+  const doneS = A.status === 'done' ? A : (B.status === 'done' ? B : null);
+  const planS = A.status !== 'done' ? A : (B.status !== 'done' ? B : null);
+  if (!doneS || !planS || doneS === planS) { toast('Drag a planned session onto a completed one'); return; }
+  ['load', 'duration', 'actual', 'streams', 'streamsChecked', 'intervalsActivityId', 'intervalsEventId', 'rpe', 'feltNote', 'avgHr', 'avgPower', 'distanceKm'].forEach(k => { if (doneS[k] != null) planS[k] = doneS[k]; });
+  planS.status = 'done'; planS.date = doneS.date;
+  state.sessions = state.sessions.filter(s => s.id !== doneS.id);
+  save(); drawCalendar();
+  const c = sessionCompliance(planS);
+  toast(c != null ? `Paired · ${c}% compliance` : 'Session paired');
+}
+function openWeekNoteModal(wk) {
+  const a = currentAthlete();
+  const existing = (state.weekNotes || []).find(n => n.athleteId === a.id && n.week === wk);
+  const body = `<div class="sub" style="margin-bottom:8px">Week of ${fmtDate(wk)}</div>
+    <label>Note for this week</label>
+    <textarea id="wn-text" placeholder="e.g. Recovery week — keep it easy; travel Thu–Fri">${esc(existing ? existing.text : '')}</textarea>`;
+  openModal('Week note', body, `${existing ? '<button class="btn danger" id="wn-del">Delete</button>' : ''}<button class="btn primary" id="wn-save">Save</button>`);
+  $('#wn-save').addEventListener('click', () => {
+    const t = ($('#wn-text').value || '').trim();
+    if (existing) { if (t) existing.text = t; else state.weekNotes = state.weekNotes.filter(n => n !== existing); }
+    else if (t) (state.weekNotes = state.weekNotes || []).push({ id: uid(), athleteId: a.id, week: wk, text: t });
+    save(); closeModal(); drawCalendar(); toast('Week note saved');
+  });
+  if ($('#wn-del')) $('#wn-del').addEventListener('click', () => { state.weekNotes = state.weekNotes.filter(n => n !== existing); save(); closeModal(); drawCalendar(); toast('Deleted'); });
 }
 function shiftMonth(n) {
   let m = state.ui.calMonth + n, y = state.ui.calYear;
@@ -777,12 +1499,28 @@ function shiftMonth(n) {
 
 function sessionChip(s) {
   const sp = SPORTS[s.sport] || SPORTS.other;
-  const f = sessionFocus(s);
-  return `<div class="sess ${s.status === 'done' ? 'done' : ''}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
-    <div class="t">${sp.icon} ${esc(s.name)} ${s.status === 'done' ? '<span class="check">✓</span>' : ''}</div>
-    <div class="m">${s.duration || 0}min · ${s.load || 0} TSS${f.label !== '—' ? ` · <span style="color:${f.color}">${f.label}</span>` : ''}</div>
+  const cc = sessionComments(s.id).length;
+  const g = workoutMiniSVG(s, 26);
+  const done = s.status === 'done';
+  const comp = done ? sessionCompliance(s) : null;
+  const hr = s.avgHr != null ? s.avgHr : (s.streams && Array.isArray(s.streams.hr) ? Math.round(_avg(s.streams.hr)) : null);
+  const line2 = [hr ? `❤ ${hr}` : '', s.load ? `${s.load} TSS` : '', s.rpe != null ? `RPE ${s.rpe}` : ''].filter(Boolean);
+  return `<div class="sess ${done ? 'done' : 'planned'}" draggable="true" data-sess="${s.id}" style="border-left-color:${sp.color}">
+    <div class="t">${sp.icon} <b>${s.duration || 0}min</b>${s.distanceKm ? ` · ${s.distanceKm} km` : ''} ${cc ? `<span class="check" title="${cc} comment(s)">💬${cc}</span>` : ''}${done ? '<span class="check">✓</span>' : ''}</div>
+    ${line2.length ? `<div class="m2">${line2.map((x, i) => (i === 2 && s.rpe != null) ? `<span style="color:${rpeColor(s.rpe)}">${x}</span>` : x).join(' · ')}</div>` : ''}
+    ${g ? `<div style="margin:3px 0 1px">${g}</div>` : ''}
+    <div class="m">${esc(s.name)}${comp != null ? ` <span class="comp" style="color:${complColor(comp)}">✓${comp}%</span>` : ''}</div>
   </div>`;
 }
+// Task chip shown on the assignee's calendar (📋), coloured by status.
+function todoChip(t) {
+  const st = TODO_STATUS[t.status] || TODO_STATUS.todo;
+  return `<div class="sess todo-chip" data-todo="${t.id}" style="border-left-color:${st.color};cursor:pointer">
+    <div class="t">📋 ${esc(t.title)} <span class="check">${st.icon}</span></div>
+    <div class="m" style="color:${st.color}">${st.label}${t.createdByName ? ' · ' + esc(t.createdByName) : ''}</div>
+  </div>`;
+}
+function sessionComments(sid) { return (state.comments || []).filter(c => c.sessionId === sid); }
 
 let dragId = null;
 function bindCalendarDnD() {
@@ -790,18 +1528,23 @@ function bindCalendarDnD() {
     el.addEventListener('dragstart', (e) => { dragId = el.dataset.sess; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => el.style.opacity = '.4', 0); });
     el.addEventListener('dragend', () => { el.style.opacity = '1'; dragId = null; });
     el.addEventListener('click', (e) => { e.stopPropagation(); openSessionModal(el.dataset.sess); });
+    // drop a session ONTO another → pair planned + completed (Intervals-style)
+    el.addEventListener('dragover', (e) => { if (dragId && dragId !== el.dataset.sess) { e.preventDefault(); e.stopPropagation(); el.classList.add('pair-hover'); } });
+    el.addEventListener('dragleave', () => el.classList.remove('pair-hover'));
+    el.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove('pair-hover'); if (dragId && dragId !== el.dataset.sess && canPlan()) pairSessions(dragId, el.dataset.sess); });
   });
+  $$('.todo-chip').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openTodoModal(el.dataset.todo); }));
   $$('.cal-cell').forEach(cell => {
     cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('drop-hover'); });
     cell.addEventListener('dragleave', () => cell.classList.remove('drop-hover'));
     cell.addEventListener('drop', (e) => {
       e.preventDefault(); cell.classList.remove('drop-hover');
-      if (!dragId) return;
+      if (!dragId || state.role === 'crew') return;   // crew is read-only
       const s = state.sessions.find(x => x.id === dragId);
       if (s) { s.date = cell.dataset.day; save(); drawCalendar(); toast('Session moved to ' + fmtDate(s.date)); }
     });
-    // click empty cell to add (coach)
-    cell.addEventListener('click', () => { if (state.role === 'coach') openSessionModal(null, cell.dataset.day); });
+    // click empty cell to add (coach or athlete)
+    cell.addEventListener('click', () => { if (canPlan()) openSessionModal(null, cell.dataset.day); });
   });
 }
 
@@ -863,16 +1606,17 @@ function recommendationHTML(aid, dateISO) {
     <div class="sub">${sp.icon} ${sp.label} — ${esc(c.focus || '')} ${zones}</div></div></div>`;
 }
 
-function openSessionModal(id, presetDate) {
+function openSessionModal(id, presetDate, presetSport) {
   const editing = id ? state.sessions.find(s => s.id === id) : null;
-  const s = editing || { id: null, sport: 'biking', name: '', duration: 60, load: 50, date: presetDate || todayISO(), desc: '', strength: [], steps: [], status: 'planned' };
-  const canEdit = state.role === 'coach';
+  const s = editing || { id: null, sport: presetSport || 'biking', name: '', duration: presetSport === 'strength' ? 45 : 60, load: presetSport === 'strength' ? 30 : 50, date: presetDate || todayISO(), desc: '', strength: [], steps: [], status: 'planned' };
+  const canEdit = canPlan();   // coach or athlete can add/edit/delete their own sessions
   const a = currentAthlete();
 
   const sportOpts = Object.entries(SPORTS).map(([k, sp]) => `<option value="${k}" ${s.sport === k ? 'selected' : ''}>${sp.icon} ${sp.label}</option>`).join('');
 
   const body = `
     ${recommendationHTML(state.currentAthleteId, s.date)}
+    ${(editing && s.rpe != null) ? `<div class="row" style="border-left:3px solid ${rpeColor(s.rpe)};margin-bottom:10px"><div class="grow"><div class="title" style="color:${rpeColor(s.rpe)}">💪 RPE ${s.rpe}/10 — ${rpeWord(s.rpe)}</div>${s.feltNote ? `<div class="meta">“${esc(s.feltNote)}”</div>` : ''}</div>${canEdit || state.role === 'athlete' ? `<button class="btn sm" id="f-editrpe">Edit</button>` : ''}</div>` : ''}
     <label>Sport</label>
     <select id="f-sport" ${canEdit ? '' : 'disabled'}>${sportOpts}</select>
     <label>Session name</label>
@@ -888,6 +1632,8 @@ function openSessionModal(id, presetDate) {
     <label>Notes / extra instructions</label>
     <textarea id="f-desc" ${canEdit ? '' : 'disabled'} placeholder="e.g. keep cadence high, fuel every 30min">${esc(s.desc)}</textarea>
     <div id="strength-block"></div>
+    <div id="postwork-block"></div>
+    ${editing ? '<div id="comments-block"></div>' : ''}
   `;
   const foot = `
     ${editing && canEdit ? '<button class="btn danger" id="f-del">Delete</button>' : ''}
@@ -913,6 +1659,8 @@ function openSessionModal(id, presetDate) {
   mountStepBuilder('steps-block', stepsState, a, canEdit, syncTotals);
   syncTotals();
   renderStrengthEditor(strengthState, canEdit, strengthMeta);
+  if (editing) { renderPostWorkout(s, (state.wellness || []).filter(w => w.athleteId === s.athleteId)); renderCommentsBlock('comments-block', s); }
+  if ($('#f-editrpe')) $('#f-editrpe').addEventListener('click', () => openRpeModal(s.id));
 
   $('#f-sport').addEventListener('change', () => { renderStrengthEditor(strengthState, canEdit, strengthMeta); syncTotals(); });
 
@@ -1174,9 +1922,9 @@ function viewLibrary() {
   $$('[data-libtab]').forEach(b => b.addEventListener('click', () => { state.ui.libTab = b.dataset.libtab; viewLibrary(); }));
 }
 function findCatalog(id) { return state.scienceCustom.find(x => x.id === id) || SCIENCE_CATALOG.find(x => x.id === id); }
-function scheduleCatalog(id) {
+function scheduleCatalog(id, presetDate) {
   const w = findCatalog(id); if (!w) return;
-  const body = `<label>Add "<b>${esc(w.name)}</b>" to ${esc(currentAthlete().name)} on:</label><input id="sch-date" type="date" value="${todayISO()}"/>`;
+  const body = `<label>Add "<b>${esc(w.name)}</b>" to ${esc(currentAthlete().name)} on:</label><input id="sch-date" type="date" value="${presetDate || todayISO()}"/>`;
   openModal('Add to calendar', body, `<button class="btn primary" id="sch-go">Add</button>`);
   $('#sch-go').addEventListener('click', () => {
     state.sessions.push({ id: uid(), athleteId: state.currentAthleteId, sport: w.sport, name: w.name, date: $('#sch-date').value, duration: w.duration, load: w.load, desc: w.desc, steps: clone(w.steps || []), strength: clone(w.strength || []), focus: w.focus || '', targetRpe: w.targetRpe || '', status: 'planned' });
@@ -1391,12 +2139,10 @@ function showResponses(id) {
 function viewAthletes() {
   const actions = $('#topbar-actions');
   actions.innerHTML = `<button class="btn primary sm" id="add-ath">+ Add athlete</button>`;
-  $('#add-ath').addEventListener('click', () => {
-    const a = { id: uid(), name: 'New athlete', email: '', sport: 'biking', ftp: 200, maxHr: 190, thresholdHr: 165, thresholdPace: 270, powerZones: clone(DEFAULT_POWER_ZONES), hrZones: clone(DEFAULT_HR_ZONES), paceZones: clone(DEFAULT_PACE_ZONES) };
-    state.athletes.push(a); state.currentAthleteId = a.id; save(); viewAthletes();
-  });
+  $('#add-ath').addEventListener('click', () => openAddAthleteModal(() => viewAthletes()));
 
   const a = currentAthlete();
+  if (!a) { $('#view').innerHTML = `<div class="card" style="max-width:520px"><h3>No athletes yet</h3><p class="sub">Tap <b>+ Add athlete</b> above to create the first athlete you coach.</p></div>`; return; }
   const inRoster = a && Cloud.myUid && (a.coachUids || []).includes(Cloud.myUid);
   const v = $('#view');
   v.innerHTML = `
@@ -1453,8 +2199,14 @@ function viewAthletes() {
     a.maxHr = Number($('#a-max').value) || 0; a.thresholdPace = Number($('#a-pace').value) || 0;
     save(); render(); toast('Profile saved');
   });
-  if ($('#a-del')) $('#a-del').addEventListener('click', () => {
-    state.athletes = state.athletes.filter(x => x.id !== a.id); state.currentAthleteId = state.athletes[0].id; save(); render();
+  if ($('#a-del')) $('#a-del').addEventListener('click', async () => {
+    if (state.athletes.length <= 1) { toast('You need at least one athlete'); return; }
+    if (!confirm('Remove ' + a.name + '? This permanently deletes their profile and training data.')) return;
+    const aid = a.id;
+    if (Cloud.enabled && Cloud.user) await Cloud.deletePerson(aid);   // actually deletes the server doc
+    state.athletes = state.athletes.filter(x => x.id !== aid);
+    if (!state.athletes.find(x => x.id === state.currentAthleteId)) state.currentAthleteId = (state.athletes[0] || {}).id;
+    save(); render(); toast('Athlete removed');
   });
 
   // ----- Coaches (max 2 per athlete) -----
@@ -1492,23 +2244,37 @@ function viewAthletes() {
   let ztab = 'powerZones';
   function drawZones() {
     const zones = a[ztab];
-    const unit = ztab === 'powerZones' ? '% FTP' : ztab === 'hrZones' ? '% Thr HR' : '% Thr pace';
+    const isPace = ztab === 'paceZones';
     const ref = ztab === 'powerZones' ? a.ftp : ztab === 'hrZones' ? a.thresholdHr : a.thresholdPace;
+    const absUnit = ztab === 'powerZones' ? 'W' : 'bpm';
+    const absOK = !isPace && ref > 0;                       // absolute entry needs a reference value
+    const absMode = absOK && state.ui.zoneUnit === 'abs';
+    const colUnit = absMode ? absUnit : (ztab === 'powerZones' ? '% FTP' : ztab === 'hrZones' ? '% Thr HR' : '% Thr pace');
+    const toAbs = pct => Math.round(ref * pct / 100);
+    const toPct = v => ref ? Math.round(v / ref * 1000) / 10 : v;
+    const rangeText = z => absMode ? `${Math.round(z.min)}–${Math.round(z.max)}%` : zoneAbs(ztab, z, ref);
     $('#zone-card').innerHTML = `
-      <div class="sub" style="margin-bottom:10px">Percentages of ${ztab === 'powerZones' ? 'FTP (' + a.ftp + 'W)' : ztab === 'hrZones' ? 'threshold HR (' + a.thresholdHr + ' bpm)' : 'threshold pace'}. Edit freely.</div>
-      <table class="ztable"><thead><tr><th>Zone</th><th>Min ${unit}</th><th>Max ${unit}</th><th>Range</th></tr></thead>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div class="sub">${absMode ? `Type the exact ${absUnit} for each zone — no percentages needed (uses ${ztab === 'powerZones' ? 'FTP ' + a.ftp + ' W' : 'threshold HR ' + a.thresholdHr + ' bpm'}).` : `Percentages of ${ztab === 'powerZones' ? 'FTP (' + a.ftp + 'W)' : ztab === 'hrZones' ? 'threshold HR (' + a.thresholdHr + ' bpm)' : 'threshold pace'}.`}</div>
+        ${absOK ? `<div class="seg2" id="zunit"><button data-zu="pct" class="${!absMode ? 'active' : ''}">%</button><button data-zu="abs" class="${absMode ? 'active' : ''}">${absUnit}</button></div>` : ''}
+      </div>
+      <table class="ztable"><thead><tr><th>Zone</th><th>Min ${colUnit}</th><th>Max ${colUnit}</th><th>${absMode ? '% range' : (isPace ? 'Pace' : 'Range')}</th></tr></thead>
         <tbody>${zones.map((z, i) => `<tr>
           <td><input data-zi="${i}" data-zk="name" value="${esc(z.name)}"/></td>
-          <td><input data-zi="${i}" data-zk="min" type="number" value="${z.min}" style="width:80px"/></td>
-          <td><input data-zi="${i}" data-zk="max" type="number" value="${z.max}" style="width:80px"/></td>
-          <td class="sub">${zoneAbs(ztab, z, ref)}</td>
+          <td><input data-zi="${i}" data-zk="min" type="number" value="${absMode ? toAbs(z.min) : z.min}" style="width:80px"/></td>
+          <td><input data-zi="${i}" data-zk="max" type="number" value="${absMode ? toAbs(z.max) : z.max}" style="width:80px"/></td>
+          <td class="sub zrange">${rangeText(z)}</td>
         </tr>`).join('')}</tbody></table>
       <div class="btn-row" style="margin-top:10px"><button class="btn sm" id="z-add">+ Add zone</button><button class="btn sm" id="z-reset">Reset defaults</button></div>`;
     $$('#zone-card [data-zi]').forEach(inp => inp.addEventListener('input', () => {
       const i = Number(inp.dataset.zi), k = inp.dataset.zk;
-      a[ztab][i][k] = k === 'name' ? inp.value : Number(inp.value) || 0; save();
-      if (k !== 'name') drawZones();
+      if (k === 'name') { a[ztab][i][k] = inp.value; save(); return; }
+      const val = Number(inp.value) || 0;
+      a[ztab][i][k] = absMode ? toPct(val) : val;
+      save();
+      const cell = inp.closest('tr').querySelector('.zrange'); if (cell) cell.textContent = rangeText(a[ztab][i]); // no full redraw → keeps focus
     }));
+    if ($('#zunit')) $$('#zunit [data-zu]').forEach(b => b.addEventListener('click', () => { state.ui.zoneUnit = b.dataset.zu; save(); drawZones(); }));
     $('#z-add').addEventListener('click', () => { a[ztab].push({ name: 'New zone', min: 0, max: 0 }); save(); drawZones(); });
     $('#z-reset').addEventListener('click', () => { a[ztab] = clone(ztab === 'powerZones' ? DEFAULT_POWER_ZONES : ztab === 'hrZones' ? DEFAULT_HR_ZONES : DEFAULT_PACE_ZONES); save(); drawZones(); });
   }
@@ -1676,13 +2442,43 @@ function viewPlanning() {
     `).join('')}`;
 
   $$('[data-cycle-edit]').forEach(b => b.addEventListener('click', () => openCycleModal(b.dataset.cycleEdit)));
+  $$('[data-cycle-lib]').forEach(b => b.addEventListener('click', () => openMacroLibrary(b.dataset.cycleLib)));
+}
+// A whole science-based workout library matched to a cycle's training goal (bike / run / swim).
+function openMacroLibrary(cycleId) {
+  const c = state.cycles.find(x => x.id === cycleId); if (!c) return;
+  const goal = inferMacroGoal(c);
+  const bySport = macroLibraryFor(c);
+  const canEdit = state.role === 'coach';
+  const preset = (todayISO() >= c.start && todayISO() <= c.end) ? todayISO() : c.start;
+  const order = Object.keys(SPORTS).filter(sp => bySport[sp]);
+  const body = `
+    <div class="sub" style="margin-bottom:12px">Evidence-based workouts that build toward <b style="color:var(--text)">${esc(MACRO_GOALS[goal] || goal)}</b> — the goal of “${esc(c.name)}”. ${canEdit ? 'Add any to ' + esc(currentAthlete().name) + '’s calendar (defaults to a date inside this block).' : ''} Citations link to the <b>References</b> tab.</div>
+    ${order.length ? order.map(sp => `
+      <div class="section-title">${SPORTS[sp].icon} ${SPORTS[sp].label}</div>
+      <div class="list">
+        ${bySport[sp].map(w => `<div class="row">
+          <div class="grow">
+            <div class="title">${esc(w.name)} ${focusBadge(w)}</div>
+            <div class="meta">${w.duration || 0} min · ${w.load || 0} TSS · ${esc((w.desc || '').slice(0, 96))}${(w.desc || '').length > 96 ? '…' : ''}</div>
+            <div style="margin-top:3px">${(w.refs || []).map(refChip).join(' ')}${w.custom ? '<span class="badge" style="color:var(--accent-2)">★ Team-added</span>' : ''}</div>
+          </div>
+          ${canEdit ? `<button class="btn sm primary" data-maclib="${w.id}">Add</button>` : ''}
+        </div>`).join('')}
+      </div>`).join('') : '<div class="empty">No matching workouts for this goal yet.</div>'}`;
+  openModal('Workout library — ' + (MACRO_GOALS[goal] || goal), body, '');
+  $$('[data-maclib]').forEach(b => b.addEventListener('click', () => { closeModal(); scheduleCatalog(b.dataset.maclib, preset); }));
 }
 function cycleBar(c, canEdit) {
   const sp = SPORTS[c.sport] || SPORTS.other;
   const zones = (c.zones || []).map(z => `<span class="zbadge">${esc(z)}</span>`).join('');
+  const goal = inferMacroGoal(c);
   return `<div class="cycle-bar ${c.type}">
-    <div class="ttl"><span>${esc(c.name)}</span>${canEdit ? `<button class="btn sm" data-cycle-edit="${c.id}">Edit</button>` : ''}</div>
-    <div class="rng">${fmtDate(c.start)} → ${fmtDate(c.end)} · ${sp.icon} ${sp.label}</div>
+    <div class="ttl"><span>${esc(c.name)}</span><span class="btn-row" style="gap:6px">
+      <button class="btn sm" data-cycle-lib="${c.id}" title="Science-based workouts for this goal">📚 Library</button>
+      ${canEdit ? `<button class="btn sm" data-cycle-edit="${c.id}">Edit</button>` : ''}
+    </span></div>
+    <div class="rng">${fmtDate(c.start)} → ${fmtDate(c.end)} · ${sp.icon} ${sp.label} · <span class="badge" style="color:var(--accent)">🎯 ${esc(MACRO_GOALS[goal] || goal)}</span></div>
     <div class="foc">${esc(c.focus || '')} ${zones}</div>
   </div>`;
 }
@@ -1697,13 +2493,15 @@ function openCycleModal(id) {
       <div><label>Sport focus</label><select id="c-sport">${sportOpts}</select></div>
     </div>
     <label>Name</label><input id="c-name" value="${esc(c.name)}" placeholder="e.g. March — Base"/>
+    <label>Training goal <span class="sub">(picks the matching 📚 workout library — bike / run / swim)</span></label>
+    <select id="c-goal">${Object.entries(MACRO_GOALS).map(([k, l]) => `<option value="${k}" ${inferMacroGoal(c) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <div class="inline">
       <div><label>Start</label><input id="c-start" type="date" value="${c.start}"/></div>
       <div><label>End</label><input id="c-end" type="date" value="${c.end}"/></div>
     </div>
     <label>Target zones (comma separated, e.g. Z1, Z2)</label>
     <input id="c-zones" value="${esc((c.zones || []).join(', '))}" placeholder="Z1, Z2"/>
-    <label>Goal / focus for this block</label>
+    <label>Notes / focus for this block</label>
     <textarea id="c-focus" placeholder="e.g. Aerobic base — Z1/Z2 running volume">${esc(c.focus || '')}</textarea>`;
   const foot = `${editing ? '<button class="btn danger" id="c-del">Delete</button>' : ''}<button class="btn primary" id="c-save">Save</button>`;
   openModal(editing ? 'Edit cycle' : 'New cycle', body, foot);
@@ -1711,6 +2509,7 @@ function openCycleModal(id) {
     const obj = {
       id: c.id || uid(), athleteId: state.currentAthleteId, type: $('#c-type').value,
       name: $('#c-name').value.trim() || CYCLE_TYPES[$('#c-type').value], sport: $('#c-sport').value,
+      goal: $('#c-goal').value,
       start: $('#c-start').value, end: $('#c-end').value,
       zones: $('#c-zones').value.split(',').map(z => z.trim()).filter(Boolean), focus: $('#c-focus').value
     };
@@ -1718,6 +2517,64 @@ function openCycleModal(id) {
     save(); closeModal(); render(); toast('Cycle saved');
   });
   if ($('#c-del')) $('#c-del').addEventListener('click', () => { state.cycles = state.cycles.filter(x => x.id !== c.id); save(); closeModal(); render(); toast('Deleted'); });
+}
+
+/* ------------------------------ Strength ------------------------------- */
+// planned rows or legacy {sets,reps,weight,rest} → per-set rows (read-only normalise)
+function normSetRows(ex) {
+  if (Array.isArray(ex.setRows) && ex.setRows.length) return ex.setRows;
+  const n = Math.max(1, Number(ex.sets) || 1);
+  return Array.from({ length: n }, () => ({ reps: ex.reps || '', weight: ex.weight || '', rest: ex.rest || '', rpe: ex.rpe || '' }));
+}
+// total tonnage (kg lifted) = Σ weight×reps across all sets
+function strengthVolume(s) {
+  let vol = 0;
+  (s.strength || []).forEach(ex => normSetRows(ex).forEach(r => {
+    const wkg = parseFloat(String(r.weight || '').replace(',', '.'));
+    const reps = parseInt(String(r.reps || ''), 10);
+    if (!isNaN(wkg) && !isNaN(reps)) vol += wkg * reps;
+  }));
+  return vol ? Math.round(vol) : 0;
+}
+function strengthExTable(ex) {
+  const rows = normSetRows(ex);
+  return `<div style="margin-top:10px">
+    <div style="font-weight:600">${esc(ex.exercise || 'Exercise')}${ex.type ? ` <span class="sub">· ${esc(ex.type)}</span>` : ''}</div>
+    <div style="overflow-x:auto"><table class="set-table"><thead><tr><th>Set</th><th>Reps</th><th>Weight</th><th>Rest</th><th>RPE</th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr><td class="setn">${i + 1}</td><td>${esc(r.reps || '–')}</td><td>${esc(r.weight || '–')}</td><td>${esc(r.rest || '–')}</td><td>${r.rpe ? `<b style="color:${rpeColor(Number(r.rpe) || 0)}">${esc(r.rpe)}</b>` : '–'}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
+}
+function strengthCard(s) {
+  const vol = strengthVolume(s);
+  return `<div class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="min-width:0"><h3 style="margin:0">🏋️ ${esc(s.name)} ${s.status === 'done' ? '<span class="badge" style="color:var(--ok)">✓ done</span>' : '<span class="badge">planned</span>'} ${rpeBadge(s)}</h3>
+        <div class="sub">${fmtDate(s.date)}${s.focus ? ' · ' + esc(s.focus) : ''}${s.targetRpe ? ' · target RPE ' + esc(s.targetRpe) : ''}${vol ? ' · <b style="color:var(--text)">' + vol + ' kg</b> total volume' : ''}</div></div>
+      <button class="btn sm ${canPlan() ? 'primary' : ''}" data-open-session="${s.id}">${canPlan() ? 'Edit / log' : 'View'}</button>
+    </div>
+    ${(s.strength || []).length ? (s.strength || []).map(ex => strengthExTable(ex)).join('') : '<div class="sub" style="margin-top:8px">No exercises logged.</div>'}
+  </div>`;
+}
+function viewStrength() {
+  const a = currentAthlete();
+  const actions = $('#topbar-actions');
+  actions.innerHTML = canPlan() ? `<button class="btn primary sm" id="add-str">+ Add strength session</button>` : '';
+  if (canPlan() && $('#add-str')) $('#add-str').addEventListener('click', () => openSessionModal(null, todayISO(), 'strength'));
+
+  const sessions = athleteSessions(a.id).filter(s => s.sport === 'strength').sort((x, y) => y.date.localeCompare(x.date));
+  const done = sessions.filter(s => s.status === 'done');
+  const totalVol = done.reduce((n, s) => n + strengthVolume(s), 0);
+  const v = $('#view');
+  v.innerHTML = `
+    <p class="sub">All strength sessions for ${esc(a.name)} — weights, reps, rest and <b>RPE per set</b>. ${canPlan() ? 'Add a session, or open one to log exactly what you lifted.' : 'Read-only.'}</p>
+    ${sessions.length ? `<div class="grid cols-3" style="margin:12px 0">
+      <div class="card stat"><span class="l">Strength sessions</span><span class="v">${sessions.length}</span><span class="sub">${done.length} completed</span></div>
+      <div class="card stat"><span class="l">Total volume (done)</span><span class="v">${totalVol ? (totalVol / 1000).toFixed(1) : 0}<small style="font-size:14px;color:var(--muted)"> t</small></span><span class="sub">kg lifted, all sets</span></div>
+      <div class="card stat"><span class="l">Last session</span><span class="v" style="font-size:18px">${fmtDate(sessions[0].date)}</span><span class="sub">${esc(sessions[0].focus || sessions[0].name)}</span></div>
+    </div>` : ''}
+    ${sessions.length ? sessions.map(s => strengthCard(s)).join('') : '<div class="empty">No strength sessions yet.' + (canPlan() ? ' Tap “+ Add strength session”.' : '') + '</div>'}`;
+  $$('[data-open-session]').forEach(b => b.addEventListener('click', () => openSessionModal(b.dataset.openSession)));
 }
 
 /* ------------------------------ Fitness (CTL/ATL/TSB) ------------------- */
@@ -1869,8 +2726,11 @@ function viewMessages() {
   v.innerHTML = `
     <div class="grid cols-2">
       <div class="card">
-        <h3>💬 Chat ${me === 'coach' ? 'with ' + esc(a.name) : 'with coach'}</h3>
-        <div class="chat" id="chat">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <h3 style="margin:0">💬 Chat ${me === 'coach' ? 'with ' + esc(a.name) : 'with coach'}</h3>
+          ${isTeamRole(me) ? `<button class="btn sm" id="msg-notify" title="Send a push notification">🔔 Notify</button>` : ''}
+        </div>
+        <div class="chat" id="chat" style="margin-top:8px">
           ${msgs.length ? msgs.map(m => {
             const author = m.from === 'coach' ? ((state.coaches.find(c => c.id === m.coachId) || {}).name || 'Coach') : esc(a.name);
             const isMe = m.from === me;
@@ -1904,6 +2764,7 @@ function viewMessages() {
   };
   $('#msg-send').addEventListener('click', send);
   $('#msg-text').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  if ($('#msg-notify')) $('#msg-notify').addEventListener('click', () => openNotifyModal(a.id, a.name));
   $('#note-add').addEventListener('click', () => {
     const t = $('#note-text').value.trim(); if (!t) return;
     state.dayNotes.push({ id: uid(), athleteId: a.id, date: $('#note-date').value, text: t });
@@ -1921,7 +2782,7 @@ function viewReferences() {
     <div class="list" style="margin-top:10px">
       ${keys.map((k, i) => {
         const r = SCIENCE_REFS[k];
-        const used = SCIENCE_CATALOG.filter(w => (w.refs || []).includes(k)).map(w => w.name);
+        const used = SCIENCE_CATALOG.filter(w => !w.generated && (w.refs || []).includes(k)).map(w => w.name);
         return `<div class="card">
           <div style="font-weight:600">${i + 1}. ${esc(r.authors)} (${r.year}).</div>
           <div style="margin-top:2px">${esc(r.title)}.</div>
@@ -1966,6 +2827,149 @@ function viewMonitor() {
     <div class="list">${weekly.length ? weekly.map(w => `<div class="row"><div class="grow"><div class="title">Training ${w.training}/10 · Self ${w.self}/10</div><div class="meta">Week of ${fmtDate(w.week)}${w.note ? ' · ' + esc(w.note) : ''}</div></div></div>`).join('') : '<div class="empty">No weekly reflections.</div>'}</div>`;
 }
 
+/* ============================================================================
+   RECOVERY / TRAINING READINESS  (HRV + resting HR + subjective feel + day notes)
+   A daily training readiness score. Higher = more ready to train hard.
+   ============================================================================ */
+function readinessBand(s) {
+  return s >= 67 ? { key: 'green', label: 'Ready to train', color: '#35c98b' }
+    : s >= 34 ? { key: 'yellow', label: 'Moderate — train smart', color: '#f5c518' }
+    : { key: 'red', label: 'Prioritise recovery', color: '#e50914' };
+}
+// Scan a day's notes for lifestyle factors that move readiness (bilingual EN/NL keywords).
+function readinessNotesPenalty(text) {
+  const t = (text || '').toLowerCase();
+  const rules = [
+    { re: /(alcohol|beer|bier|wine|wijn|drinks?|drank|dronk|pint|cava|cocktail|hangover|kater|pils)/, pen: 15, label: '🍺 alcohol' },
+    { re: /(sick|ill\b|ziek|fever|koorts|flu|griep|\bcold\b|verkouden|infection|infectie)/, pen: 25, label: '🤒 illness' },
+    { re: /(stress|stressed|gestrest|gestresseerd|anxious|angst|burn-?out|overwhelmed|druk)/, pen: 10, label: '😰 stress' },
+    { re: /(travel|reizen|jetlag|flight|vlucht|airport|luchthaven)/, pen: 8, label: '✈️ travel' },
+    { re: /(bad sleep|poor sleep|slecht geslapen|insomnia|niet geslapen|weinig geslapen|woke up|wakker)/, pen: 10, label: '🌙 poor sleep' },
+    { re: /(late|laat|party|feest|uit geweest|out late|nachtje)/, pen: 6, label: '🕛 late night' }
+  ];
+  let pen = 0; const hits = [];
+  rules.forEach(r => { if (r.re.test(t)) { pen += r.pen; hits.push(r.label); } });
+  return { penalty: Math.min(35, pen), hits };
+}
+// Build a daily readiness score for the last `daysBack` days.
+function computeReadiness(aid, daysBack = 30) {
+  const wellness = (state.wellness || []).filter(w => w.athleteId === aid);
+  const byW = {}; wellness.forEach(w => byW[w.date] = w);
+  const bySleep = {}; state.checkins.sleep.filter(s => s.athleteId === aid).forEach(s => bySleep[s.date] = s);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const mean = a => a.length ? a.reduce((n, v) => n + v, 0) / a.length : null;
+  const sd = (a, m) => a.length > 1 ? Math.sqrt(a.reduce((n, v) => n + (v - m) * (v - m), 0) / (a.length - 1)) : 0;
+  const hVals = wellness.filter(w => w.hrv != null).map(w => w.hrv);
+  const rVals = wellness.filter(w => w.restingHR != null).map(w => w.restingHR);
+  const hMean = mean(hVals), hSd = sd(hVals, hMean || 0);
+  const rMean = mean(rVals), rSd = sd(rVals, rMean || 0);
+
+  const out = [];
+  for (let i = daysBack - 1; i >= 0; i--) {
+    const d = toISO(addDays(new Date(), -i));
+    const w = byW[d], s = bySleep[d];
+    const notes = state.dayNotes.filter(n => n.athleteId === aid && n.date === d);
+    const np = readinessNotesPenalty(notes.map(n => n.text).join(' '));
+    const parts = {}; const comps = [];
+    if (w && w.hrv != null && hSd > 0) { const z = (w.hrv - hMean) / hSd; const sc = clamp(50 + 20 * z, 0, 100); parts.hrv = { value: w.hrv, base: Math.round(hMean), score: Math.round(sc), z }; comps.push({ score: sc, weight: 0.40 }); }
+    if (w && w.restingHR != null && rSd > 0) { const z = (w.restingHR - rMean) / rSd; const sc = clamp(50 - 20 * z, 0, 100); parts.rhr = { value: w.restingHR, base: Math.round(rMean), score: Math.round(sc), z }; comps.push({ score: sc, weight: 0.25 }); }
+    if (s) { const feel = Number(s.feel) || 0, qual = Number(s.quality) || 0, hrs = Number(s.hours) || 0; const hoursScore = clamp((hrs - 4) / 4 * 100, 0, 100); const subj = 0.5 * feel * 10 + 0.3 * qual * 10 + 0.2 * hoursScore; parts.subj = { feel, quality: qual, hours: hrs, score: Math.round(subj) }; comps.push({ score: subj, weight: 0.35 }); }
+    if (!comps.length && !notes.length) continue;
+    let score;
+    if (comps.length) { const wsum = comps.reduce((n, c) => n + c.weight, 0); score = comps.reduce((n, c) => n + c.score * c.weight, 0) / wsum; }
+    else score = 65; // notes-only day → mildly-positive default, then penalised
+    score = clamp(score - np.penalty, 0, 100);
+    parts.notes = { penalty: np.penalty, hits: np.hits, list: notes.map(n => n.text) };
+    out.push({ date: d, score: Math.round(score), band: readinessBand(clamp(score, 0, 100)), parts, conf: parts.hrv ? 'high' : (comps.length ? 'medium' : 'low'), scored: comps.length > 0 });
+  }
+  return { days: out, hMean, rMean, hasHrv: hVals.length > 0, hasRhr: rVals.length > 0 };
+}
+function readinessArrow(good) { return good ? '<span style="color:var(--ok)">▲</span>' : '<span style="color:var(--bad)">▼</span>'; }
+
+function viewRecovery() {
+  const a = currentAthlete();
+  const actions = $('#topbar-actions');
+  if (actions) { actions.innerHTML = `<button class="btn sm" id="rec-sync" title="Pull the latest HRV / resting HR from Intervals.icu now">⟳ Sync</button>`; const rs = $('#rec-sync'); if (rs) rs.addEventListener('click', () => triggerIntervalsSync()); }
+  const r = computeReadiness(a.id, 30);
+  const v = $('#view');
+  const today = todayISO();
+  const todayEntry = r.days.find(d => d.date === today);
+  const latest = todayEntry || r.days[r.days.length - 1];
+  const hasSleepToday = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === today);
+
+  const intro = `<p class="sub">A daily <b style="color:var(--text)">Training Readiness</b> score (0–100) for ${esc(a.name)}, built from <b>HRV</b> and <b>resting HR</b> (from Intervals.icu), your <b>morning feeling &amp; sleep</b>, and that day's <b>notes</b> (e.g. alcohol, illness, stress lower it). A simple green / yellow / red readiness score.</p>`;
+
+  if (!latest) {
+    v.innerHTML = intro + `
+      <div class="card" style="margin-top:12px">
+        <h3>No readiness data yet</h3>
+        <p class="sub">Readiness needs at least one of: HRV/resting-HR from Intervals.icu (Settings → connect), or a morning check-in.</p>
+        ${!hasSleepToday ? `<div class="btn-row" style="margin-top:8px"><button class="btn primary" id="rec-checkin">Log this morning</button></div>` : ''}
+      </div>`;
+    if ($('#rec-checkin')) $('#rec-checkin').addEventListener('click', () => openSleepModal());
+    return;
+  }
+
+  const b = latest.band;
+  const p = latest.parts;
+  const isToday = latest.date === today;
+  const ringDeg = latest.score;
+  const compRows = [];
+  if (p.hrv) compRows.push(`<div class="row"><div class="grow"><div class="title">💓 HRV ${readinessArrow(p.hrv.z >= 0)} ${p.hrv.value} ms</div><div class="meta">baseline ${p.hrv.base} ms · ${p.hrv.z >= 0 ? 'above' : 'below'} your normal · sub-score ${p.hrv.score}/100</div></div></div>`);
+  if (p.rhr) compRows.push(`<div class="row"><div class="grow"><div class="title">❤️ Resting HR ${readinessArrow(p.rhr.z <= 0)} ${p.rhr.value} bpm</div><div class="meta">baseline ${p.rhr.base} bpm · ${p.rhr.z <= 0 ? 'at/below' : 'elevated vs'} your normal · sub-score ${p.rhr.score}/100</div></div></div>`);
+  if (p.subj) compRows.push(`<div class="row"><div class="grow"><div class="title">😌 Feeling &amp; sleep · ${p.subj.score}/100</div><div class="meta">felt ${p.subj.feel}/10 · sleep quality ${p.subj.quality}/10 · ${p.subj.hours}h</div></div></div>`);
+  else compRows.push(`<div class="row"><div class="grow"><div class="title">😌 Feeling &amp; sleep</div><div class="meta">No morning check-in ${isToday ? 'today yet' : 'that day'}.</div></div>${isToday ? '<button class="btn sm primary" id="rec-checkin">Log now</button>' : ''}</div>`);
+  if (p.notes && (p.notes.penalty || p.notes.list.length)) compRows.push(`<div class="row" style="border-left:3px solid ${p.notes.penalty ? 'var(--bad)' : 'var(--line)'}"><div class="grow"><div class="title">📌 Day notes ${p.notes.penalty ? `<span style="color:var(--bad)">−${p.notes.penalty}</span>` : ''}</div><div class="meta">${p.notes.list.length ? esc(p.notes.list.join(' · ')) : 'none'}${p.notes.hits.length ? ' · ' + p.notes.hits.join(', ') : ''}</div></div></div>`);
+
+  // 30-day trend bars
+  const trend = r.days.slice(-30);
+  const bars = trend.map(d => `<span title="${fmtDate(d.date)}: ${d.score} (${d.band.label})" style="flex:1;min-width:4px;height:${Math.max(4, d.score)}%;background:${d.band.color};border-radius:3px 3px 0 0;opacity:${d.scored ? 1 : 0.5}"></span>`).join('');
+
+  v.innerHTML = intro + `
+    <div class="grid cols-2" style="margin:12px 0;align-items:stretch">
+      <div class="card" style="display:flex;align-items:center;gap:18px">
+        <div class="ring-wrap"><div class="ring" style="--p:${ringDeg};background:conic-gradient(${b.color} calc(${ringDeg}*1%), var(--line) 0)"><b>${latest.score}</b></div></div>
+        <div>
+          <div style="font-size:20px;font-weight:800;color:${b.color}">${b.label}</div>
+          <div class="sub">${isToday ? 'Today' : fmtDate(latest.date)} · readiness ${latest.score}/100</div>
+          <div class="sub" style="margin-top:6px">${b.key === 'green' ? 'Body is ready — a key/hard session is well-placed today.' : b.key === 'yellow' ? 'Train, but hold something back — aerobic or technique work over max efforts.' : 'Recovery day, easy Z1–Z2 or rest. Pushing hard now adds fatigue, not fitness.'}</div>
+          <div class="sub" style="margin-top:6px;opacity:.8">Confidence: ${latest.conf}${latest.conf !== 'high' ? ' — connect Intervals.icu (HRV) for a sharper score' : ''}.</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:6px">Readiness bands</h3>
+        <div class="list">
+          <div class="row" style="border-left:3px solid #35c98b"><div class="grow"><div class="title" style="color:#35c98b">Green · 67–100</div><div class="meta">Recovered — ready to push</div></div></div>
+          <div class="row" style="border-left:3px solid #f5c518"><div class="grow"><div class="title" style="color:#f5c518">Yellow · 34–66</div><div class="meta">Moderate — train smart</div></div></div>
+          <div class="row" style="border-left:3px solid #e50914"><div class="grow"><div class="title" style="color:#e50914">Red · 0–33</div><div class="meta">Strained — prioritise recovery</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>What drives ${isToday ? "today's" : 'this'} score</h3>
+      <div class="list">${compRows.join('')}</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>Readiness — last 30 days</h3>
+      <div class="spark" style="height:120px;align-items:flex-end">${bars || '<span class="sub">No data</span>'}</div>
+      <div class="legend" style="margin-top:8px">
+        <span><i style="background:#35c98b"></i>Ready</span>
+        <span><i style="background:#f5c518"></i>Moderate</span>
+        <span><i style="background:#e50914"></i>Recovery</span>
+        <span class="sub">faded bars = feeling/notes only (no HRV that day)</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>How it's calculated</h3>
+      <p class="sub">Readiness weights <b>HRV ~40%</b> (vs your rolling baseline — higher is better), <b>resting HR ~25%</b> (lower is better), and <b>morning feeling + sleep ~35%</b>, then subtracts a penalty for day-note factors (alcohol −15, illness −25, stress −10, poor sleep −10, travel −8, late night −6). Missing inputs are re-weighted across what's available. HRV/RHR baselines follow the approach validated for endurance monitoring ${refChip('plews')}.</p>
+    </div>`;
+
+  if ($('#rec-checkin')) $('#rec-checkin').addEventListener('click', () => openSleepModal());
+}
+
 /* Athlete → coach invitation: connect/disconnect the athlete to real coach accounts. */
 async function renderCoachInvite() {
   const host = document.getElementById('coach-invite-body');
@@ -1994,6 +2998,476 @@ async function renderCoachInvite() {
   }));
 }
 
+/* ============================================================================
+   TO-DO LISTS (coordinator) + SHARED CALENDAR + TEAM HUB
+   ============================================================================ */
+let USER_CACHE = [];               // cached {uid,name,email,role,title,bio}
+function cacheUsers(list) { if (Array.isArray(list) && list.length) USER_CACHE = list; return list; }
+function userName(uid) {
+  const u = USER_CACHE.find(x => x.uid === uid); if (u) return u.name;
+  const a = state.athletes.find(x => x.id === uid); if (a) return a.name;
+  return uid === myUid() ? myName() : 'Someone';
+}
+// everyone who can be assigned a task / appears in the team hub (users + local athletes, de-duped)
+function teamPeople() {
+  const map = {};
+  USER_CACHE.forEach(u => { map[u.uid] = { uid: u.uid, name: u.name, email: u.email, role: u.role, title: u.title, bio: u.bio }; });
+  state.athletes.forEach(a => { if (!map[a.id]) map[a.id] = { uid: a.id, name: a.name, email: a.email || '', role: 'athlete', title: '', bio: '' }; });
+  return Object.values(map).sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+}
+function fmtTs(ts) { if (!ts) return ''; const d = new Date(ts); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toTimeString().slice(0, 5); }
+
+/* ------------------------------ To-do view ------------------------------ */
+function viewTodos() {
+  const v = $('#view');
+  const actions = $('#topbar-actions');
+  const canCreate = true;          // everyone (coach / crew / athlete) can add to the shared to-do list
+  actions.innerHTML = canCreate ? `<button class="btn primary sm" id="add-todo">+ New task</button>` : '';
+  // warm the user cache for names / assignee picker
+  fetchAllUsers().then(list => { if (cacheUsers(list) && state.ui.view === 'todos') drawTodos(); });
+
+  const me = myUid();
+  function drawTodos() {
+    const all = (state.todos || []).slice().sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99') || (b.ts || 0) - (a.ts || 0));
+    const mine = all.filter(t => t.assigneeUid === me);
+    const board = all;
+    const openCount = all.filter(t => t.status !== 'done').length;
+
+    v.innerHTML = `
+      <p class="sub">A shared team to-do list — anyone can add a task with a deadline and assign it to a teammate. Each task also appears on that person’s calendar and on the <b>Shared Calendar</b>.</p>
+
+      <div class="section-title">My tasks ${mine.length ? `· ${mine.filter(t => t.status !== 'done').length} open` : ''}</div>
+      <div class="list">
+        ${mine.length ? mine.map(t => todoRow(t, true)).join('') : '<div class="empty">No tasks assigned to you 🎉</div>'}
+      </div>
+
+      <div class="section-title" style="margin-top:22px">All tasks · ${openCount} open</div>
+      <div class="list">
+        ${board.length ? board.map(t => todoRow(t, t.assigneeUid === me)).join('') : '<div class="empty">No tasks yet. Tap “+ New task”.</div>'}
+      </div>`;
+
+    bindTodoRows();
+  }
+  function bindTodoRows() {
+    $$('[data-todo-open]').forEach(b => b.addEventListener('click', () => openTodoModal(b.dataset.todoOpen)));
+    $$('[data-todo-status]').forEach(sel => sel.addEventListener('change', () => setTodoStatus(sel.dataset.todoStatus, sel.value)));
+    $$('[data-todo-del]').forEach(b => b.addEventListener('click', () => { if (confirm('Delete this task?')) { Cloud.deleteTodo(b.dataset.todoDel); state.todos = (state.todos || []).filter(t => t.id !== b.dataset.todoDel); drawTodos(); } }));
+  }
+  drawTodos();
+  if (canCreate && $('#add-todo')) $('#add-todo').addEventListener('click', () => openTodoModal(null, drawTodos));
+  viewTodos._redraw = drawTodos;
+}
+function todoRow(t, canStatus) {
+  const st = TODO_STATUS[t.status] || TODO_STATUS.todo;
+  const canEdit = isTeamRole(state.role) || t.createdByUid === myUid();
+  const overdue = t.status !== 'done' && t.due && t.due < todayISO();
+  const statusSel = canStatus
+    ? `<select data-todo-status="${t.id}" style="width:auto;padding:6px 8px;font-size:12px">${Object.entries(TODO_STATUS).map(([k, s]) => `<option value="${k}" ${t.status === k ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}</select>`
+    : `<span class="badge" style="color:${st.color};border:1px solid ${st.color}">${st.icon} ${st.label}</span>`;
+  return `<div class="row" style="border-left:3px solid ${st.color}">
+    <div class="grow">
+      <div class="title" style="${t.status === 'done' ? 'text-decoration:line-through;opacity:.7' : ''}">📋 ${esc(t.title)}</div>
+      <div class="meta">${t.assigneeUid === myUid() ? 'You' : esc(t.assigneeName || userName(t.assigneeUid))}${t.due ? ` · <span style="color:${overdue ? 'var(--bad)' : 'var(--muted)'}">${overdue ? '⚠️ ' : '🎯 '}${fmtDate(t.due)}</span>` : ' · no deadline'}${t.createdByName ? ' · by ' + esc(t.createdByName) : ''}${t.desc ? ' · ' + esc(t.desc.slice(0, 60)) + (t.desc.length > 60 ? '…' : '') : ''}</div>
+    </div>
+    ${statusSel}
+    ${canEdit ? `<button class="btn sm" data-todo-open="${t.id}">Edit</button><button class="btn sm danger" data-todo-del="${t.id}">×</button>` : ''}
+  </div>`;
+}
+function setTodoStatus(id, status) {
+  const t = (state.todos || []).find(x => x.id === id); if (!t) return;
+  t.status = status; t.ts = t.ts || Date.now();
+  Cloud.saveTodo(t);
+  if (viewTodos._redraw) viewTodos._redraw();
+  toast('Status: ' + (TODO_STATUS[status] || {}).label);
+}
+function openTodoModal(id, onDone) {
+  const editing = id ? (state.todos || []).find(t => t.id === id) : null;
+  const canEdit = !editing || isTeamRole(state.role) || editing.createdByUid === myUid();
+  const t = editing || { id: uid(), title: '', desc: '', assigneeUid: myUid(), assigneeName: myName(), due: todayISO(), status: 'todo' };
+  const dis = canEdit ? '' : 'disabled';
+  const people = teamPeople();
+  const opts = people.map(p => `<option value="${p.uid}" ${t.assigneeUid === p.uid ? 'selected' : ''}>${esc(p.name)}${p.role && p.role !== 'athlete' ? ' · ' + roleLabel(p.role) : ''}</option>`).join('')
+    || `<option value="${t.assigneeUid}">${esc(t.assigneeName || 'Me')}</option>`;
+  const body = `
+    <label>Task</label>
+    <input id="td-title" value="${esc(t.title)}" ${dis} placeholder="e.g. Book the sports hall for Saturday"/>
+    <label>Details (optional)</label>
+    <textarea id="td-desc" ${dis} placeholder="Any extra info…">${esc(t.desc || '')}</textarea>
+    <div class="inline">
+      <div><label>Assign to</label><select id="td-who" ${canEdit ? '' : 'disabled'}>${opts}</select></div>
+      <div><label>Deadline</label><input id="td-due" type="date" value="${t.due || ''}" ${dis}/></div>
+    </div>
+    <label>Status</label>
+    <select id="td-status">${Object.entries(TODO_STATUS).map(([k, s]) => `<option value="${k}" ${t.status === k ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}</select>`;
+  const foot = `${editing && canEdit ? '<button class="btn danger" id="td-del">Delete</button>' : ''}${canEdit ? '<button class="btn primary" id="td-save">Save task</button>' : ''}`;
+  openModal(editing ? 'Task' : 'New task', body, foot);
+
+  if ($('#td-save')) $('#td-save').addEventListener('click', () => {
+    const whoSel = $('#td-who');
+    const assigneeUid = whoSel ? whoSel.value : t.assigneeUid;
+    const person = people.find(p => p.uid === assigneeUid);
+    const obj = {
+      id: t.id, title: $('#td-title').value.trim() || 'Task', desc: $('#td-desc').value.trim(),
+      assigneeUid, assigneeName: person ? person.name : (t.assigneeName || userName(assigneeUid)),
+      due: $('#td-due').value, status: $('#td-status').value,
+      createdByUid: t.createdByUid || myUid(), createdByName: t.createdByName || myName(),
+      createdByRole: t.createdByRole || state.role, ts: t.ts || Date.now()
+    };
+    if (editing) Object.assign(editing, obj); else (state.todos = state.todos || []).push(obj);
+    Cloud.saveTodo(obj);
+    save(); closeModal();
+    if (onDone) onDone(); else render();
+    toast('Task saved');
+  });
+  if ($('#td-del')) $('#td-del').addEventListener('click', () => {
+    Cloud.deleteTodo(t.id); state.todos = (state.todos || []).filter(x => x.id !== t.id);
+    save(); closeModal(); if (onDone) onDone(); else render(); toast('Task deleted');
+  });
+}
+
+/* ------------------------------ Shared Calendar ------------------------- */
+/* All to-do deadlines from the whole team on one calendar. No trainings here. */
+function viewSharedCal() {
+  const actions = $('#topbar-actions');
+  actions.innerHTML = isTeamRole(state.role) ? `<button class="btn primary sm" id="add-todo-sc">+ New task</button>` : '';
+  fetchAllUsers().then(list => { if (cacheUsers(list) && state.ui.view === 'sharedcal') drawSharedCal(); });
+  if (state.ui.scMonth == null) { const t = new Date(); state.ui.scMonth = t.getMonth(); state.ui.scYear = t.getFullYear(); }
+  drawSharedCal();
+  if ($('#add-todo-sc')) $('#add-todo-sc').addEventListener('click', () => openTodoModal(null, drawSharedCal));
+}
+function drawSharedCal() {
+  const v = $('#view');
+  const m = state.ui.scMonth, y = state.ui.scYear;
+  const first = new Date(y, m, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const gridStart = addDays(first, -startOffset);
+  const todos = (state.todos || []);
+
+  let cells = '';
+  for (let i = 0; i < 42; i++) {
+    const d = addDays(gridStart, i);
+    const iso = toISO(d);
+    const inMonth = d.getMonth() === m;
+    const isToday = iso === todayISO();
+    const day = todos.filter(t => t.due === iso).sort((a, b) => (a.assigneeName || '').localeCompare(b.assigneeName || ''));
+    cells += `
+      <div class="cal-cell ${inMonth ? '' : 'dim'} ${isToday ? 'today' : ''}">
+        <div class="d"><span>${d.getDate()}</span></div>
+        ${day.map(t => { const st = TODO_STATUS[t.status] || TODO_STATUS.todo; return `<div class="sess todo-chip" data-todo="${t.id}" style="border-left-color:${st.color};cursor:pointer"><div class="t">📋 ${esc(t.title)} <span class="check">${st.icon}</span></div><div class="m" style="color:${st.color}">${esc(t.assigneeName || userName(t.assigneeUid))}</div></div>`; }).join('')}
+      </div>`;
+  }
+
+  v.innerHTML = `
+    <p class="sub">Shared deadlines for the whole team — every to-do task on one calendar. Trainings are not shown here.</p>
+    <div class="cal-head">
+      <div class="btn-row">
+        <button class="btn sm" id="sc-prev">‹</button>
+        <button class="btn sm" id="sc-today">Today</button>
+        <button class="btn sm" id="sc-next">›</button>
+      </div>
+      <h3 style="margin:0">${MONTHS[m]} ${y}</h3>
+      <div class="btn-row">${Object.entries(TODO_STATUS).map(([k, s]) => `<span class="badge" style="color:${s.color}">${s.icon} ${s.label}</span>`).join('')}</div>
+    </div>
+    <div class="cal-grid">${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>`;
+
+  $('#sc-prev').addEventListener('click', () => { let mm = state.ui.scMonth - 1, yy = state.ui.scYear; if (mm < 0) { mm = 11; yy--; } state.ui.scMonth = mm; state.ui.scYear = yy; drawSharedCal(); });
+  $('#sc-next').addEventListener('click', () => { let mm = state.ui.scMonth + 1, yy = state.ui.scYear; if (mm > 11) { mm = 0; yy++; } state.ui.scMonth = mm; state.ui.scYear = yy; drawSharedCal(); });
+  $('#sc-today').addEventListener('click', () => { const t = new Date(); state.ui.scMonth = t.getMonth(); state.ui.scYear = t.getFullYear(); drawSharedCal(); });
+  $$('.todo-chip').forEach(el => el.addEventListener('click', () => openTodoModal(el.dataset.todo, drawSharedCal)));
+}
+
+/* ------------------------------ Team hub -------------------------------- */
+function viewTeam() {
+  const v = $('#view');
+  const actions = $('#topbar-actions');
+  actions.innerHTML = '';
+  v.innerHTML = `<p class="sub">Loading team…</p>`;
+  fetchAllUsers().then(list => { cacheUsers(list); if (state.ui.view === 'team') drawTeam(); });
+  drawTeam();
+}
+async function drawTeam() {
+  const v = $('#view'); if (!v) return;
+  const me = myUid();
+  const people = teamPeople();
+  const team = people.filter(p => isTeamRole(p.role));
+  const athletes = people.filter(p => p.role === 'athlete');
+  const canSeeAll = state.role === 'coach';   // only coaches see every athlete automatically
+
+  // incoming access requests (people who want to see MY training)
+  let incoming = [];
+  try { incoming = await Cloud.myShareRequests(); } catch (e) {}
+
+  v.innerHTML = `
+    <p class="sub">Everyone on the team. ${canSeeAll ? 'Open an athlete to see all their trainings, add comments, and send them a notification.' : 'Request access to an athlete — once they approve, you can see their full training (calendar, recovery, everything they see) from the tabs on the left.'}</p>
+
+    ${state.role === 'athlete' && Cloud.user ? `<div class="card" style="margin-bottom:16px;border-color:var(--accent)">
+      <h3>🧑‍🏫 Your coach</h3>
+      <p class="sub">Connect with your coach so they can follow your training and program for you.</p>
+      <div id="coach-invite-body" class="sub">Loading coaches…</div>
+    </div>` : ''}
+
+    ${(state.role === 'staff' || state.role === 'coordinator' || state.role === 'crew') ? `<div class="card" style="margin-bottom:16px">
+      <h3>My profile</h3>
+      <div class="sub" style="margin-bottom:8px">${roleLabel(state.role)} · ${esc((Cloud.user && Cloud.user.email) || '')}</div>
+      <div id="staff-profile"></div>
+    </div>` : ''}
+
+    ${incoming.length ? `<div class="card" style="margin-bottom:16px;border-color:var(--accent)">
+      <h3>Access requests</h3>
+      <p class="sub">These people asked to follow your training.</p>
+      <div class="list">${incoming.map(r => `<div class="row"><div class="grow"><div class="title">${esc(r.fromName || userName(r.fromUid))}</div><div class="meta">${(r.fromRole === 'coach' || r.fromRole === 'both') ? 'wants to be your coach' : 'wants to see your workouts'}</div></div>
+        <button class="btn sm primary" data-approve="${r.id}" data-fromuid="${r.fromUid}" data-fromrole="${esc(r.fromRole || '')}">Approve</button>
+        <button class="btn sm danger" data-deny="${r.id}">Deny</button></div>`).join('')}</div>
+    </div>` : ''}
+
+    ${team.length ? `<div class="section-title">Coaches & staff</div>
+    <div class="grid cols-3">${team.map(p => personCard(p, false)).join('')}</div>` : ''}
+
+    <div class="section-title" style="margin-top:18px">Athletes</div>
+    <div class="grid cols-3">${athletes.length ? athletes.map(p => {
+      const canView = canSeeAll || p.uid === me || state.athletes.some(a => a.id === p.uid); // loaded = approved
+      let canRequest = false;
+      if (p.uid !== me) {
+        if (state.role === 'coach') { const ath = state.athletes.find(a => a.id === p.uid); canRequest = !(ath && (ath.coachUids || []).includes(me)); } // coach: connect if not linked yet
+        else canRequest = !canView;   // crew/athlete: request when not yet approved
+      }
+      return personCard(p, true, canView, canRequest);
+    }).join('') : '<div class="empty">No athletes yet.</div>'}</div>`;
+
+  // staff profile editor + athlete's coach-connect
+  if ($('#staff-profile')) renderStaffProfile();
+  if ($('#coach-invite-body')) renderCoachInvite();
+
+  $$('[data-view-ath]').forEach(b => b.addEventListener('click', () => {
+    const uid = b.dataset.viewAth;
+    if (state.role === 'coach' || state.role === 'crew') { state.currentAthleteId = uid; go('dashboard'); }  // full read-only view via the tabs
+    else openAthletePanel(uid);   // athlete-to-athlete quick view
+  }));
+  $$('[data-req-ath]').forEach(b => b.addEventListener('click', async () => { await Cloud.requestAccess(b.dataset.reqAth); toast('Request sent'); }));
+  $$('[data-del-person]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Remove ' + (b.dataset.delName || 'this person') + ' from the team? This deletes their profile and training data. This cannot be undone.')) return;
+    await Cloud.deletePerson(b.dataset.delPerson);
+    toast('Removed'); drawTeam();
+  }));
+  $$('[data-approve]').forEach(b => b.addEventListener('click', async () => { await Cloud.approveAccess(b.dataset.fromuid, b.dataset.approve, b.dataset.fromrole); toast('Approved'); drawTeam(); }));
+  $$('[data-deny]').forEach(b => b.addEventListener('click', async () => { await Cloud.denyAccess(b.dataset.deny); toast('Denied'); drawTeam(); }));
+}
+function personCard(p, isAthlete, canView, canRequest) {
+  const r = ROLES[p.role] || ROLES.athlete;
+  const canRemove = state.role === 'coach' && p.uid && p.uid !== myUid();   // coaches manage the roster
+  const btns = [];
+  if (isAthlete) {
+    if (canView) btns.push(`<button class="btn sm primary" data-view-ath="${p.uid}">View training</button>`);
+    if (canRequest) btns.push(`<button class="btn sm" data-req-ath="${p.uid}">Request access</button>`);
+  }
+  if (canRemove) btns.push(`<button class="btn sm danger" data-del-person="${p.uid}" data-del-name="${esc(p.name)}">Remove</button>`);
+  return `<div class="card">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:42px;height:42px;border-radius:50%;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-size:20px">${r.icon}</div>
+      <div style="min-width:0"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div><div class="sub">${roleLabel(p.role)}${p.title ? ' · ' + esc(p.title) : ''}</div></div>
+    </div>
+    ${p.bio ? `<p class="sub" style="margin-top:8px">${esc(p.bio)}</p>` : ''}
+    ${btns.length ? `<div class="btn-row" style="margin-top:10px">${btns.join('')}</div>` : ''}
+  </div>`;
+}
+function renderStaffProfile() {
+  const host = $('#staff-profile'); if (!host) return;
+  const meP = USER_CACHE.find(u => u.uid === myUid()) || { name: myName(), title: '', bio: '' };
+  host.innerHTML = `
+    <div class="inline"><div><label>Name</label><input id="sp-name" value="${esc(meP.name || '')}"/></div>
+      <div><label>Function / title</label><input id="sp-title" value="${esc(meP.title || '')}" placeholder="e.g. Physio, Team manager"/></div></div>
+    <label>Short bio (optional)</label><textarea id="sp-bio" placeholder="What you do for the team…">${esc(meP.bio || '')}</textarea>
+    <div class="btn-row" style="margin-top:10px"><button class="btn primary sm" id="sp-save">Save profile</button></div>`;
+  $('#sp-save').addEventListener('click', async () => {
+    const name = $('#sp-name').value.trim() || myName();
+    const title = $('#sp-title').value.trim(), bio = $('#sp-bio').value.trim();
+    await Cloud.saveMyProfile({ name, title, bio });
+    const u = USER_CACHE.find(x => x.uid === myUid()); if (u) { u.name = name; u.title = title; u.bio = bio; } else USER_CACHE.push({ uid: myUid(), name, title, bio, role: state.role, email: (Cloud.user && Cloud.user.email) || '' });
+    toast('Profile saved');
+  });
+}
+// Read-only view of another person's training (team roles, or an approved athlete).
+async function openAthletePanel(aid) {
+  openModal('Training', '<div class="sub">Loading…</div>', '');
+  let profile = null, sessions = [], wellness = [];
+  const local = state.athletes.find(a => a.id === aid);
+  if (local && athleteSessions(aid).length) { profile = local; sessions = athleteSessions(aid); wellness = (state.wellness || []).filter(w => w.athleteId === aid); }
+  else {
+    const doc = await Cloud.fetchAthleteDoc(aid);
+    if (!doc) { const b = $('#modal-root .mbody'); if (b) b.innerHTML = '<div class="empty">No access to this athlete’s training, or nothing to show.</div>'; return; }
+    profile = { id: aid, name: doc.name || userName(aid) };
+    sessions = (doc.sessions || []).map(s => ({ ...s, athleteId: aid }));
+    wellness = (doc.wellness || []).map(w => ({ ...w, athleteId: aid }));
+    // stash so read-only session detail can find them
+    state._panel = { aid, sessions, wellness };
+  }
+  const today = todayISO();
+  const upcoming = sessions.filter(s => s.date >= today && s.status !== 'done').sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
+  const recent = sessions.filter(s => s.status === 'done').sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
+  const body = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+      <div class="sub">${esc(profile.name)}</div>
+      ${isTeamRole(state.role) ? `<button class="btn sm primary" id="panel-notify">🔔 Notify</button>` : ''}
+    </div>
+    <div class="section-title">Upcoming</div>
+    <div class="list">${upcoming.length ? upcoming.map(s => panelSessionRow(s, aid)).join('') : '<div class="empty">Nothing planned.</div>'}</div>
+    <div class="section-title">Recent (done)</div>
+    <div class="list">${recent.length ? recent.map(s => panelSessionRow(s, aid)).join('') : '<div class="empty">No completed sessions.</div>'}</div>`;
+  const b = $('#modal-root .mbody'); if (b) b.innerHTML = body;
+  const h = $('#modal-root .mhead h3'); if (h) h.textContent = profile.name;
+  if ($('#panel-notify')) $('#panel-notify').addEventListener('click', () => openNotifyModal(aid, profile.name));
+  $$('[data-panel-sess]').forEach(x => x.addEventListener('click', () => openReadonlySession(x.dataset.panelSess, aid, sessions, wellness)));
+}
+function panelSessionRow(s, aid) {
+  const sp = SPORTS[s.sport] || SPORTS.other;
+  const cc = sessionComments(s.id).length;
+  return `<div class="row" style="cursor:pointer" data-panel-sess="${s.id}">
+    <span class="dot" style="background:${sp.color}"></span>
+    <div class="grow"><div class="title">${sp.icon} ${esc(s.name)} ${cc ? `💬${cc}` : ''} ${rpeBadge(s)} ${s.status === 'done' ? '<span class="badge" style="color:var(--ok)">✓</span>' : ''}</div>
+    <div class="meta">${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS${s.feltNote ? ' · “' + esc(s.feltNote) + '”' : ''}</div></div>
+  </div>`;
+}
+function openReadonlySession(sid, aid, sessions, wellness) {
+  const s = (sessions || []).find(x => x.id === sid) || state.sessions.find(x => x.id === sid); if (!s) return;
+  const sp = SPORTS[s.sport] || SPORTS.other;
+  const body = `
+    <div class="sub" style="margin-bottom:8px">${sp.icon} ${esc(s.name)} · ${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS</div>
+    ${s.rpe != null ? `<div class="row" style="border-left:3px solid ${rpeColor(s.rpe)};margin-bottom:8px"><div class="grow"><div class="title" style="color:${rpeColor(s.rpe)}">💪 RPE ${s.rpe}/10 — ${rpeWord(s.rpe)}</div>${s.feltNote ? `<div class="meta">“${esc(s.feltNote)}”</div>` : ''}</div></div>` : ''}
+    ${s.desc ? `<p class="sub">${esc(s.desc)}</p>` : ''}
+    ${(s.steps && s.steps.length) ? `<label>Workout profile</label>${workoutProfileSVG(s.steps)}<div style="margin-top:8px">${zoneDistHTML(s.steps)}</div>` : ''}
+    <div id="postwork-block"></div>
+    <div id="comments-block"></div>`;
+  openModal(s.name || 'Session', body, '');
+  renderPostWorkout(s, wellness);
+  renderCommentsBlock('comments-block', s);
+}
+
+/* ------------------------------ Comments on a workout ------------------- */
+function renderCommentsBlock(hostId, s) {
+  const host = document.getElementById(hostId); if (!host) return;
+  const draw = () => {
+    const list = sessionComments(s.id).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    host.innerHTML = `
+      <label style="margin-top:14px">Comments — notes to complete during the session</label>
+      <div class="list" style="margin-bottom:8px">
+        ${list.length ? list.map(c => {
+          const mine = c.authorUid === myUid();
+          const canTick = state.role === 'athlete' || mine;
+          return `<div class="row" style="border-left:3px solid ${c.done ? 'var(--ok)' : 'var(--accent)'}">
+            <button class="btn sm" data-c-done="${c.id}" title="Mark done" ${canTick ? '' : 'disabled'} style="flex:0 0 auto">${c.done ? '✅' : '⬜'}</button>
+            <div class="grow"><div class="title" style="${c.done ? 'text-decoration:line-through;opacity:.7' : ''}">${esc(c.text)}</div>
+              <div class="meta">${esc(c.authorName || userName(c.authorUid))}${c.authorRole ? ' · ' + roleLabel(c.authorRole) : ''} · ${fmtTs(c.ts)}</div></div>
+            ${mine || isTeamRole(state.role) ? `<button class="btn sm danger" data-c-del="${c.id}" style="flex:0 0 auto">×</button>` : ''}
+          </div>`;
+        }).join('') : '<div class="sub" style="padding:6px">No comments yet.</div>'}
+      </div>
+      <div class="chat-input"><input id="c-text" placeholder="Add a comment (e.g. ‘do 3rd interval at 300W’)…"/><button class="btn primary" id="c-send">Send</button></div>`;
+    const send = () => {
+      const t = ($('#c-text').value || '').trim(); if (!t) return;
+      const c = { id: uid(), sessionId: s.id, athleteId: s.athleteId, text: t, authorUid: myUid(), authorName: myName(), authorRole: state.role, ts: Date.now(), done: false };
+      (state.comments = state.comments || []).push(c); Cloud.saveComment(c); draw();
+      // notify the athlete a comment landed on their workout
+      if (isTeamRole(state.role) && s.athleteId && s.athleteId !== myUid()) Cloud.sendPush(s.athleteId, 'New comment on your workout 💬', myName() + ': ' + t.slice(0, 80));
+    };
+    $('#c-send').addEventListener('click', send);
+    $('#c-text').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+    host.querySelectorAll('[data-c-done]').forEach(b => b.addEventListener('click', () => { const c = state.comments.find(x => x.id === b.dataset.cDone); if (c) { c.done = !c.done; Cloud.saveComment(c); draw(); } }));
+    host.querySelectorAll('[data-c-del]').forEach(b => b.addEventListener('click', () => { state.comments = state.comments.filter(x => x.id !== b.dataset.cDel); Cloud.deleteComment(b.dataset.cDel); draw(); }));
+  };
+  draw();
+}
+
+/* ------------------------------ Post-workout analysis ------------------- */
+function _avg(a) { const v = a.filter(x => x != null && !isNaN(x)); return v.length ? v.reduce((n, x) => n + x, 0) / v.length : 0; }
+function _max(a) { const v = a.filter(x => x != null && !isNaN(x)); return v.length ? Math.max(...v) : 0; }
+// Resample the planned steps into an N-point "ideal target" series for a given metric.
+function targetSeries(steps, N, pick) {
+  const total = stepsDuration(steps); if (!total || !N) return null;
+  let acc = 0; const segs = steps.map(st => { const start = acc / total; acc += Number(st.min) || 0; return { start, end: acc / total, st }; });
+  const out = new Array(N).fill(null);
+  for (let i = 0; i < N; i++) { const f = i / (N - 1 || 1); const seg = segs.find(g => f >= g.start && f <= g.end) || segs[segs.length - 1]; out[i] = seg ? pick(seg.st) : null; }
+  return out.some(v => v != null) ? out : null;
+}
+/* Intervals-style analysis: actual Power/HR/Speed/Altitude curves with the IDEAL target line
+   overlaid (dashed), and a synced hover crosshair that reads out the values (top-left). */
+function renderPostWorkout(s, wellness) {
+  const host = document.getElementById('postwork-block'); if (!host) return;
+  const st = s.streams || {};
+  const a = state.athletes.find(x => x.id === s.athleteId) || currentAthlete() || {};
+  const w = (wellness || (state.wellness || [])).find(x => x.date === s.date && (x.athleteId === s.athleteId || !x.athleteId));
+
+  const power = (st.watts || []).slice();
+  const hr = (st.hr || []).slice();
+  const speed = (st.speed || []).map(v => v == null ? null : v * 3.6);
+  const alt = (st.alt || []).slice();
+  const N = Math.max(power.length, hr.length, speed.length, alt.length, 0);
+
+  const hrvLine = (w && (w.hrv != null || w.restingHR != null))
+    ? `<div class="legend" style="margin-top:8px">${w.hrv != null ? `<span><i style="background:var(--accent)"></i>HRV ${w.hrv} ms</span>` : ''}${w.restingHR != null ? `<span><i style="background:var(--accent-2)"></i>Resting HR ${w.restingHR} bpm</span>` : ''} <span class="sub">(that day, from Intervals.icu)</span></div>` : '';
+
+  if (!N) {
+    host.innerHTML = (s.status === 'done' ? `<div class="hint" style="margin-top:10px">📉 Power / HR / speed / altitude graphs appear here once Intervals.icu has synced this activity.</div>` : '') + hrvLine;
+    return;
+  }
+
+  // ideal target lines from the planned steps
+  const pickPower = st2 => { if (st2.zt !== 'power' || !a.ftp) return null; const z = (a.powerZones || [])[st2.z]; if (!z) return null; return Math.round(a.ftp * ((+z.min + +z.max) / 2) / 100); };
+  const pickHr = st2 => { const z = (a.hrZones || [])[st2.z]; if (!z || !a.thresholdHr) return null; return Math.round(a.thresholdHr * ((+z.min + +z.max) / 2) / 100); };
+  const tgtPower = targetSeries(s.steps || [], N, pickPower);
+  const tgtHr = targetSeries(s.steps || [], N, pickHr);
+
+  const panels = [];
+  if (power.some(v => v != null)) panels.push({ key: 'power', label: 'Power', unit: 'W', color: '#6f66ff', series: power, target: tgtPower, fmt: v => Math.round(v) });
+  if (hr.some(v => v != null)) panels.push({ key: 'hr', label: 'Heart rate', unit: 'bpm', color: '#e50914', series: hr, target: tgtHr, fmt: v => Math.round(v) });
+  if (speed.some(v => v != null)) panels.push({ key: 'speed', label: 'Speed', unit: 'km/h', color: '#4cc9f0', series: speed, target: null, fmt: v => v.toFixed(1) });
+  if (alt.some(v => v != null)) panels.push({ key: 'alt', label: 'Altitude', unit: 'm', color: '#90be6d', series: alt, target: null, fmt: v => Math.round(v) });
+
+  const W = 1000, H = 92, pad = 4;
+  const dur = Number(s.duration) || 0;
+  const timeAt = idx => { const sec = dur * 60 * (idx / (N - 1 || 1)); const m = Math.floor(sec / 60), ss = Math.round(sec % 60); return `${m}:${String(ss).padStart(2, '0')}`; };
+  const pathFor = (series, color, dashed) => {
+    const vals = series.filter(v => v != null && !isNaN(v)); if (vals.length < 2) return '';
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const x = i => pad + (i / (N - 1 || 1)) * (W - 2 * pad), y = v => (H - pad) - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * pad);
+    let d = '', pen = false;
+    series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
+    return `<path d="${d.trim()}" fill="none" stroke="${color}" stroke-width="${dashed ? 1.4 : 1.7}"${dashed ? ' stroke-dasharray="6,5" opacity="0.85"' : ''}/>`;
+  };
+
+  host.innerHTML = `
+    <label style="margin-top:12px">Session analysis <span class="sub">— dashed = ideal target · hover to read values</span></label>
+    <div id="an-wrap" style="position:relative">
+      <div id="an-readout" style="position:absolute;top:6px;left:6px;z-index:5;pointer-events:none;background:rgba(16,20,32,.86);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text);white-space:nowrap;max-width:96%;overflow:hidden;text-overflow:ellipsis">Hover the graph to read values…</div>
+      ${panels.map((p, pi) => `
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><b style="color:${p.color}">${p.label}</b><span>avg ${p.fmt(_avg(p.series))} · max ${p.fmt(_max(p.series))} ${p.unit}${p.target ? ' · <span style="color:'+p.color+'">- - ideal</span>' : ''}</span></div>
+          <div class="chart-wrap"><svg class="an-svg" data-pi="${pi}" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;background:var(--bg-2);border-radius:6px;min-width:260px">
+            ${p.target ? pathFor(p.target, p.color, true) : ''}
+            ${pathFor(p.series, p.color, false)}
+            <line class="an-cross" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--text)" stroke-width="1" opacity="0"/>
+          </svg></div>
+        </div>`).join('')}
+    </div>
+    ${hrvLine}`;
+
+  const readout = host.querySelector('#an-readout');
+  const svgs = Array.from(host.querySelectorAll('.an-svg'));
+  const move = (clientX, rect) => {
+    const f = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const idx = Math.round(f * (N - 1));
+    const vx = pad + f * (W - 2 * pad);
+    svgs.forEach(svg => { const c = svg.querySelector('.an-cross'); c.setAttribute('x1', vx); c.setAttribute('x2', vx); c.setAttribute('opacity', '0.65'); });
+    readout.innerHTML = `⏱ ${timeAt(idx)}` + panels.map(p => { const v = p.series[idx]; if (v == null || isNaN(v)) return ''; const tg = p.target && p.target[idx] != null ? ` <span class="sub">(ideal ${p.fmt(p.target[idx])})</span>` : ''; return ` · <b style="color:${p.color}">${p.fmt(v)} ${p.unit}</b>${tg}`; }).join('');
+  };
+  const clear = () => { svgs.forEach(svg => svg.querySelector('.an-cross').setAttribute('opacity', '0')); readout.innerHTML = 'Hover the graph to read values…'; };
+  svgs.forEach(svg => {
+    svg.addEventListener('mousemove', e => move(e.clientX, svg.getBoundingClientRect()));
+    svg.addEventListener('mouseleave', clear);
+    svg.addEventListener('touchmove', e => { if (e.touches[0]) move(e.touches[0].clientX, svg.getBoundingClientRect()); }, { passive: true });
+  });
+}
+
 /* ------------------------------ Settings -------------------------------- */
 function viewSettings() {
   const v = $('#view');
@@ -2001,19 +3475,25 @@ function viewSettings() {
   if (ivAthlete && !ivAthlete.intervals) ivAthlete.intervals = { athleteId: '', apiKey: '', lastSync: null };
   const iv = (ivAthlete && ivAthlete.intervals) || { athleteId: '', apiKey: '', lastSync: null };
   const nt = state.settings.notifications;
-  const dualCoach = Cloud.user && Cloud.accountRole === 'coach';
+  const acctRoles = Cloud.accountRoles || (Cloud.accountRole ? rolesFromLegacy(Cloud.accountRole) : [state.role]);
+  const addableRoles = ['coach', 'athlete', 'crew'].filter(r => !acctRoles.includes(r));
   v.innerHTML = `
     ${Cloud.user ? `<div class="card" style="max-width:640px;margin-bottom:16px">
       <h3>Account</h3>
-      <p class="sub">Signed in as <b style="color:var(--text)">${esc(Cloud.user.email)}</b>${dualCoach ? ' · coach account' : ' · athlete account'}.</p>
-      ${dualCoach ? `<label>Mode</label>
-        <div class="seg2" id="acct-mode">
-          <button data-mode="coach" class="${state.role === 'coach' ? 'active' : ''}">🧑‍🏫 Coaching</button>
-          <button data-mode="athlete" class="${state.role === 'athlete' ? 'active' : ''}">🏃 My training</button>
+      <p class="sub">Signed in as <b style="color:var(--text)">${esc(Cloud.user.email)}</b>.</p>
+      <label>Your profiles</label>
+      <div style="margin:2px 0 8px">${acctRoles.map(r => `<span class="badge" style="margin:2px 4px 2px 0">${(ROLES[r] || {}).icon || ''} ${esc(modeLabel(r))}</span>`).join('')}</div>
+      ${acctRoles.length > 1 ? `<label>Active profile</label>
+        <div class="seg2" id="acct-mode" style="flex-wrap:wrap">
+          ${acctRoles.map(r => `<button data-mode="${r}" class="${state.role === r ? 'active' : ''}">${(ROLES[r] || {}).icon || ''} ${esc(modeLabel(r))}</button>`).join('')}
         </div>
-        <div class="hint">Same account, both roles — coach your athletes and log your own training, just like Intervals.icu.</div>` : ''}
-      ${(state.role === 'coach' && rosterAthletes().length) ? `<label style="margin-top:10px">Viewing athlete</label>
+        <div class="hint">One account, several profiles — switch anytime.</div>` : ''}
+      ${addableRoles.length ? `<label style="margin-top:12px">Add another profile</label>
+        <div class="btn-row">${addableRoles.map(r => `<button class="btn sm" data-addrole="${r}">+ ${esc(modeLabel(r))}</button>`).join('')}</div>
+        <div class="hint">e.g. also become crew/coordinator, or start logging your own training.</div>` : ''}
+      ${((state.role === 'coach' || state.role === 'crew') && rosterAthletes().length) ? `<label style="margin-top:12px">Viewing athlete</label>
         <select id="acct-athlete">${rosterAthletes().map(a => `<option value="${a.id}" ${a.id === state.currentAthleteId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}
+      ${state.role === 'coach' ? `<div class="btn-row" style="margin-top:12px"><button class="btn" id="acct-add-ath">+ Add athlete</button></div>` : ''}
       <div class="btn-row" style="margin-top:14px"><button class="btn danger" id="acct-logout">Log out</button></div>
     </div>` : ''}
     ${(state.role === 'athlete' && Cloud.user) ? `<div class="card" style="max-width:640px;margin-bottom:16px">
@@ -2029,8 +3509,11 @@ function viewSettings() {
       <div class="hint">Stored securely in your team's private cloud so the sync server can use it. TAC ⇄ Intervals.icu.</div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn primary" id="iv-save">Save connection</button>
+        <button class="btn" id="iv-syncnow">⟳ Sync now</button>
+        <button class="btn ghost sm" id="iv-syncsetup">1-click setup</button>
       </div>
       <div class="sub" style="margin-top:10px">${iv.apiKey ? '✅ Connected — syncs automatically.' : 'Not connected yet.'} ${iv.lastSync ? '· Last sync: ' + esc(iv.lastSync) : ''}</div>
+      <div class="hint">“Sync now” starts your Intervals sync straight away (data updates in ~1–2 min) instead of waiting for the automatic run. It uses your GitHub — set up 1-click sync once, or it opens GitHub to press “Run workflow”.</div>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:16px">
@@ -2079,7 +3562,9 @@ function viewSettings() {
     </div>`;
 
   if ($('#acct-logout')) $('#acct-logout').addEventListener('click', () => Cloud.logout());
+  if ($('#acct-add-ath')) $('#acct-add-ath').addEventListener('click', () => openAddAthleteModal());
   $$('#acct-mode button').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
+  $$('[data-addrole]').forEach(b => b.addEventListener('click', () => Cloud.addRole(b.dataset.addrole)));
   if ($('#acct-athlete')) $('#acct-athlete').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
   if ($('#coach-invite-body')) renderCoachInvite();
 
@@ -2088,6 +3573,8 @@ function viewSettings() {
     ivAthlete.intervals = { athleteId: $('#iv-id').value.trim(), apiKey: $('#iv-key').value.trim(), lastSync: iv.lastSync || null };
     save(); viewSettings(); toast('Intervals connection saved');
   });
+  if ($('#iv-syncnow')) $('#iv-syncnow').addEventListener('click', () => triggerIntervalsSync());
+  if ($('#iv-syncsetup')) $('#iv-syncsetup').addEventListener('click', () => openSyncSetup());
   $('#d-export').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a');
@@ -2193,6 +3680,49 @@ function openReminderModal(id, onSave) {
   });
 }
 
+/* ------------------------------ Manual "Sync now" ----------------------- */
+// The real sync runs server-side on GitHub Actions (admin key; the browser can't reach Intervals
+// directly because of CORS). "Sync now" starts that workflow immediately via workflow_dispatch.
+const GH_OWNER = 'marcindelhaye-TAC', GH_REPO = 'tac-coach', GH_WF = 'intervals-sync.yml';
+async function triggerIntervalsSync() {
+  const token = (() => { try { return localStorage.getItem('tac_gh_token'); } catch (e) { return null; } })();
+  if (token) {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WF}/dispatches`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        body: JSON.stringify({ ref: 'main' })
+      });
+      if (res.status === 204) { toast('Sync started ⟳ — your Intervals data updates in ~1–2 min'); return; }
+      if (res.status === 401 || res.status === 403 || res.status === 404) { toast('Sync token invalid — re-enter it'); openSyncSetup(); return; }
+      toast('Sync could not start (' + res.status + ')');
+    } catch (e) { toast('Sync failed: ' + e.message); }
+    return;
+  }
+  // no token saved → open GitHub Actions so the user can press "Run workflow"
+  try { window.open(`https://github.com/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WF}`, '_blank'); } catch (e) {}
+  toast('Opened GitHub — press “Run workflow”. Tip: set up 1-click sync so this button does it directly.');
+}
+function openSyncSetup() {
+  const cur = (() => { try { return localStorage.getItem('tac_gh_token') || ''; } catch (e) { return ''; } })();
+  const body = `<p class="sub">For a true one-click “Sync now”, paste a GitHub token. It is stored only on this device (never in the cloud) and used only to start your own sync workflow.</p>
+    <ol class="sub" style="padding-left:18px;line-height:1.7">
+      <li>Open <b>github.com/settings/personal-access-tokens/new</b> (fine-grained token).</li>
+      <li>Repository access → <b>Only select repositories</b> → <b>tac-coach</b>.</li>
+      <li>Permissions → Repository → <b>Actions: Read and write</b>.</li>
+      <li>Generate, copy the token, paste it below.</li>
+    </ol>
+    <label>GitHub token</label><input id="gh-tok" type="password" placeholder="github_pat_…" value="${esc(cur)}"/>
+    <div class="hint">Only on this browser (localStorage). Clear it by emptying the field and saving.</div>`;
+  openModal('One-click sync setup', body, `${cur ? '<button class="btn danger" id="gh-clear">Remove</button>' : ''}<button class="btn primary" id="gh-save">Save</button>`);
+  $('#gh-save').addEventListener('click', () => {
+    const t = ($('#gh-tok').value || '').trim();
+    try { if (t) localStorage.setItem('tac_gh_token', t); else localStorage.removeItem('tac_gh_token'); } catch (e) {}
+    closeModal(); toast(t ? 'One-click sync enabled ✅' : 'Token cleared');
+  });
+  if ($('#gh-clear')) $('#gh-clear').addEventListener('click', () => { try { localStorage.removeItem('tac_gh_token'); } catch (e) {} closeModal(); toast('Token removed'); });
+}
+
 async function triggerInstall() {
   if (deferredInstall) {
     deferredInstall.prompt();
@@ -2244,10 +3774,10 @@ function checkReminders() {
     const hasSleep = state.checkins.sleep.some(s => s.athleteId === a.id && s.date === todayISO());
     if (!hasSleep) { notify('Good morning 🌙', 'How did you sleep? Tap to log your morning check-in.'); markFired('morning'); }
   }
-  // Post-session: completed sessions still missing RPE
+  // Post-session: a session completed TODAY still missing RPE (never nags about past days)
   if (nt.postSession && !alreadyFired('post')) {
-    const pending = athleteSessions(a.id).some(s => s.status === 'done' && s.rpe == null);
-    if (pending) { notify('Session done ✅', 'Add your RPE and how you felt after training.'); markFired('post'); }
+    const pending = athleteSessions(a.id).some(s => s.status === 'done' && s.rpe == null && s.date === todayISO());
+    if (pending) { notify('How was your training? 💪', 'Add your RPE and how you felt after today\'s session.'); markFired('post'); }
   }
   // Sunday evening: weekly reflection
   if (nt.sundayEve && !alreadyFired('sunday') && now.getDay() === 0 && hhmm >= (nt.eveningTime || '20:00')) {
@@ -2283,12 +3813,12 @@ function dueToday(freq, now) {
    Coaches can read/write all athlete docs; an athlete can read/write only their own (aid == their uid).
 */
 const Cloud = {
-  enabled: false, auth: null, db: null, user: null, role: null, accountRole: null, myUid: null,
+  enabled: false, auth: null, db: null, user: null, role: null, accountRole: null, accountRoles: null, myUid: null,
   applyingRemote: false, ready: false, saveTimer: null,
   pendingAthletes: null, sharedDirty: false, unsub: null, pendingSignup: null,
 
-  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'coachUids', 'ownerUid', 'intervals'],
-  ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses', 'wellness'],
+  PROFILE_KEYS: ['name', 'email', 'sport', 'ftp', 'maxHr', 'thresholdHr', 'thresholdPace', 'powerZones', 'hrZones', 'paceZones', 'coachIds', 'coachUids', 'viewers', 'ownerUid', 'intervals'],
+  ATH_COLLECTIONS: ['sessions', 'tests', 'cycles', 'messages', 'dayNotes', 'nutrition', 'goals', 'responses', 'wellness', 'weekNotes'],
 
   init() {
     if (!window.FIREBASE_CONFIG || typeof firebase === 'undefined') return false;
@@ -2315,42 +3845,50 @@ const Cloud = {
   async onLogin() {
     this.myUid = this.user.uid;
     this.ready = false;
-    // determine role from users/{uid}, falling back to a pending signup choice
+    // an account can hold several profiles (roles); read the list (or derive from the legacy role)
     const uref = this.db.collection('users').doc(this.myUid);
-    let role = null;
-    try { const s = await uref.get(); if (s.exists) role = s.data().role; } catch (e) {}
-    if (!role && this.pendingSignup) role = this.pendingSignup.role;
-    if (!role) role = 'coach';
-    this.accountRole = role;                 // the account's base role (coaches may also train as athletes)
-    try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', role, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
+    let roles = null;
+    try { const s = await uref.get(); if (s.exists) { const d = s.data(); roles = (Array.isArray(d.roles) && d.roles.length) ? d.roles.slice() : (d.role ? rolesFromLegacy(d.role) : null); } } catch (e) {}
+    if (!roles && this.pendingSignup) roles = rolesFromLegacy(this.pendingSignup.role);
+    if (!roles) roles = ['coach'];
+    if (this.user.email === OWNER_EMAIL) roles = Array.from(new Set([...roles, 'coach', 'athlete'])); // owner is always coach+athlete
+    this.accountRoles = roles;
+    this.accountRole = accountRoleLabel(roles);           // legacy label for older checks
+    try { await uref.set({ email: this.user.email, name: this.user.displayName || (this.pendingSignup && this.pendingSignup.name) || '', roles, role: this.accountRole, lastSeen: Date.now() }, { merge: true }); } catch (e) {}
     this.pendingSignup = null;
 
-    // active mode: coaches can switch between coaching / their own training; athletes stay athletes
-    let mode = role;
-    if (role === 'coach' && (state.viewMode === 'coach' || state.viewMode === 'athlete')) mode = state.viewMode;
-    if (role !== 'coach') mode = 'athlete';
-    this.role = mode; state.role = mode; state.viewMode = mode;
-
-    render(); // show shell immediately
-
-    if (mode === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
-    else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
+    const mode = (state.viewMode && roles.includes(state.viewMode)) ? state.viewMode : primaryMode(roles);
+    await this.switchTo(mode);
 
     checkReminders();
     if (!this._interval) { this._interval = setInterval(checkReminders, 5 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); }); }
   },
 
-  // switch between 'coach' (see all athletes) and 'athlete' (my own training) — coaches only
-  setMode(mode) {
-    if (mode === this.role) return;
-    if (this.accountRole !== 'coach') { toast('Only coach accounts can switch mode'); return; }
+  // switch the ACTIVE profile: coach (all athletes) / athlete (own) / crew (approved athletes only)
+  async switchTo(mode) {
     this.teardown();
     this.role = mode; state.role = mode; state.viewMode = mode;
     localStorage.setItem(LS_KEY, JSON.stringify(state));
     render();
-    if (mode === 'coach') { this.migrateIfNeeded().then(() => this.subscribeCoach()); }
-    else { this.ensureAthleteDoc().then(() => this.subscribeAthlete()); }
-    toast(mode === 'coach' ? 'Coaching mode' : 'My-training mode');
+    if (mode === 'coach') { await this.migrateIfNeeded(); this.subscribeCoach(); }
+    else if (mode === 'crew') { this.subscribeCrew(); }
+    else { await this.ensureAthleteDoc(); this.subscribeAthlete(); }
+  },
+  setMode(mode) {
+    if (mode === this.role) return;
+    if (!this.accountRoles || !this.accountRoles.includes(mode)) { toast('That profile isn’t on this account'); return; }
+    this.switchTo(mode);
+    toast(mode === 'coach' ? 'Coaching mode' : mode === 'crew' ? 'Crew mode' : 'My-training mode');
+  },
+  // add another profile (role) to this account — e.g. a coach also becoming crew/coordinator
+  async addRole(r) {
+    if (!this.enabled || !this.user) return;
+    this.accountRoles = Array.from(new Set([...(this.accountRoles || []), r]));
+    this.accountRole = accountRoleLabel(this.accountRoles);
+    try { await this.db.collection('users').doc(this.myUid).set({ roles: this.accountRoles, role: this.accountRole }, { merge: true }); }
+    catch (e) { toast('Error: ' + (e.code || e.message)); return; }
+    if (r === 'athlete') { try { await this.ensureAthleteDoc(); } catch (e) {} }
+    toast('Added ' + modeLabel(r) + ' profile'); render();
   },
 
   // ---- build helpers ----
@@ -2422,7 +3960,41 @@ const Cloud = {
       if (s.metadata.hasPendingWrites || !s.exists) return;
       this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
     }, () => {});
-    this.unsub = [u1, u2];
+    this.unsub = [u1, u2, ...this.subExtras()];
+  },
+
+  // ---- crew (medewerker): sees ONLY athletes who approved them (viewers array-contains my uid) ----
+  subscribeCrew() {
+    const q = this.db.collection('athletes').where('viewers', 'array-contains', this.myUid);
+    const u1 = q.onSnapshot(qs => {
+      if (qs.metadata.hasPendingWrites) return;
+      this.applyingRemote = true;
+      this.loadFromDocs(qs.docs.map(d => ({ id: d.id, data: d.data() })));
+      if (!state.athletes.find(a => a.id === state.currentAthleteId)) state.currentAthleteId = (state.athletes[0] || {}).id;
+      this.applyingRemote = false; this.ready = true;
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      this.reRender();
+    }, err => { this.ready = true; this.reRender(); });
+    const u2 = this.db.collection('shared').doc('coach').onSnapshot(s => {
+      if (s.metadata.hasPendingWrites || !s.exists) return;
+      this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
+    }, () => {});
+    this.unsub = [u1, u2, ...this.subExtras()];
+  },
+
+  // ---- shared team collections: todos + workout comments (everyone reads) ----
+  subExtras() {
+    const uT = this.db.collection('todos').onSnapshot(qs => {
+      if (qs.metadata.hasPendingWrites) return;
+      state.todos = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.reRender();
+    }, () => {});
+    const uC = this.db.collection('comments').onSnapshot(qs => {
+      if (qs.metadata.hasPendingWrites) return;
+      state.comments = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.reRender();
+    }, () => {});
+    return [uT, uC];
   },
 
   // ---- coach (all athletes) ----
@@ -2440,13 +4012,15 @@ const Cloud = {
       if (s.metadata.hasPendingWrites || !s.exists) return;
       this.applyingRemote = true; this.applyShared(s.data()); this.applyingRemote = false; this.reRender();
     }, () => {});
-    this.unsub = [u1, u2];
+    this.unsub = [u1, u2, ...this.subExtras()];
   },
 
   // ---- writes ----
   push() {
     if (!this.enabled || !this.user || this.applyingRemote || !this.ready) return;
-    if (state.currentAthleteId) this.pendingAthletes.add(state.currentAthleteId);
+    // Only coach & athlete modes own athlete-doc writes; staff/coordinator are read-only on athletes.
+    const canWriteAthlete = this.role === 'coach' || this.role === 'athlete';
+    if (canWriteAthlete && state.currentAthleteId) this.pendingAthletes.add(state.currentAthleteId);
     if (this.role === 'coach') this.sharedDirty = true;
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => this.flush(), 700);
@@ -2476,6 +4050,9 @@ const Cloud = {
             if ((!m.actual || !m.actual.length) && r.actual && r.actual.length) m.actual = r.actual;
             if (!m.intervalsActivityId && r.intervalsActivityId) m.intervalsActivityId = r.intervalsActivityId;
             if (!m.intervalsEventId && r.intervalsEventId) m.intervalsEventId = r.intervalsEventId;
+            if (!m.streams && r.streams) m.streams = r.streams;   // server-fetched activity graphs
+            if (!m.streamsChecked && r.streamsChecked) m.streamsChecked = r.streamsChecked;
+            ['distanceKm', 'avgHr', 'avgPower'].forEach(k => { if (m[k] == null && r[k] != null) m[k] = r[k]; });
             if (r.status === 'done' && m.status !== 'done') m.status = 'done';
             return m;
           });
@@ -2530,6 +4107,84 @@ const Cloud = {
     } catch (e) { console.warn('migration failed', e); }
   },
 
+  // ---- todos (shared collection) ----
+  saveTodo(t) {
+    if (!this.enabled || !this.user) return;
+    const { id, ...rest } = t;
+    this.db.collection('todos').doc(id).set(rest, { merge: true }).catch(e => toast('Task sync error: ' + (e.code || e.message)));
+    // let the assignee know a new/updated task landed on their plate
+    if (t.assigneeUid && t.assigneeUid !== this.myUid && t.createdByUid === this.myUid) {
+      this.sendPush(t.assigneeUid, '📋 New task: ' + (t.title || 'Task'), (t.due ? 'Deadline ' + t.due + ' · ' : '') + 'from ' + (t.createdByName || myName()));
+    }
+  },
+  deleteTodo(id) { if (this.enabled && this.user) this.db.collection('todos').doc(id).delete().catch(() => {}); },
+
+  // ---- workout comments (shared collection) ----
+  saveComment(c) {
+    if (!this.enabled || !this.user) return;
+    const { id, ...rest } = c;
+    this.db.collection('comments').doc(id).set(rest, { merge: true }).catch(e => toast('Comment sync error: ' + (e.code || e.message)));
+  },
+  deleteComment(id) { if (this.enabled && this.user) this.db.collection('comments').doc(id).delete().catch(() => {}); },
+
+  // ---- read another athlete's doc (team roles, or an approved viewer) ----
+  async fetchAthleteDoc(aid) {
+    if (!this.enabled || !this.user) return null;
+    try { const s = await this.db.collection('athletes').doc(aid).get(); return s.exists ? s.data() : null; }
+    catch (e) { return null; }
+  },
+
+  // ---- athlete ↔ athlete access requests ----
+  async requestAccess(toUid) {
+    if (!this.enabled || !this.user) return;
+    const id = this.myUid + '_' + toUid;
+    const asCoach = this.role === 'coach';
+    try {
+      await this.db.collection('shareRequests').doc(id).set({ fromUid: this.myUid, fromName: myName(), fromRole: this.role, toUid, ts: Date.now(), status: 'pending' });
+      this.sendPush(toUid, '👀 Access request', myName() + (asCoach ? ' would like to coach you.' : ' wants to follow your training.'));
+    } catch (e) { toast('Request failed: ' + (e.code || e.message)); }
+  },
+  async myShareRequests() {
+    if (!this.enabled || !this.user) return [];
+    try { const qs = await this.db.collection('shareRequests').where('toUid', '==', this.myUid).where('status', '==', 'pending').get(); return qs.docs.map(d => ({ id: d.id, ...d.data() })); }
+    catch (e) { return []; }
+  },
+  async approveAccess(fromUid, reqId, fromRole) {
+    const a = state.athletes.find(x => x.id === this.myUid);
+    if (a) {
+      a.viewers = a.viewers || []; if (!a.viewers.includes(fromUid)) a.viewers.push(fromUid);
+      // a coach requester also becomes one of the athlete's coaches (shows in their roster)
+      if (fromRole === 'coach' || fromRole === 'both') { a.coachUids = a.coachUids || []; if (!a.coachUids.includes(fromUid)) a.coachUids.push(fromUid); }
+      save();
+    }
+    try { await this.db.collection('shareRequests').doc(reqId).set({ status: 'approved' }, { merge: true }); } catch (e) {}
+    this.sendPush(fromUid, '✅ Access granted', myName() + ' approved your request.');
+  },
+  async denyAccess(reqId) { try { await this.db.collection('shareRequests').doc(reqId).set({ status: 'denied' }, { merge: true }); } catch (e) {} },
+
+  // ---- staff / coordinator profile (stored on the users doc) ----
+  async saveMyProfile(p) {
+    if (!this.enabled || !this.user) return;
+    try { await this.db.collection('users').doc(this.myUid).set({ name: p.name, title: p.title || '', bio: p.bio || '', role: this.accountRole || state.role, email: this.user.email, lastSeen: Date.now() }, { merge: true }); if (this.user.displayName !== p.name) this.user.updateProfile({ displayName: p.name }).catch(() => {}); }
+    catch (e) { toast('Profile error: ' + (e.code || e.message)); }
+  },
+
+  // ---- notifications (any direction) via the push queue ----
+  sendPush(target, title, body) {
+    if (!this.enabled || !this.user) return;
+    this.db.collection('pushQueue').add({ title, body, target: target || 'all', createdAt: Date.now(), sent: false, byUid: this.myUid, byName: myName(), byRole: state.role }).catch(() => {});
+  },
+
+  // ---- coach removes a person from the team (deletes their athlete + user docs) ----
+  async deletePerson(uid) {
+    if (!this.enabled || !this.user || !uid) return;
+    try { await this.db.collection('athletes').doc(uid).delete(); } catch (e) {}
+    try { await this.db.collection('users').doc(uid).delete(); } catch (e) { toast('Profile needs updated rules to delete: ' + (e.code || e.message)); }
+    state.athletes = (state.athletes || []).filter(a => a.id !== uid);
+    if (typeof USER_CACHE !== 'undefined') USER_CACHE = USER_CACHE.filter(u => u.uid !== uid);
+    if (state.currentAthleteId === uid) state.currentAthleteId = (state.athletes[0] || {}).id;
+  },
+
   logout() { this.teardown(); if (this.auth) this.auth.signOut(); }
 };
 
@@ -2574,6 +4229,7 @@ const PushKit = {
 };
 
 function showAuthScreen(msg) {
+  hideSplash();
   const app = $('#app');
   app.innerHTML = `
     <div class="auth-wrap">
@@ -2588,9 +4244,11 @@ function showAuthScreen(msg) {
         <div id="signup-fields" style="display:none">
           <label>Your name</label><input id="au-name" placeholder="e.g. Marcin"/>
           <label>I am a…</label>
-          <div class="role-pick">
-            <button type="button" class="rolebtn active" data-arole="coach"><span class="ic">🧑‍🏫</span><b>Coach</b><small>Programs & follows athletes</small></button>
-            <button type="button" class="rolebtn" data-arole="athlete"><span class="ic">🏃</span><b>Athlete</b><small>Follows my own plan</small></button>
+          <div class="role-pick" style="flex-wrap:wrap">
+            <button type="button" class="rolebtn active" data-arole="coach" style="flex:1 1 45%"><span class="ic">🧑‍🏫</span><b>Coach</b><small>Programs & follows athletes</small></button>
+            <button type="button" class="rolebtn" data-arole="athlete" style="flex:1 1 45%"><span class="ic">🏃</span><b>Athlete</b><small>Follows my own plan</small></button>
+            <button type="button" class="rolebtn" data-arole="both" style="flex:1 1 45%"><span class="ic">🧑‍🏫🏃</span><b>Coach & athlete</b><small>Coaches and trains</small></button>
+            <button type="button" class="rolebtn" data-arole="crew" style="flex:1 1 45%"><span class="ic">🤝</span><b>Crew</b><small>Supports the team</small></button>
           </div>
         </div>
         <label>Email</label><input id="au-email" type="email" autocomplete="email" placeholder="you@example.com"/>
@@ -2655,6 +4313,15 @@ function friendlyAuthError(e) {
 }
 
 /* ------------------------------ Boot ------------------------------------ */
+// running as an installed app? give the body an "app vibe" hook + honour ?v= shortcuts
+try {
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (standalone) document.documentElement.classList.add('standalone');
+  const qv = new URLSearchParams(location.search).get('v');
+  if (qv && NAV.some(n => n.id === qv)) state.ui.view = qv;
+} catch (e) {}
+
+setTimeout(() => { try { hideSplash(); } catch (e) {} }, 6000);   // never let the splash hang
 if (Cloud.init()) {
   Cloud.start();               // cloud mode: auth gate + live sync
 } else {

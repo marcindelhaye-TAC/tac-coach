@@ -756,7 +756,71 @@ const NAV = [
   { id: 'settings',       label: 'Settings',       icon: '🔌', roles: ['coach', 'athlete', 'staff', 'coordinator', 'crew'] }
 ];
 function navForRole() { return NAV.filter(n => n.roles.includes(state.role)); }
-function go(view) { state.ui.view = view; save(); render(); window.scrollTo(0, 0); }
+/* ------------------------------ Mobile app feel ------------------------- */
+// "More" bottom sheet listing every tab (native overflow pattern)
+function openMoreSheet() {
+  const nav = navForRole();
+  const root = $('#modal-root');
+  root.innerHTML = `<div class="overlay sheet-overlay" data-overlay>
+    <div class="more-sheet">
+      <div class="more-grip"></div>
+      <div class="more-title">${esc((Cloud.user && Cloud.user.email) || 'Menu')}</div>
+      <div class="more-grid">
+        ${nav.map(n => `<button data-mnav="${n.id}" class="more-item ${state.ui.view === n.id ? 'active' : ''}"><span class="mi-ico">${n.icon}</span><span>${esc(n.label)}</span></button>`).join('')}
+      </div>
+      ${Cloud.user ? `<button class="btn danger" id="more-logout" style="width:100%;margin-top:12px;justify-content:center">Log out</button>` : ''}
+    </div></div>`;
+  const ov = root.querySelector('[data-overlay]');
+  ov.addEventListener('mousedown', e => { if (e.target.dataset.overlay !== undefined) closeModal(); });
+  ov.addEventListener('touchstart', e => { if (e.target.dataset.overlay !== undefined) closeModal(); }, { passive: true });
+  root.querySelectorAll('[data-mnav]').forEach(b => b.addEventListener('click', () => { closeModal(); go(b.dataset.mnav); }));
+  if ($('#more-logout')) $('#more-logout').addEventListener('click', () => { closeModal(); Cloud.logout(); });
+}
+// hide the launch splash once the app has rendered
+function hideSplash() {
+  const sp = document.getElementById('splash');
+  if (sp && !sp.classList.contains('hide')) { sp.classList.add('hide'); setTimeout(() => { try { sp.remove(); } catch (e) {} }, 450); }
+}
+// one-time: pull-to-refresh gesture on mobile
+function initMobileApp() {
+  if (window.__tacMobileInit) return; window.__tacMobileInit = true;
+  let ind;
+  try { ind = document.createElement('div'); ind.id = 'ptr-ind'; ind.textContent = '⟳'; document.body.appendChild(ind); } catch (e) { return; }
+  let startY = 0, pulling = false, dist = 0; const threshold = 72;
+  const modalOpen = () => !!document.querySelector('#modal-root .modal, #modal-root .more-sheet');
+  window.addEventListener('touchstart', e => {
+    if (window.scrollY <= 0 && !modalOpen() && e.touches.length === 1) { startY = e.touches[0].clientY; pulling = true; dist = 0; } else pulling = false;
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (!pulling) return; dist = e.touches[0].clientY - startY;
+    if (dist > 0) { const d = Math.min(dist * 0.6, 90); ind.style.transform = `translateX(-50%) translateY(${d}px)`; ind.style.opacity = Math.min(1, d / threshold); ind.classList.toggle('ready', d >= threshold); }
+  }, { passive: true });
+  window.addEventListener('touchend', () => {
+    if (!pulling) return; pulling = false;
+    if (dist * 0.6 >= threshold) {
+      ind.classList.add('spin');
+      setTimeout(() => { render(); ind.classList.remove('spin', 'ready'); ind.style.transform = ''; ind.style.opacity = '0'; toast('Refreshed ⟳'); }, 350);
+    } else { ind.style.transform = ''; ind.style.opacity = '0'; ind.classList.remove('ready'); }
+  });
+}
+// mobile bottom bar shows 4 primary tabs per role + a "More" sheet with the rest (native pattern)
+const MOBILE_PRIMARY = {
+  coach: ['dashboard', 'calendar', 'team', 'todos'],
+  athlete: ['dashboard', 'calendar', 'recovery', 'todos'],
+  crew: ['team', 'todos', 'sharedcal', 'messages'],
+  staff: ['team', 'todos', 'sharedcal', 'messages'],
+  coordinator: ['todos', 'sharedcal', 'team', 'messages']
+};
+function mobilePrimary() {
+  const nav = navForRole();
+  const ids = MOBILE_PRIMARY[state.role] || nav.slice(0, 4).map(n => n.id);
+  return ids.map(id => nav.find(n => n.id === id)).filter(Boolean).slice(0, 4);
+}
+function go(view) {
+  state.ui.view = view; state.ui._anim = true;
+  try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}   // subtle haptic on Android
+  save(); render(); window.scrollTo(0, 0);
+}
 
 /* ============================================================================
    RENDER
@@ -812,15 +876,19 @@ function render() {
           </div>
           <div class="actions" id="topbar-actions"></div>
         </div>
-        <div class="content" id="view"></div>
+        <div class="content ${state.ui._anim ? 'enter' : ''}" id="view"></div>
       </main>
 
       <nav class="mobile-nav">
-        ${nav.map(n => `<button data-nav="${n.id}" class="${view === n.id ? 'active' : ''}"><span class="ico">${n.icon}</span>${n.label}</button>`).join('')}
+        ${mobilePrimary().map(n => `<button data-nav="${n.id}" class="${view === n.id ? 'active' : ''}"><span class="ico">${n.icon}</span>${n.label}</button>`).join('')}
+        <button id="more-nav" class="${!mobilePrimary().some(n => n.id === view) ? 'active' : ''}"><span class="ico">⋯</span>More</button>
       </nav>
     </div>`;
+  state.ui._anim = false;
 
+  hideSplash(); initMobileApp();
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => go(b.dataset.nav)));
+  if ($('#more-nav')) $('#more-nav').addEventListener('click', () => openMoreSheet());
   $$('[data-role]').forEach(b => b.addEventListener('click', () => { state.role = b.dataset.role; save(); render(); }));
   $$('[data-mode]').forEach(b => b.addEventListener('click', () => Cloud.setMode(b.dataset.mode)));
   if ($('[data-athlete-select]')) $('[data-athlete-select]').addEventListener('change', (e) => { state.currentAthleteId = e.target.value; save(); render(); });
@@ -4161,6 +4229,7 @@ const PushKit = {
 };
 
 function showAuthScreen(msg) {
+  hideSplash();
   const app = $('#app');
   app.innerHTML = `
     <div class="auth-wrap">
@@ -4252,6 +4321,7 @@ try {
   if (qv && NAV.some(n => n.id === qv)) state.ui.view = qv;
 } catch (e) {}
 
+setTimeout(() => { try { hideSplash(); } catch (e) {} }, 6000);   // never let the splash hang
 if (Cloud.init()) {
   Cloud.start();               // cloud mode: auth gate + live sync
 } else {
