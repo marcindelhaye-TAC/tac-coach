@@ -1,4 +1,4 @@
-const CACHE = 'tac-coach-v54';
+const CACHE = 'tac-coach-v55';
 const ASSETS = [
   './',
   './index.html',
@@ -39,12 +39,14 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   // Only handle our own origin. Let Firebase/Firestore/Google CDN traffic go straight to the network.
   if (new URL(req.url).origin !== self.location.origin) return;
-  // Network-first: always try to load the latest version online; fall back to cache when offline.
+  // Network-first + REVALIDATE: bypass the browser's HTTP cache (GitHub Pages sets max-age),
+  // so users always get the freshly-deployed app.js/styles.css — no more stale cached versions.
+  // Falls back to the cache only when offline.
   e.respondWith(
-    fetch(req).then((res) => {
+    fetch(new Request(req, { cache: 'no-cache' })).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
       return res;
-    }).catch(() => caches.match(req))
+    }).catch(() => fetch(req).catch(() => caches.match(req)))
   );
 });
