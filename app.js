@@ -2946,14 +2946,58 @@ function computeReadiness(aid, daysBack = 30) {
   return { days: out, hMean, rMean, hasHrv: hVals.length > 0, hasRhr: rVals.length > 0 };
 }
 function readinessArrow(good) { return good ? '<span style="color:var(--ok)">▲</span>' : '<span style="color:var(--bad)">▼</span>'; }
-// "What was prescribed" — the planned workout blocks, shown under the graphs for easy comparison.
+// Parse a text workout (as typed in Notes, or imported from Intervals) into zone steps.
+// Handles lines like "- 45' Z2 Power", "10x", "- 0m25 Z7 Power", "30\" Z5 HR", "5min Z3".
+function parseDur(str) {
+  str = (str || '').toLowerCase(); let m;
+  if (m = str.match(/(\d+)\s*h\s*(\d+)?/)) return +m[1] * 60 + (m[2] ? +m[2] : 0);
+  if (m = str.match(/(\d+)\s*m\s*(\d{1,2})\b/)) return +m[1] + (+m[2]) / 60;   // 0m25 = 0min 25s
+  if (m = str.match(/(\d+)\s*'\s*(\d{1,2})?/)) return +m[1] + (m[2] ? (+m[2]) / 60 : 0); // 45' or 5'30
+  if (m = str.match(/(\d+)\s*m(?:in)?\b/)) return +m[1];                        // 45m / 45min
+  if (m = str.match(/(\d+)\s*(?:"|s|sec)\b/)) return (+m[1]) / 60;             // 25" / 25s
+  if (m = str.match(/^\s*[-•]?\s*(\d+)\s*$/)) return +m[1];                     // bare number = minutes
+  return null;
+}
+function parseStepLine(l) {
+  const zoneM = l.match(/z\s*([1-7])/i); if (!zoneM) return null;
+  const dur = parseDur(l.replace(/z\s*[1-7]/i, '')); if (dur == null || dur <= 0) return null;
+  return { zt: /\bhr\b|heart|bpm/i.test(l) ? 'hr' : 'power', z: Math.max(0, Math.min(6, (+zoneM[1]) - 1)), min: Math.round(dur * 100) / 100 };
+}
+function parsePlanText(text) {
+  if (!text) return [];
+  const lines = String(text).split(/\r?\n/);
+  const steps = []; let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    const repM = line.match(/^(\d+)\s*x\b/i);
+    if (repM && !parseStepLine(line)) {           // "10x" header → repeat the following step lines
+      const n = Math.min(50, +repM[1]); i++;
+      const group = [];
+      while (i < lines.length) { const l = lines[i].trim(); if (!l || /^(\d+)\s*x\b/i.test(l)) break; const st = parseStepLine(l); if (!st) break; group.push(st); i++; }
+      for (let r = 0; r < n; r++) group.forEach(g => steps.push({ ...g }));
+      if (!group.length) i++;
+      continue;
+    }
+    const st = parseStepLine(line); if (st) steps.push(st);
+    i++;
+  }
+  return steps;
+}
+function planStepsFor(s) { return (s && s.steps && s.steps.length) ? s.steps : parsePlanText(s && (s.desc || '')); }
+function fmtStepMin(min) { return min >= 1 ? (Math.round(min * 10) / 10) + 'm' : Math.round(min * 60) + 's'; }
+// "What was prescribed" — the planned workout, shown under the graphs for easy comparison.
+// Uses structured steps if present, else parses the coach's text plan into a graph.
 function plannedBlockHTML(s) {
-  if (!s || !s.steps || !s.steps.length) return '';
-  const txt = s.steps.map(st => `${st.min}m ${st.zt === 'hr' ? 'HR ' : ''}Z${st.z + 1}`).join(' · ');
-  return `<label style="margin-top:14px">Planned workout — what was prescribed</label>
-    ${workoutProfileSVG(s.steps)}
-    <div class="sub" style="margin-top:6px">${esc(txt)}</div>
-    <div style="margin-top:8px">${zoneDistHTML(s.steps)}</div>`;
+  const steps = planStepsFor(s);
+  if (steps && steps.length) {
+    const txt = steps.map(st => `${fmtStepMin(st.min)} ${st.zt === 'hr' ? 'HR ' : ''}Z${st.z + 1}`).join(' · ');
+    return `<label style="margin-top:14px">Planned workout — what was prescribed</label>
+      ${workoutProfileSVG(steps)}
+      <div class="sub" style="margin-top:6px">${esc(txt)}</div>
+      <div style="margin-top:8px">${zoneDistHTML(steps)}</div>`;
+  }
+  if (s && s.desc && s.desc.trim()) return `<label style="margin-top:14px">Planned workout — what was prescribed</label><pre class="sub" style="white-space:pre-wrap;font-family:inherit;background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:10px;margin:4px 0 0">${esc(s.desc)}</pre>`;
+  return '';
 }
 
 function viewRecovery() {
@@ -3484,8 +3528,9 @@ function renderPostWorkout(s, wellness) {
   // ideal target lines from the planned steps
   const pickPower = st2 => { if (st2.zt !== 'power' || !a.ftp) return null; const z = (a.powerZones || [])[st2.z]; if (!z) return null; return Math.round(a.ftp * ((+z.min + +z.max) / 2) / 100); };
   const pickHr = st2 => { const z = (a.hrZones || [])[st2.z]; if (!z || !a.thresholdHr) return null; return Math.round(a.thresholdHr * ((+z.min + +z.max) / 2) / 100); };
-  const tgtPower = targetSeries(s.steps || [], N, pickPower);
-  const tgtHr = targetSeries(s.steps || [], N, pickHr);
+  const planSteps = planStepsFor(s);            // structured steps, or parsed from the text plan
+  const tgtPower = targetSeries(planSteps, N, pickPower);
+  const tgtHr = targetSeries(planSteps, N, pickHr);
 
   const panels = [];
   if (power.some(v => v != null)) panels.push({ key: 'power', label: 'Power', unit: 'W', color: '#6f66ff', series: power, target: tgtPower, fmt: v => Math.round(v), zones: (a.powerZones || DEFAULT_POWER_ZONES), ref: a.ftp });
