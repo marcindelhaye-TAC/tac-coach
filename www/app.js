@@ -2985,16 +2985,72 @@ function parsePlanText(text) {
 }
 function planStepsFor(s) { return (s && s.steps && s.steps.length) ? s.steps : parsePlanText(s && (s.desc || '')); }
 function fmtStepMin(min) { return min >= 1 ? (Math.round(min * 10) / 10) + 'm' : Math.round(min * 60) + 's'; }
+function fmtClock(min) { const m = Math.floor(min), sec = Math.round((min - m) * 60); return `${m}:${String(sec).padStart(2, '0')}`; }
+function targetTextFor(a, st) {
+  const z = (st.zt === 'hr' ? (a.hrZones || []) : (a.powerZones || []))[st.z]; if (!z) return '';
+  const ref = st.zt === 'hr' ? a.thresholdHr : a.ftp;
+  if (!ref) return `${z.min}–${z.max}%`;
+  return `${Math.round(ref * (+z.min) / 100)}–${Math.round(ref * (+z.max) / 100)} ${st.zt === 'hr' ? 'bpm' : 'W'}`;
+}
+// Collapse consecutive repeats into groups, e.g. [45Z2, (25Z7,60Z1)×10, 30Z2].
+function summarizeSteps(steps) {
+  const key = st => `${st.zt}${st.z}:${st.min}`;
+  const out = []; let i = 0;
+  while (i < steps.length) {
+    let best = null;
+    for (let L = 1; L <= 4; L++) {
+      if (i + 2 * L > steps.length) break;
+      const pat = steps.slice(i, i + L).map(key).join('|');
+      let reps = 1;
+      while (i + (reps + 1) * L <= steps.length && steps.slice(i + reps * L, i + (reps + 1) * L).map(key).join('|') === pat) reps++;
+      if (reps >= 2 && (!best || reps * L > best.reps * best.L)) best = { L, reps };
+    }
+    if (best) { out.push({ reps: best.reps, blocks: steps.slice(i, i + best.L) }); i += best.reps * best.L; }
+    else { out.push({ reps: 1, blocks: [steps[i]] }); i++; }
+  }
+  return out;
+}
+function structuredStepsHTML(steps) {
+  const chip = b => `<span class="zbadge" style="background:${zoneColor(b.z)};color:#111;border:0;min-width:30px;text-align:center">Z${b.z + 1}</span> ${fmtStepMin(b.min)}${b.zt === 'hr' ? ' HR' : ''}`;
+  return `<div class="plan-list">${summarizeSteps(steps).map(seg => seg.reps > 1
+    ? `<div class="plan-row"><b class="plan-reps">${seg.reps}×</b><span class="plan-grp">${seg.blocks.map(chip).join('<span class="plan-sep">·</span>')}</span></div>`
+    : `<div class="plan-row">${chip(seg.blocks[0])}</div>`).join('')}</div>`;
+}
+// Interactive planned-profile graph (stepped zone bars) with a hover crosshair.
+function plannedProfileSVG(steps) {
+  const total = stepsDuration(steps); if (!total) return '';
+  const W = 1000, H = 116; let x = 0, bars = '';
+  steps.forEach(st => { const w = (Number(st.min) || 0) / total * W; const h = Math.max(6, ((st.z + 1) / 7) * (H - 6)); bars += `<rect x="${x.toFixed(2)}" y="${(H - h).toFixed(2)}" width="${Math.max(0, w).toFixed(2)}" height="${h.toFixed(2)}" fill="${zoneColor(st.z)}"><title>Z${st.z + 1} · ${fmtStepMin(st.min)}</title></rect>`; x += w; });
+  return `<div class="chart-wrap"><svg class="plan-svg" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;background:var(--bg-2);border-radius:8px;min-width:260px">${bars}<line class="plan-cross" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--text)" stroke-width="1.5" opacity="0"/></svg></div>`;
+}
+function wirePlannedHover(host, steps, a) {
+  if (!host || !steps || !steps.length) return;
+  const svg = host.querySelector('.plan-svg'), read = host.querySelector('.plan-read'), cross = host.querySelector('.plan-cross');
+  if (!svg || !read) return;
+  const total = stepsDuration(steps);
+  let acc = 0; const segs = steps.map(st => { const start = acc; acc += Number(st.min) || 0; return { start, end: acc, st }; });
+  const move = (clientX) => {
+    const rect = svg.getBoundingClientRect(); const f = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const tmin = f * total; const seg = segs.find(g => tmin >= g.start && tmin <= g.end) || segs[segs.length - 1]; const st = seg.st;
+    if (cross) { cross.setAttribute('x1', f * 1000); cross.setAttribute('x2', f * 1000); cross.setAttribute('opacity', '0.7'); }
+    const zname = a ? stepZoneName(a, st).replace(/^Z\d+\s*/, '') : '';
+    const tgt = a ? targetTextFor(a, st) : '';
+    read.innerHTML = `⏱ ${fmtClock(tmin)} · <b style="color:${zoneColor(st.z)}">Z${st.z + 1}${zname ? ' ' + esc(zname) : ''}</b> · block ${fmtStepMin(st.min)}${tgt ? ` · target ${tgt}` : ''}`;
+  };
+  svg.addEventListener('mousemove', e => move(e.clientX));
+  svg.addEventListener('mouseleave', () => { if (cross) cross.setAttribute('opacity', '0'); read.innerHTML = 'Hover the plan to read each block…'; });
+  svg.addEventListener('touchmove', e => { if (e.touches[0]) move(e.touches[0].clientX); }, { passive: true });
+}
 // "What was prescribed" — the planned workout, shown under the graphs for easy comparison.
 // Uses structured steps if present, else parses the coach's text plan into a graph.
 function plannedBlockHTML(s) {
   const steps = planStepsFor(s);
   if (steps && steps.length) {
-    const txt = steps.map(st => `${fmtStepMin(st.min)} ${st.zt === 'hr' ? 'HR ' : ''}Z${st.z + 1}`).join(' · ');
-    return `<label style="margin-top:14px">Planned workout — what was prescribed</label>
-      ${workoutProfileSVG(steps)}
-      <div class="sub" style="margin-top:6px">${esc(txt)}</div>
-      <div style="margin-top:8px">${zoneDistHTML(steps)}</div>`;
+    return `<label style="margin-top:14px">Planned workout — what was prescribed <span class="sub">· hover the graph</span></label>
+      <div class="plan-read">Hover the plan to read each block…</div>
+      ${plannedProfileSVG(steps)}
+      <div style="margin-top:10px">${structuredStepsHTML(steps)}</div>
+      <div style="margin-top:10px">${zoneDistHTML(steps)}</div>`;
   }
   if (s && s.desc && s.desc.trim()) return `<label style="margin-top:14px">Planned workout — what was prescribed</label><pre class="sub" style="white-space:pre-wrap;font-family:inherit;background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:10px;margin:4px 0 0">${esc(s.desc)}</pre>`;
   return '';
@@ -3522,6 +3578,7 @@ function renderPostWorkout(s, wellness) {
 
   if (!N) {
     host.innerHTML = (s.status === 'done' ? `<div class="hint" style="margin-top:10px">📉 Power / HR / speed / altitude graphs appear here once Intervals.icu has synced this activity.</div>` : '') + hrvLine + plannedBlockHTML(s);
+    wirePlannedHover(host, planStepsFor(s), a);
     return;
   }
 
@@ -3593,6 +3650,7 @@ function renderPostWorkout(s, wellness) {
     svg.addEventListener('mouseleave', clear);
     svg.addEventListener('touchmove', e => { if (e.touches[0]) move(e.touches[0].clientX, svg.getBoundingClientRect()); }, { passive: true });
   });
+  wirePlannedHover(host, planSteps, a);
 }
 
 /* ------------------------------ Settings -------------------------------- */

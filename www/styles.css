@@ -500,3 +500,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 #splash img { width: 88px; height: 88px; border-radius: 20px; box-shadow: var(--shadow); animation: splashPulse 1.4s ease-in-out infinite; }
 #splash .st { color: var(--muted); font-size: 13px; letter-spacing: .3px; }
 @keyframes splashPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+/* ---------- Planned workout: hover readout + clear structured block list ---------- */
+.plan-read { font-size: 12px; color: var(--text); background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin: 4px 0 6px; min-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-svg { cursor: crosshair; }
+.plan-list { display: flex; flex-direction: column; gap: 6px; }
+.plan-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 13px; }
+.plan-reps { color: var(--accent); flex: 0 0 auto; font-size: 14px; font-weight: 800; }
+.plan-grp { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.plan-sep { color: var(--muted); }
