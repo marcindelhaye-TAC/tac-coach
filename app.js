@@ -3010,11 +3010,19 @@ function summarizeSteps(steps) {
   }
   return out;
 }
-function structuredStepsHTML(steps) {
-  const chip = b => `<span class="zbadge" style="background:${zoneColor(b.z)};color:#111;border:0;min-width:30px;text-align:center">Z${b.z + 1}</span> ${fmtStepMin(b.min)}${b.zt === 'hr' ? ' HR' : ''}`;
-  return `<div class="plan-list">${summarizeSteps(steps).map(seg => seg.reps > 1
-    ? `<div class="plan-row"><b class="plan-reps">${seg.reps}×</b><span class="plan-grp">${seg.blocks.map(chip).join('<span class="plan-sep">·</span>')}</span></div>`
-    : `<div class="plan-row">${chip(seg.blocks[0])}</div>`).join('')}</div>`;
+function structuredStepsHTML(steps, a) {
+  const zn = b => a ? stepZoneName(a, b).replace(/^Z\d+\s*/, '') : '';
+  const tg = b => a ? targetTextFor(a, b) : '';
+  const blockRow = (b, indent) => `<div class="plan-row${indent ? ' sub-row' : ''}">
+    <span class="zbadge" style="background:${zoneColor(b.z)};color:#111;border:0;min-width:34px;text-align:center">Z${b.z + 1}</span>
+    <b style="min-width:42px">${fmtStepMin(b.min)}</b>
+    <span class="sub" style="flex:1;min-width:0">${esc(zn(b))}${b.zt === 'hr' ? ' · HR zone' : ''}${tg(b) ? ` · <span style="color:${zoneColor(b.z)}">${tg(b)}</span>` : ''}</span>
+  </div>`;
+  return `<div class="plan-list">${summarizeSteps(steps).map(seg =>
+    seg.reps > 1
+      ? `<div class="plan-group"><div class="plan-rephdr"><b class="plan-reps">${seg.reps} ×</b><span class="sub">repeat</span></div>${seg.blocks.map(b => blockRow(b, true)).join('')}</div>`
+      : blockRow(seg.blocks[0], false)
+  ).join('')}</div>`;
 }
 // Interactive planned-profile graph (stepped zone bars) with a hover crosshair.
 function plannedProfileSVG(steps) {
@@ -3045,11 +3053,12 @@ function wirePlannedHover(host, steps, a) {
 // Uses structured steps if present, else parses the coach's text plan into a graph.
 function plannedBlockHTML(s) {
   const steps = planStepsFor(s);
+  const a = (s && state.athletes.find(x => x.id === s.athleteId)) || currentAthlete();
   if (steps && steps.length) {
     return `<label style="margin-top:14px">Planned workout — what was prescribed <span class="sub">· hover the graph</span></label>
       <div class="plan-read">Hover the plan to read each block…</div>
       ${plannedProfileSVG(steps)}
-      <div style="margin-top:10px">${structuredStepsHTML(steps)}</div>
+      <div style="margin-top:10px">${structuredStepsHTML(steps, a)}</div>
       <div style="margin-top:10px">${zoneDistHTML(steps)}</div>`;
   }
   if (s && s.desc && s.desc.trim()) return `<label style="margin-top:14px">Planned workout — what was prescribed</label><pre class="sub" style="white-space:pre-wrap;font-family:inherit;background:var(--bg-2);border:1px solid var(--line);border-radius:8px;padding:10px;margin:4px 0 0">${esc(s.desc)}</pre>`;
