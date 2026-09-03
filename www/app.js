@@ -2946,6 +2946,15 @@ function computeReadiness(aid, daysBack = 30) {
   return { days: out, hMean, rMean, hasHrv: hVals.length > 0, hasRhr: rVals.length > 0 };
 }
 function readinessArrow(good) { return good ? '<span style="color:var(--ok)">▲</span>' : '<span style="color:var(--bad)">▼</span>'; }
+// "What was prescribed" — the planned workout blocks, shown under the graphs for easy comparison.
+function plannedBlockHTML(s) {
+  if (!s || !s.steps || !s.steps.length) return '';
+  const txt = s.steps.map(st => `${st.min}m ${st.zt === 'hr' ? 'HR ' : ''}Z${st.z + 1}`).join(' · ');
+  return `<label style="margin-top:14px">Planned workout — what was prescribed</label>
+    ${workoutProfileSVG(s.steps)}
+    <div class="sub" style="margin-top:6px">${esc(txt)}</div>
+    <div style="margin-top:8px">${zoneDistHTML(s.steps)}</div>`;
+}
 
 function viewRecovery() {
   const a = currentAthlete();
@@ -3397,7 +3406,6 @@ function openReadonlySession(sid, aid, sessions, wellness) {
     <div class="sub" style="margin-bottom:8px">${sp.icon} ${esc(s.name)} · ${fmtDate(s.date)} · ${s.duration || 0} min · ${s.load || 0} TSS</div>
     ${s.rpe != null ? `<div class="row" style="border-left:3px solid ${rpeColor(s.rpe)};margin-bottom:8px"><div class="grow"><div class="title" style="color:${rpeColor(s.rpe)}">💪 RPE ${s.rpe}/10 — ${rpeWord(s.rpe)}</div>${s.feltNote ? `<div class="meta">“${esc(s.feltNote)}”</div>` : ''}</div></div>` : ''}
     ${s.desc ? `<p class="sub">${esc(s.desc)}</p>` : ''}
-    ${(s.steps && s.steps.length) ? `<label>Workout profile</label>${workoutProfileSVG(s.steps)}<div style="margin-top:8px">${zoneDistHTML(s.steps)}</div>` : ''}
     <div id="postwork-block"></div>
     <div id="comments-block"></div>`;
   openModal(s.name || 'Session', body, '');
@@ -3469,7 +3477,7 @@ function renderPostWorkout(s, wellness) {
     ? `<div class="legend" style="margin-top:8px">${w.hrv != null ? `<span><i style="background:var(--accent)"></i>HRV ${w.hrv} ms</span>` : ''}${w.restingHR != null ? `<span><i style="background:var(--accent-2)"></i>Resting HR ${w.restingHR} bpm</span>` : ''} <span class="sub">(that day, from Intervals.icu)</span></div>` : '';
 
   if (!N) {
-    host.innerHTML = (s.status === 'done' ? `<div class="hint" style="margin-top:10px">📉 Power / HR / speed / altitude graphs appear here once Intervals.icu has synced this activity.</div>` : '') + hrvLine;
+    host.innerHTML = (s.status === 'done' ? `<div class="hint" style="margin-top:10px">📉 Power / HR / speed / altitude graphs appear here once Intervals.icu has synced this activity.</div>` : '') + hrvLine + plannedBlockHTML(s);
     return;
   }
 
@@ -3480,38 +3488,50 @@ function renderPostWorkout(s, wellness) {
   const tgtHr = targetSeries(s.steps || [], N, pickHr);
 
   const panels = [];
-  if (power.some(v => v != null)) panels.push({ key: 'power', label: 'Power', unit: 'W', color: '#6f66ff', series: power, target: tgtPower, fmt: v => Math.round(v) });
-  if (hr.some(v => v != null)) panels.push({ key: 'hr', label: 'Heart rate', unit: 'bpm', color: '#e50914', series: hr, target: tgtHr, fmt: v => Math.round(v) });
+  if (power.some(v => v != null)) panels.push({ key: 'power', label: 'Power', unit: 'W', color: '#6f66ff', series: power, target: tgtPower, fmt: v => Math.round(v), zones: (a.powerZones || DEFAULT_POWER_ZONES), ref: a.ftp });
+  if (hr.some(v => v != null)) panels.push({ key: 'hr', label: 'Heart rate', unit: 'bpm', color: '#e50914', series: hr, target: tgtHr, fmt: v => Math.round(v), zones: (a.hrZones || DEFAULT_HR_ZONES), ref: a.thresholdHr });
   if (speed.some(v => v != null)) panels.push({ key: 'speed', label: 'Speed', unit: 'km/h', color: '#4cc9f0', series: speed, target: null, fmt: v => v.toFixed(1) });
   if (alt.some(v => v != null)) panels.push({ key: 'alt', label: 'Altitude', unit: 'm', color: '#90be6d', series: alt, target: null, fmt: v => Math.round(v) });
 
   const W = 1000, H = 92, pad = 4;
   const dur = Number(s.duration) || 0;
   const timeAt = idx => { const sec = dur * 60 * (idx / (N - 1 || 1)); const m = Math.floor(sec / 60), ss = Math.round(sec % 60); return `${m}:${String(ss).padStart(2, '0')}`; };
-  const pathFor = (series, color, dashed) => {
-    const vals = series.filter(v => v != null && !isNaN(v)); if (vals.length < 2) return '';
-    const mn = Math.min(...vals), mx = Math.max(...vals);
+  // one shared y-scale per panel (so actual + ideal line + zone bands all line up)
+  const panelSVG = (p) => {
+    const all = p.series.concat(p.target || []).filter(v => v != null && !isNaN(v));
+    if (all.length < 2) return '';
+    const mn = Math.min(...all), mx = Math.max(...all);
     const x = i => pad + (i / (N - 1 || 1)) * (W - 2 * pad), y = v => (H - pad) - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * pad);
-    let d = '', pen = false;
-    series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
-    return `<path d="${d.trim()}" fill="none" stroke="${color}" stroke-width="${dashed ? 1.4 : 1.7}"${dashed ? ' stroke-dasharray="6,5" opacity="0.85"' : ''}/>`;
+    const line = (series, color, dashed) => {
+      let d = '', pen = false;
+      series.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true; });
+      return d ? `<path d="${d.trim()}" fill="none" stroke="${color}" stroke-width="${dashed ? 1.4 : 1.7}"${dashed ? ' stroke-dasharray="6,5" opacity="0.9"' : ''}/>` : '';
+    };
+    // coloured zone bands behind the curve (so you see the intensity zone at a glance)
+    let bands = '';
+    if (p.zones && p.ref) {
+      p.zones.forEach((z, zi) => {
+        const lo = p.ref * (+z.min) / 100, hi = p.ref * (+z.max) / 100;
+        if (hi < mn || lo > mx) return;
+        const yTop = y(Math.min(hi, mx)), yBot = y(Math.max(lo, mn));
+        bands += `<rect x="0" y="${yTop.toFixed(1)}" width="${W}" height="${Math.max(0, yBot - yTop).toFixed(1)}" fill="${zoneColor(zi)}" opacity="0.13"/>`;
+      });
+    }
+    return bands + (p.target ? line(p.target, p.color, true) : '') + line(p.series, p.color, false) + `<line class="an-cross" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--text)" stroke-width="1" opacity="0"/>`;
   };
 
   host.innerHTML = `
-    <label style="margin-top:12px">Session analysis <span class="sub">— dashed = ideal target · hover to read values</span></label>
+    <label style="margin-top:12px">Session analysis <span class="sub">— coloured bands = zones · dashed = ideal target · hover to read values</span></label>
     <div id="an-wrap" style="position:relative">
       <div id="an-readout" style="position:absolute;top:6px;left:6px;z-index:5;pointer-events:none;background:rgba(16,20,32,.86);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text);white-space:nowrap;max-width:96%;overflow:hidden;text-overflow:ellipsis">Hover the graph to read values…</div>
       ${panels.map((p, pi) => `
         <div style="margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><b style="color:${p.color}">${p.label}</b><span>avg ${p.fmt(_avg(p.series))} · max ${p.fmt(_max(p.series))} ${p.unit}${p.target ? ' · <span style="color:'+p.color+'">- - ideal</span>' : ''}</span></div>
-          <div class="chart-wrap"><svg class="an-svg" data-pi="${pi}" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;background:var(--bg-2);border-radius:6px;min-width:260px">
-            ${p.target ? pathFor(p.target, p.color, true) : ''}
-            ${pathFor(p.series, p.color, false)}
-            <line class="an-cross" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--text)" stroke-width="1" opacity="0"/>
-          </svg></div>
+          <div class="chart-wrap"><svg class="an-svg" data-pi="${pi}" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;background:var(--bg-2);border-radius:6px;min-width:260px">${panelSVG(p)}</svg></div>
         </div>`).join('')}
     </div>
-    ${hrvLine}`;
+    ${hrvLine}
+    ${plannedBlockHTML(s)}`;
 
   const readout = host.querySelector('#an-readout');
   const svgs = Array.from(host.querySelectorAll('.an-svg'));
